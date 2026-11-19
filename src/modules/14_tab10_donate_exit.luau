@@ -4,7 +4,7 @@
     do
         local DonateTab = Window:CreateTab({
             Name = "Ủng hộ",
-            Icon = "favorite",
+            Icon = "volunteer_activism",
             ImageSource = "Material",
             ShowTitle = false,
         })

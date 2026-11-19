@@ -63,7 +63,7 @@
     -- TAB 1: SAN BOSS
     -- ========================================================
     local HopTab = Window:CreateTab({
-        Name = "Săn Boss",
+        Name = "🌊 Săn Boss Biển",
         Icon = "public",
         ImageSource = "Material",
         ShowTitle = false,

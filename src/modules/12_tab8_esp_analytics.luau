@@ -7,7 +7,7 @@
     local refreshNearbyMobs: (() -> ())?
     do
         local MetricsTab = Window:CreateTab({
-            Name = "Đo Farm",
+            Name = "👁️ ESP & Thống Kê",
             Icon = "speed",
             ImageSource = "Material",
             ShowTitle = false,
