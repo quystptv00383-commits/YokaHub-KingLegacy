@@ -114,7 +114,11 @@
             Description = "Rút tất cả trái ác quỷ trong rương đồ ra balo cá nhân",
             Callback = function()
                 pcall(function()
-                    safeNotify("YokaHub Kho Đồ", "Đang xử lý rút trái từ kho rương...", "inventory")
+                    local net = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                    if net and net:FindFirstChild("Functions") and net.Functions:FindFirstChild("UnstoreFruit") then
+                        net.Functions.UnstoreFruit:InvokeServer("All")
+                    end
+                    safeNotify("YokaHub Kho Đồ", "Đã gửi yêu cầu rút toàn bộ trái từ kho rương!", "inventory")
                 end)
             end,
         })
@@ -124,6 +128,11 @@
             Description = "Thả trái trên tay rơi ra đất cho đồng đội nhặt",
             Callback = function()
                 pcall(function()
+                    local char = player.Character
+                    local held = char and char:FindFirstChildOfClass("Tool")
+                    if held and string.find(string.lower(held.Name), "fruit") then
+                        held.Parent = workspace
+                    end
                     genv.dropfruit = true
                     safeNotify("YokaHub", "Đã thả trái trên tay ra đất!", "file_download")
                 end)

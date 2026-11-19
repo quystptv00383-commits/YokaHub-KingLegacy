@@ -996,3 +996,423 @@ end)
             end
         end
     end)
+
+
+    -- ========================================================
+    -- [NATIVE AUTO FARM LEVEL & SELECT MOB WORKER]
+    -- ========================================================
+    task.spawn(function()
+        local vim = game:GetService("VirtualInputManager")
+        while genv._YokaHubToken == myToken do
+            task.wait(0.3)
+            if (hubState.autoLevel or genv.Autokillmob or genv.Famlevel) and currentMode == "off" then
+                pcall(function()
+                    local char = player.Character
+                    if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then return end
+                    local hrp = char.HumanoidRootPart
+                    local hum = char.Humanoid
+                    if hum.Health <= 0 then return end
+
+                    -- 1. Tìm quái mục tiêu
+                    local targetMob: Model? = nil
+                    local mobFolders = { workspace:FindFirstChild("Monster"), workspace:FindFirstChild("Enemy"), workspace:FindFirstChild("Monsters") }
+                    local selectedMobName = genv.chonmod or ""
+
+                    for _, fld in ipairs(mobFolders) do
+                        if fld then
+                            for _, m in ipairs(fld:GetChildren()) do
+                                if m:IsA("Model") then
+                                    local mHum = m:FindFirstChildOfClass("Humanoid")
+                                    local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                                    if mHum and mHum.Health > 0 and mRoot then
+                                        if genv.Autokillmob and selectedMobName ~= "" then
+                                            local rawSel = string.match(selectedMobName, "^([%w%s%']+)") or selectedMobName
+                                            rawSel = string.gsub(rawSel, "%s+$", "")
+                                            if string.find(string.lower(m.Name), string.lower(rawSel)) then
+                                                targetMob = m
+                                                break
+                                            end
+                                        else
+                                            -- Auto level: chọn quái gần nhất
+                                            local targetDist = targetMob and ((targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")).Position - hrp.Position).Magnitude or 99999
+                                            if not targetMob or (mRoot.Position - hrp.Position).Magnitude < targetDist then
+                                                targetMob = m
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                            if targetMob and genv.Autokillmob then break end
+                        end
+                    end
+
+                    if targetMob then
+                        local mRoot = targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")
+                        local mHum = targetMob:FindFirstChildOfClass("Humanoid")
+                        if mRoot and mHum and mHum.Health > 0 then
+                            local sHeight = hubState.safeDistance and 18 or 10
+                            hrp.Velocity = Vector3.new(0, 0, 0)
+                            hrp.CFrame = CFrame.new(mRoot.Position + Vector3.new(0, sHeight, 0), mRoot.Position)
+
+                            -- Gom quái xung quanh nếu bật autocat
+                            if genv.autocat then
+                                for _, fld in ipairs(mobFolders) do
+                                    if fld then
+                                        for _, otherMob in ipairs(fld:GetChildren()) do
+                                            if otherMob:IsA("Model") and otherMob.Name == targetMob.Name and otherMob ~= targetMob then
+                                                local oRoot = otherMob:FindFirstChild("HumanoidRootPart") or otherMob.PrimaryPart or otherMob:FindFirstChildWhichIsA("BasePart")
+                                                local oHum = otherMob:FindFirstChildOfClass("Humanoid")
+                                                if oRoot and oHum and oHum.Health > 0 and (oRoot.Position - mRoot.Position).Magnitude < 160 then
+                                                    oRoot.CFrame = mRoot.CFrame
+                                                    oRoot.Velocity = Vector3.new(0, 0, 0)
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+
+                            -- Tự bật Haki
+                            if hubState.autoHaki or genv.haki then
+                                pcall(function()
+                                    local net = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                                    if net and net:FindFirstChild("Functions") and net.Functions:FindFirstChild("Skill") then
+                                        net.Functions.Skill:InvokeServer("Buso")
+                                    end
+                                end)
+                            end
+
+                            -- Trang bị vũ khí đánh
+                            local tool = char:FindFirstChildOfClass("Tool")
+                            if not tool then
+                                local bpTool = player.Backpack:FindFirstChildOfClass("Tool")
+                                if bpTool then hum:EquipTool(bpTool) end
+                            else
+                                tool:Activate()
+                            end
+
+                            -- Xả chiêu thông minh (Z, X, C, V, E)
+                            if hubState.autoSkills or genv.opeskill then
+                                local skillKeys = { "Z", "X" }
+                                if hubState.skillMelee and hubState.skillMeleeKeys == "Toàn Bộ (Z, X, C, V, E)" then
+                                    skillKeys = { "Z", "X", "C", "V", "E" }
+                                end
+                                for _, k in ipairs(skillKeys) do
+                                    pcall(function()
+                                        if vim then
+                                            local keyEnum = Enum.KeyCode[k]
+                                            if keyEnum then
+                                                vim:SendKeyEvent(true, keyEnum, false, game)
+                                                task.wait(0.03)
+                                                vim:SendKeyEvent(false, keyEnum, false, game)
+                                            end
+                                        end
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+
+    -- ========================================================
+    -- [NATIVE AUTO MATERIAL FARM WORKER]
+    -- ========================================================
+    task.spawn(function()
+        while genv._YokaHubToken == myToken do
+            task.wait(0.5)
+            if (hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat or genv.farmMaterialsea3 or genv.farmMaterialsea2 or genv.farmMaterialsea1) and currentMode == "off" then
+                pcall(function()
+                    local char = player.Character
+                    if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then return end
+                    local hrp = char.HumanoidRootPart
+                    local hum = char.Humanoid
+                    if hum.Health <= 0 then return end
+
+                    -- Xác định nguyên liệu đang chọn
+                    local targetMat = hubState.nguyenlieuSea3 or "Coral"
+                    if hubState.farmSea2Mat then targetMat = hubState.nguyenlieuSea2 or "Iron Ingot"
+                    elseif hubState.farmSea1Mat then targetMat = hubState.nguyenlieuSea1 or "Leather" end
+
+                    local rawMat = string.match(targetMat, "^([%w%s%']+)") or targetMat
+                    rawMat = string.lower(string.gsub(rawMat, "%s+$", ""))
+
+                    -- Tìm quái rơi nguyên liệu
+                    local targetMob: Model? = nil
+                    local mobFolders = { workspace:FindFirstChild("Monster"), workspace:FindFirstChild("Enemy") }
+                    for _, fld in ipairs(mobFolders) do
+                        if fld then
+                            for _, m in ipairs(fld:GetChildren()) do
+                                if m:IsA("Model") then
+                                    local mHum = m:FindFirstChildOfClass("Humanoid")
+                                    local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                                    if mHum and mHum.Health > 0 and mRoot then
+                                        local mn = string.lower(m.Name)
+                                        if string.find(mn, rawMat) or string.find(rawMat, mn) or string.find(mn, "golem") or string.find(mn, "guardian") or string.find(mn, "soldier") or string.find(mn, "bandit") then
+                                            targetMob = m
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                            if targetMob then break end
+                        end
+                    end
+
+                    if targetMob then
+                        local mRoot = targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")
+                        if mRoot then
+                            hrp.Velocity = Vector3.new(0, 0, 0)
+                            hrp.CFrame = CFrame.new(mRoot.Position + Vector3.new(0, 18, 0), mRoot.Position)
+                            local tool = char:FindFirstChildOfClass("Tool") or player.Backpack:FindFirstChildOfClass("Tool")
+                            if tool and tool.Parent == player.Backpack then hum:EquipTool(tool) end
+                            if tool and tool.Parent == char then tool:Activate() end
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+
+    -- ========================================================
+    -- [NATIVE AUTO DUNGEON WORKER]
+    -- ========================================================
+    task.spawn(function()
+        while genv._YokaHubToken == myToken do
+            task.wait(0.5)
+            if (hubState.autoDungeon or genv.autodungeon) and currentMode == "off" then
+                pcall(function()
+                    local char = player.Character
+                    if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then return end
+                    local hrp = char.HumanoidRootPart
+                    local hum = char.Humanoid
+                    if hum.Health <= 0 then return end
+
+                    -- Tự hồi máu bằng gậy nếu bật và máu < 85%
+                    if hubState.dungeonAutoHeal and hum.Health / hum.MaxHealth < 0.85 then
+                        local scepter = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter") or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
+                        if scepter and scepter.Parent == player.Backpack then
+                            hum:EquipTool(scepter)
+                            task.wait(0.2)
+                            scepter:Activate()
+                        end
+                    end
+
+                    -- Quét quái Dungeon
+                    local dungeonFolders = { workspace:FindFirstChild("Dungeon"), workspace:FindFirstChild("Monster"), workspace:FindFirstChild("RaidMonster") }
+                    local targetMob: Model? = nil
+                    for _, fld in ipairs(dungeonFolders) do
+                        if fld then
+                            for _, m in ipairs(fld:GetChildren()) do
+                                if m:IsA("Model") then
+                                    local mHum = m:FindFirstChildOfClass("Humanoid")
+                                    local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                                    if mHum and mHum.Health > 0 and mRoot then
+                                        targetMob = m
+                                        break
+                                    end
+                                end
+                            end
+                            if targetMob then break end
+                        end
+                    end
+
+                    if targetMob then
+                        local mRoot = targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")
+                        if mRoot then
+                            local tactics = hubState.dungeonTactics or "Safe"
+                            local sDist = string.find(tactics, "Fast") and 7 or (string.find(tactics, "Safe") and 22 or 15)
+                            hrp.Velocity = Vector3.new(0, 0, 0)
+                            hrp.CFrame = CFrame.new(mRoot.Position + Vector3.new(0, sDist, 0), mRoot.Position)
+                            local tool = char:FindFirstChildOfClass("Tool") or player.Backpack:FindFirstChildOfClass("Tool")
+                            if tool and tool.Parent == player.Backpack then hum:EquipTool(tool) end
+                            if tool and tool.Parent == char then tool:Activate() end
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+
+    -- ========================================================
+    -- [NATIVE FRUIT AUTO & SHOP SNIPER WORKER]
+    -- ========================================================
+    task.spawn(function()
+        local lastSnipe = 0
+        while genv._YokaHubToken == myToken do
+            task.wait(0.4)
+            pcall(function()
+                local char = player.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+                -- 1. Tự Hút / Nhặt Trái Rơi Tự Do
+                if (hubState.bringFruits or genv.BringDroppedFruit) and hrp then
+                    for _, item in ipairs(workspace:GetChildren()) do
+                        if item:IsA("Tool") or (item:IsA("Model") and string.find(string.lower(item.Name), "fruit")) then
+                            local handle = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart")
+                            if handle and (handle.Position - hrp.Position).Magnitude < 4000 then
+                                hrp.Velocity = Vector3.new(0, 0, 0)
+                                hrp.CFrame = handle.CFrame + Vector3.new(0, 2, 0)
+                                task.wait(0.3)
+                            end
+                        end
+                    end
+                end
+
+                -- 2. Tự Động Cất Trái Vào Kho Rương (Store Fruit)
+                if hubState.storeFruits or genv.autobuy then
+                    local function checkAndStore(tool: Tool)
+                        if tool and string.find(string.lower(tool.Name), "fruit") then
+                            local net = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                            if net and net:FindFirstChild("Functions") and net.Functions:FindFirstChild("StoreFruit") then
+                                net.Functions.StoreFruit:InvokeServer(tool.Name)
+                            end
+                        end
+                    end
+                    for _, t in ipairs(player.Backpack:GetChildren()) do
+                        if t:IsA("Tool") then checkAndStore(t) end
+                    end
+                    if char then
+                        local held = char:FindFirstChildOfClass("Tool")
+                        if held then checkAndStore(held) end
+                    end
+                end
+
+                -- 3. Shop Sniper Tự Mua Trái Khi Mở Bán
+                if hubState.snipeShop or genv.shopSniperEnabled then
+                    local now = os.clock()
+                    local delay = hubState.snipeDelay or genv.shopSniperDelay or 5
+                    if now - lastSnipe >= delay then
+                        lastSnipe = now
+                        local targetFruits = genv.shopSniperFruits or { "Dragon", "Phoenix", "Gate", "Dough", "Erebus" }
+                        local net = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                        if net and net:FindFirstChild("Functions") then
+                            local shopFunc = net.Functions:FindFirstChild("FruitShop") or net.Functions:FindFirstChild("Merchant")
+                            if shopFunc then
+                                for _, fruitName in ipairs(targetFruits) do
+                                    pcall(function()
+                                        shopFunc:InvokeServer("Buy", fruitName)
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+
+    -- ========================================================
+    -- [NATIVE MOVEMENT & UTILITIES WORKER]
+    -- ========================================================
+    -- 1. Đi Trên Mặt Nước (Walk On Water)
+    task.spawn(function()
+        local waterPlatform: Part? = nil
+        while genv._YokaHubToken == myToken do
+            task.wait(0.1)
+            pcall(function()
+                local char = player.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if (hubState.walkOnWater or hubState.fishFloat or genv.Walkonwater) and hrp then
+                    if not waterPlatform or not waterPlatform.Parent then
+                        waterPlatform = Instance.new("Part")
+                        waterPlatform.Name = "YokaWaterPlatform"
+                        waterPlatform.Size = Vector3.new(20, 1, 20)
+                        waterPlatform.Transparency = 1
+                        waterPlatform.Anchored = true
+                        waterPlatform.CanCollide = true
+                        waterPlatform.Parent = workspace
+                    end
+                    if hrp.Position.Y < 20 and hrp.Position.Y > -30 then
+                        waterPlatform.Position = Vector3.new(hrp.Position.X, 0, hrp.Position.Z)
+                    else
+                        waterPlatform.Position = Vector3.new(0, -999, 0)
+                    end
+                else
+                    if waterPlatform then
+                        waterPlatform:Destroy()
+                        waterPlatform = nil
+                    end
+                end
+            end)
+        end
+        if waterPlatform then waterPlatform:Destroy() end
+    end)
+
+    -- 2. Nhảy Vô Hạn (Infinite Jump)
+    pcall(function()
+        local uis = game:GetService("UserInputService")
+        uis.JumpRequest:Connect(function()
+            if (hubState.infiniteJump or genv.InfiniteJumpEnabled) and player.Character then
+                local hum = player.Character:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+        end)
+    end)
+
+    -- 3. Click Teleport (Bấm chuột dịch chuyển)
+    pcall(function()
+        local mouse = player:GetMouse()
+        mouse.Button1Down:Connect(function()
+            if (hubState.clickTeleport or genv.clickTeleportEnabled) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local hit = mouse.Hit
+                if hit then
+                    player.Character.HumanoidRootPart.CFrame = CFrame.new(hit.Position + Vector3.new(0, 3, 0))
+                end
+            end
+        end)
+    end)
+
+    -- 4. Tăng Tốc Độ Chạy (Speed Boost)
+    task.spawn(function()
+        while genv._YokaHubToken == myToken do
+            task.wait(0.5)
+            pcall(function()
+                if (hubState.speedBoost or genv.PlayerSpeedEnabled) and player.Character then
+                    local hum = player.Character:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.WalkSpeed < 60 then
+                        hum.WalkSpeed = genv.PlayerWalkSpeed or 65
+                    end
+                end
+            end)
+        end
+    end)
+
+    -- 5. Màn Hình Đen (Black Screen AFK)
+    task.spawn(function()
+        local blackGui: ScreenGui? = nil
+        while genv._YokaHubToken == myToken do
+            task.wait(0.5)
+            pcall(function()
+                if (hubState.blackScreen or genv.BlackScreen) and not blackGui then
+                    blackGui = Instance.new("ScreenGui")
+                    blackGui.Name = "YokaBlackScreen"
+                    blackGui.IgnoreGuiInset = true
+                    blackGui.DisplayOrder = 999999
+                    local f = Instance.new("Frame")
+                    f.Size = UDim2.new(1, 0, 1, 0)
+                    f.BackgroundColor3 = Color3.new(0, 0, 0)
+                    f.BorderSizePixel = 0
+                    f.Parent = blackGui
+                    local lbl = Instance.new("TextLabel")
+                    lbl.Size = UDim2.new(1, 0, 0, 40)
+                    lbl.Position = UDim2.new(0, 0, 0.5, -20)
+                    lbl.BackgroundTransparency = 1
+                    lbl.Text = "YokaHub AFK Mode — Tiết Kiệm Điện (Bấm lại để tắt)"
+                    lbl.TextColor3 = Color3.fromRGB(160, 160, 160)
+                    lbl.Font = Enum.Font.GothamBold
+                    lbl.TextSize = 16
+                    lbl.Parent = f
+                    blackGui.Parent = coreGui
+                elseif not (hubState.blackScreen or genv.BlackScreen) and blackGui then
+                    blackGui:Destroy()
+                    blackGui = nil
+                end
+            end)
+        end
+        if blackGui then blackGui:Destroy() end
+    end)
