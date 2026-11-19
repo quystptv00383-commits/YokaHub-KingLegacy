@@ -1379,10 +1379,15 @@
     local function applyWindowSize(w: number, h: number, smooth: boolean, saveIt: boolean)
         local cam = workspace.CurrentCamera
         local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-        local maxW = math.max(560, math.floor(vp.X - 16))
-        local maxH = math.max(360, math.floor(vp.Y - 16))
-        local finalW = math.clamp(math.floor(w + 0.5), 540, maxW)
-        local finalH = math.clamp(math.floor(h + 0.5), 340, maxH)
+        
+        -- Nguong an toan dong phu hop moi man hinh (Mobile / Tablet / PC nho / 4K)
+        local minW = math.clamp(math.floor(vp.X * 0.45), 360, 540)
+        local maxW = math.max(minW, math.floor(vp.X - 16))
+        local minH = math.clamp(math.floor(vp.Y * 0.45), 260, 340)
+        local maxH = math.max(minH, math.floor(vp.Y - 16))
+
+        local finalW = math.clamp(math.floor(w + 0.5), minW, maxW)
+        local finalH = math.clamp(math.floor(h + 0.5), minH, maxH)
         hubState.winW = finalW
         hubState.winH = finalH
         if saveIt then saveState(hubState) end
@@ -1392,6 +1397,16 @@
         local smartWin = lunaGui:FindFirstChild("SmartWindow")
         local shadow = lunaGui:FindFirstChild("ShadowHolder")
         if not (smartWin and smartWin:IsA("GuiObject")) then return end
+
+        -- He so co gian ty le noi dung tu dong (Responsive UI Scale)
+        local smartScale = smartWin:FindFirstChild("YokaResponsiveScale")
+        if not smartScale then
+            smartScale = Instance.new("UIScale")
+            smartScale.Name = "YokaResponsiveScale"
+            smartScale.Parent = smartWin
+        end
+        local scaleFactor = math.clamp(math.min(vp.X / 1050, vp.Y / 680), 0.72, 1.0)
+        smartScale.Scale = scaleFactor
 
         local newSize = UDim2.fromOffset(finalW, finalH)
         local twInfo = TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
@@ -1424,7 +1439,9 @@
                 preFullW, preFullH, preFullPos = curW, curH, smartWin.Position
             end
 
-            local fullSz = UDim2.fromOffset(math.max(600, math.floor(vp.X - 16)), math.max(400, math.floor(vp.Y - 16)))
+            local fullW = math.max(360, math.floor(vp.X - 16))
+            local fullH = math.max(260, math.floor(vp.Y - 16))
+            local fullSz = UDim2.fromOffset(fullW, fullH)
             local centerPos = UDim2.fromScale(0.5, 0.5)
 
             tweenService:Create(smartWin, twInfo, { Size = fullSz, Position = centerPos }):Play()
@@ -1433,7 +1450,9 @@
             end
         else
             isFullscreen = false
-            local backSz = UDim2.fromOffset(math.max(540, preFullW), math.max(340, preFullH))
+            local backW = math.clamp(preFullW, 360, math.max(360, math.floor(vp.X - 16)))
+            local backH = math.clamp(preFullH, 260, math.max(260, math.floor(vp.Y - 16)))
+            local backSz = UDim2.fromOffset(backW, backH)
             local backPos = preFullPos or UDim2.fromScale(0.5, 0.5)
             tweenService:Create(smartWin, twInfo, { Size = backSz, Position = backPos }):Play()
             if shadow and shadow:IsA("GuiObject") then
@@ -1638,8 +1657,12 @@
             local delta = Vector2.new(input.Position.X, input.Position.Y) - rStartMouse
             local cam = workspace.CurrentCamera
             local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-            local newW = math.clamp(math.floor(rStartW + delta.X), 540, math.max(560, math.floor(vp.X - 16)))
-            local newH = math.clamp(math.floor(rStartH + delta.Y), 340, math.max(360, math.floor(vp.Y - 16)))
+            local dragMinW = math.clamp(math.floor(vp.X * 0.45), 360, 540)
+            local dragMaxW = math.max(dragMinW, math.floor(vp.X - 16))
+            local dragMinH = math.clamp(math.floor(vp.Y * 0.45), 260, 340)
+            local dragMaxH = math.max(dragMinH, math.floor(vp.Y - 16))
+            local newW = math.clamp(math.floor(rStartW + delta.X), dragMinW, dragMaxW)
+            local newH = math.clamp(math.floor(rStartH + delta.Y), dragMinH, dragMaxH)
             local ddx = (newW - rStartW) * 0.5
             local ddy = (newH - rStartH) * 0.5
 
