@@ -1,0 +1,20 @@
+# YokaHub Team Project .gitignore
+# Logs & Build outputs
+dist/
+*.log
+*.tmp
+__pycache__/
+
+# Private keys, tokens & secrets (Tuyệt đối không đẩy lên GitHub)
+private_token.txt
+private_keys.json
+private_salt.txt
+sepay_token.txt
+webhook_private.txt
+CombinedSettings.json
+
+# Local IDE & OS files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
