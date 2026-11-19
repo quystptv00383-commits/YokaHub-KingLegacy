@@ -263,6 +263,23 @@
         autoFish: boolean?,
         fishWeapon: string?,
         fishFloat: boolean?,
+        -- Boss & Sea Events Boards
+        autoFightMaster: boolean?,
+        autoCollectChest: boolean?,
+        bossSafeHeight: number?,
+        fightSea3DepthKing: boolean?,
+        fightSea3Dragon: boolean?,
+        fightSea3Abyssal: boolean?,
+        fightSea3Kraken: boolean?,
+        fightSea3Crab: boolean?,
+        fightSea3Events: boolean?,
+        fightSea2Hydra: boolean?,
+        fightSea2SeaKing: boolean?,
+        fightSea2GhostShip: boolean?,
+        fightSea2Serpent: boolean?,
+        autoFightIslandBoss: boolean?,
+        islandBossTarget: string?,
+        autoTakeBossQuest: boolean?,
     }
 
     local function loadState(): HubState
@@ -317,6 +334,22 @@
             autoFish = false,
             fishWeapon = "True Muramasa",
             fishFloat = true,
+            autoFightMaster = true,
+            autoCollectChest = true,
+            bossSafeHeight = 18,
+            fightSea3DepthKing = true,
+            fightSea3Dragon = true,
+            fightSea3Abyssal = true,
+            fightSea3Kraken = true,
+            fightSea3Crab = true,
+            fightSea3Events = true,
+            fightSea2Hydra = true,
+            fightSea2SeaKing = true,
+            fightSea2GhostShip = true,
+            fightSea2Serpent = true,
+            autoFightIslandBoss = false,
+            islandBossTarget = "Hephaestus (Thợ Rèn Thần - Sea 3)",
+            autoTakeBossQuest = true,
         }
         local d = readJson(stateFile)
         if typeof(d) == "table" then
@@ -379,6 +412,22 @@
             if typeof(d.autoFish) == "boolean" then st.autoFish = d.autoFish end
             if typeof(d.fishWeapon) == "string" then st.fishWeapon = d.fishWeapon end
             if typeof(d.fishFloat) == "boolean" then st.fishFloat = d.fishFloat end
+            if typeof(d.autoFightMaster) == "boolean" then st.autoFightMaster = d.autoFightMaster end
+            if typeof(d.autoCollectChest) == "boolean" then st.autoCollectChest = d.autoCollectChest end
+            if typeof(d.bossSafeHeight) == "number" then st.bossSafeHeight = d.bossSafeHeight end
+            if typeof(d.fightSea3DepthKing) == "boolean" then st.fightSea3DepthKing = d.fightSea3DepthKing end
+            if typeof(d.fightSea3Dragon) == "boolean" then st.fightSea3Dragon = d.fightSea3Dragon end
+            if typeof(d.fightSea3Abyssal) == "boolean" then st.fightSea3Abyssal = d.fightSea3Abyssal end
+            if typeof(d.fightSea3Kraken) == "boolean" then st.fightSea3Kraken = d.fightSea3Kraken end
+            if typeof(d.fightSea3Crab) == "boolean" then st.fightSea3Crab = d.fightSea3Crab end
+            if typeof(d.fightSea3Events) == "boolean" then st.fightSea3Events = d.fightSea3Events end
+            if typeof(d.fightSea2Hydra) == "boolean" then st.fightSea2Hydra = d.fightSea2Hydra end
+            if typeof(d.fightSea2SeaKing) == "boolean" then st.fightSea2SeaKing = d.fightSea2SeaKing end
+            if typeof(d.fightSea2GhostShip) == "boolean" then st.fightSea2GhostShip = d.fightSea2GhostShip end
+            if typeof(d.fightSea2Serpent) == "boolean" then st.fightSea2Serpent = d.fightSea2Serpent end
+            if typeof(d.autoFightIslandBoss) == "boolean" then st.autoFightIslandBoss = d.autoFightIslandBoss end
+            if typeof(d.islandBossTarget) == "string" then st.islandBossTarget = d.islandBossTarget end
+            if typeof(d.autoTakeBossQuest) == "boolean" then st.autoTakeBossQuest = d.autoTakeBossQuest end
         end
         return st
     end

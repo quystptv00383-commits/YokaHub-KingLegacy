@@ -1,3 +1,105 @@
+
+    -- ========================================================
+    -- [AUTO FIGHT BOSS WORKER] - LUỒNG CHIẾN ĐẤU VÀ NHẶT RƯƠNG BOSS
+    -- ========================================================
+    task.spawn(function()
+        while true do
+            task.wait(1.2)
+            if (hubState.autoFightMaster or hubState.autoFightIslandBoss) and genv._YokaHubToken == myToken then
+                pcall(function()
+                    local char = player.Character
+                    if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then return end
+                    local hrp = char.HumanoidRootPart
+                    local hum = char.Humanoid
+                    if hum.Health <= 0 then return end
+
+                    -- 1. Quét tìm rương báu Boss trước nếu có
+                    if hubState.autoCollectChest then
+                        local isl = workspace:FindFirstChild("Island")
+                        if isl then
+                            for _, c in ipairs(isl:GetChildren()) do
+                                for _, d in ipairs(c:GetDescendants()) do
+                                    if d:IsA("Model") and string.find(string.lower(d.Name), "chest") and not string.find(string.lower(d.Name), "spawner") then
+                                        local pp = d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
+                                        if pp and (pp.Position - hrp.Position).Magnitude < 1500 then
+                                            hrp.Velocity = Vector3.new(0, 0, 0)
+                                            hrp.CFrame = CFrame.new(pp.Position + Vector3.new(0, 3, 0))
+                                            task.wait(0.5)
+                                            return
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+
+                    -- 2. Quét Boss biển theo các bảng riêng biệt đã chọn
+                    local function isBossWanted(rawName: string): boolean
+                        local n = string.lower(rawName)
+                        if string.find(n, "depth") and string.find(n, "abyssal") == nil then return hubState.fightSea3DepthKing ~= false end
+                        if string.find(n, "drakenfyr") or string.find(n, "inferno king") or (string.find(n, "dragon") and not string.find(n, "fruit")) then return hubState.fightSea3Dragon ~= false end
+                        if string.find(n, "abyssal") or string.find(n, "tyrant") then return hubState.fightSea3Abyssal ~= false end
+                        if string.find(n, "kraken") or string.find(n, "tentacle") then return hubState.fightSea3Kraken ~= false end
+                        if string.find(n, "crab") then return hubState.fightSea3Crab ~= false end
+                        if string.find(n, "hydra") then return hubState.fightSea2Hydra ~= false end
+                        if string.find(n, "sea king") or string.find(n, "seaking") then return hubState.fightSea2SeaKing ~= false end
+                        if string.find(n, "ghost") then return hubState.fightSea2GhostShip ~= false end
+                        if string.find(n, "serpent") then return hubState.fightSea2Serpent ~= false end
+                        return hubState.fightSea3Events ~= false
+                    end
+
+                    -- Quét trong SeaMonster & Monster
+                    local targetBoss: Model? = nil
+                    local folders = { workspace:FindFirstChild("SeaMonster"), workspace:FindFirstChild("Monster"), workspace:FindFirstChild("GhostMonster") }
+                    for _, fld in ipairs(folders) do
+                        if fld then
+                            for _, m in ipairs(fld:GetChildren()) do
+                                if m:IsA("Model") and isBossWanted(m.Name) then
+                                    local bHum = m:FindFirstChildOfClass("Humanoid")
+                                    if bHum and bHum.Health > 0 then
+                                        targetBoss = m
+                                        break
+                                    end
+                                end
+                            end
+                            if targetBoss then break end
+                        end
+                    end
+
+                    -- Nếu tìm thấy Boss hợp lệ: Bay đến trên đầu và xả chiêu
+                    if targetBoss then
+                        local bRoot = targetBoss:FindFirstChild("HumanoidRootPart") or targetBoss:FindFirstChild("Torso") or targetBoss.PrimaryPart or targetBoss:FindFirstChildWhichIsA("BasePart")
+                        if bRoot then
+                            local sHeight = hubState.bossSafeHeight or 18
+                            hrp.Velocity = Vector3.new(0, 0, 0)
+                            hrp.CFrame = CFrame.new(bRoot.Position + Vector3.new(0, sHeight, 0), bRoot.Position)
+
+                            -- Bật Haki
+                            if hubState.autoHaki then
+                                pcall(function() genv.haki = true; genv.hakivutrangv2 = true end)
+                            end
+
+                            -- Tự trang bị vũ khí nếu chưa cầm
+                            local curTool = char:FindFirstChildOfClass("Tool")
+                            if not curTool then
+                                local bpTool = player.Backpack:FindFirstChildOfClass("Tool")
+                                if bpTool then char.Humanoid:EquipTool(bpTool) end
+                            else
+                                curTool:Activate()
+                            end
+
+                            -- Kích hoạt xả chiêu
+                            pcall(function()
+                                genv.opeskill = true
+                                genv.autoskillsea = true
+                            end)
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+
     -- ========================================================
     -- [AUTO CLICK PLAY] - TU DONG NHAN PLAY KHI LOAD XONG
     -- ========================================================

@@ -299,6 +299,207 @@
         end
     end))
 
+    
+    -- ========================================================
+    -- BẢNG 1: BẢNG CHUNG - TỰ ĐỘNG ĐÁNH TỔNG HỢP SEA EVENT & BOSS
+    -- ========================================================
+    local MasterFightSection = HopTab:CreateSection("🌟 BẢNG CHUNG: TỰ ĐỘNG ĐÁNH TỔNG HỢP SEA EVENT & BOSS")
+    MasterFightSection:CreateToggle({
+        Name = "⚔️ Bật Tự Động Đánh Mọi Sea Event & Boss Khi Thấy (Master Auto Fight)",
+        Description = "Tự động bay đến, né chiêu trên không và tiêu diệt bất kỳ Boss biển nào xuất hiện trong phòng",
+        CurrentValue = hubState.autoFightMaster,
+        Callback = function(Value: boolean)
+            hubState.autoFightMaster = Value
+            saveState(hubState)
+            if Value then
+                safeNotify("YokaHub Boss", "Đã bật Master Auto Fight Boss & Sea Event!", "flash_on")
+            else
+                safeNotify("YokaHub Boss", "Đã tắt Auto Fight Boss.", "info")
+            end
+        end,
+    }, "MasterAutoFightToggle")
+
+    MasterFightSection:CreateToggle({
+        Name = "🎁 Tự Động Nhặt Rương Báu Sau Khi Diệt Boss (Auto Collect Chests)",
+        Description = "Tự động bay đến vị trí rương rơi ra mở rương nhận thưởng (Rương Vua Biển, Hydra, Depth King...)",
+        CurrentValue = hubState.autoCollectChest,
+        Callback = function(Value: boolean)
+            hubState.autoCollectChest = Value
+            saveState(hubState)
+        end,
+    }, "AutoCollectChestToggle")
+
+    MasterFightSection:CreateSlider({
+        Name = "🕊️ Độ Cao Bay An Toàn Khi Đánh Boss",
+        Range = { 10, 40 },
+        Increment = 1,
+        Suffix = "studs",
+        CurrentValue = hubState.bossSafeHeight or 18,
+        Callback = function(Value: number)
+            hubState.bossSafeHeight = Value
+            saveState(hubState)
+        end,
+    }, "BossSafeHeightSlider")
+
+    -- ========================================================
+    -- BẢNG 2: BẢNG RIÊNG 1 - CHUYÊN SĂN BOSS BIỂN SEA 3
+    -- ========================================================
+    local Sea3FightSection = HopTab:CreateSection("👑 BẢNG RIÊNG 1: SĂN BOSS BIỂN SEA 3 (CHỌN TỪNG CON)")
+    Sea3FightSection:CreateToggle({
+        Name = "👑 Săn Depth King (Sea 3)",
+        Description = "Tự động săn và mở rương Vua Vực Thẳm Depth King (Top 1)",
+        CurrentValue = hubState.fightSea3DepthKing,
+        Callback = function(Value: boolean)
+            hubState.fightSea3DepthKing = Value
+            saveState(hubState)
+        end,
+    }, "FightSea3DepthKingToggle")
+
+    Sea3FightSection:CreateToggle({
+        Name = "🐲 Săn Drakenfyr the Inferno King / Dragon (Sea 3)",
+        Description = "Tự động săn Rồng Lửa Drakenfyr the Inferno King (Top 2)",
+        CurrentValue = hubState.fightSea3Dragon,
+        Callback = function(Value: boolean)
+            hubState.fightSea3Dragon = Value
+            saveState(hubState)
+        end,
+    }, "FightSea3DragonToggle")
+
+    Sea3FightSection:CreateToggle({
+        Name = "👑 Săn Abyssal Tyrant (Sea 3)",
+        Description = "Tự động săn bạo chúa Abyssal Tyrant (Top 3)",
+        CurrentValue = hubState.fightSea3Abyssal,
+        Callback = function(Value: boolean)
+            hubState.fightSea3Abyssal = Value
+            saveState(hubState)
+        end,
+    }, "FightSea3AbyssalToggle")
+
+    Sea3FightSection:CreateToggle({
+        Name = "🐙 Săn Kraken & Xúc Tu (Sea 3)",
+        Description = "Tự động đánh Kraken và chặt xúc tu biển",
+        CurrentValue = hubState.fightSea3Kraken,
+        Callback = function(Value: boolean)
+            hubState.fightSea3Kraken = Value
+            saveState(hubState)
+        end,
+    }, "FightSea3KrakenToggle")
+
+    Sea3FightSection:CreateToggle({
+        Name = "🦀 Săn Cua Biển Khổng Lồ (Giant Crab Sea 3)",
+        Description = "Tự động tiêu diệt Cua Biển khổng lồ Sea 3",
+        CurrentValue = hubState.fightSea3Crab,
+        Callback = function(Value: boolean)
+            hubState.fightSea3Crab = Value
+            saveState(hubState)
+        end,
+    }, "FightSea3CrabToggle")
+
+    Sea3FightSection:CreateToggle({
+        Name = "🌊 Săn Sea Event Thường (Bỏ qua Depth & Abyssal)",
+        Description = "Tập trung săn các sự kiện biển vừa và nhỏ",
+        CurrentValue = hubState.fightSea3Events,
+        Callback = function(Value: boolean)
+            hubState.fightSea3Events = Value
+            saveState(hubState)
+        end,
+    }, "FightSea3EventsToggle")
+
+    -- ========================================================
+    -- BẢNG 3: BẢNG RIÊNG 2 - CHUYÊN SĂN BOSS BIỂN SEA 2
+    -- ========================================================
+    local Sea2FightSection = HopTab:CreateSection("🐋 BẢNG RIÊNG 2: SĂN BOSS BIỂN SEA 2 (CHỌN TỪNG CON)")
+    Sea2FightSection:CreateToggle({
+        Name = "🐍 Săn Hydra & Rương Hydra (Sea 2)",
+        Description = "Tự động đánh Rắn 3 đầu Hydra và mở rương huyền thoại",
+        CurrentValue = hubState.fightSea2Hydra,
+        Callback = function(Value: boolean)
+            hubState.fightSea2Hydra = Value
+            saveState(hubState)
+        end,
+    }, "FightSea2HydraToggle")
+
+    Sea2FightSection:CreateToggle({
+        Name = "🐋 Săn Sea King (Vua Biển) & Rương Vua Biển (Sea 2)",
+        Description = "Tự động đánh Sea King và mở rương Vua Biển",
+        CurrentValue = hubState.fightSea2SeaKing,
+        Callback = function(Value: boolean)
+            hubState.fightSea2SeaKing = Value
+            saveState(hubState)
+        end,
+    }, "FightSea2SeaKingToggle")
+
+    Sea2FightSection:CreateToggle({
+        Name = "👻 Săn Thuyền Ma & Rương Thuyền Ma (Sea 2)",
+        Description = "Tự động bắn phá Tàu Ma Ghost Ship và nhặt rương rơi",
+        CurrentValue = hubState.fightSea2GhostShip,
+        Callback = function(Value: boolean)
+            hubState.fightSea2GhostShip = Value
+            saveState(hubState)
+        end,
+    }, "FightSea2GhostShipToggle")
+
+    Sea2FightSection:CreateToggle({
+        Name = "🐍 Săn Rắn Biển / Sea Serpent (Sea 2 & 3)",
+        Description = "Tự động tiêu diệt Rắn Biển Serpent",
+        CurrentValue = hubState.fightSea2Serpent,
+        Callback = function(Value: boolean)
+            hubState.fightSea2Serpent = Value
+            saveState(hubState)
+        end,
+    }, "FightSea2SerpentToggle")
+
+    -- ========================================================
+    -- BẢNG 4: BẢNG RIÊNG 3 - SĂN BOSS TRÊN ĐẢO (ISLAND BOSSES)
+    -- ========================================================
+    local IslandFightSection = HopTab:CreateSection("🏝️ BẢNG RIÊNG 3: SĂN BOSS TRÊN ĐẢO (WORLD BOSSES)")
+    IslandFightSection:CreateToggle({
+        Name = "⚔️ Bật Tự Động Săn Boss Đảo (Auto Farm Island Bosses)",
+        Description = "Tự động bay đến hòn đảo có Boss mục tiêu, nhận quest và tiêu diệt",
+        CurrentValue = hubState.autoFightIslandBoss,
+        Callback = function(Value: boolean)
+            hubState.autoFightIslandBoss = Value
+            saveState(hubState)
+            if Value then
+                safeNotify("YokaHub Island Boss", "Đang tự động săn Boss đảo: " .. tostring(hubState.islandBossTarget or "Hephaestus"), "my_location")
+            end
+        end,
+    }, "AutoFightIslandBossToggle")
+
+    IslandFightSection:CreateDropdown({
+        Name = "Chọn Boss Đảo Muốn Tiêu Diệt",
+        Options = {
+            "Hephaestus (Thợ Rèn Thần - Sea 3)",
+            "Dark Beard (Râu Đen - Sea 3)",
+            "Gryphon Boss (Sea 3)",
+            "Lucidus (Sea 2)",
+            "Sunken Blade Boss (Sea 2)",
+            "Snow Boss (Sea 2)",
+            "Smoker (Sea 1)",
+            "Tashigi (Sea 1)",
+            "Buggy (Sea 1)",
+            "Arlong (Sea 1)",
+        },
+        CurrentOption = { hubState.islandBossTarget or "Hephaestus (Thợ Rèn Thần - Sea 3)" },
+        MultipleOptions = false,
+        Callback = function(opt: any)
+            local val = pickDropdownValue(opt)
+            hubState.islandBossTarget = val
+            saveState(hubState)
+            safeNotify("Mục Tiêu Boss Đảo", "Đã chọn: " .. val, "flag")
+        end,
+    }, "IslandBossDropdown")
+
+    IslandFightSection:CreateToggle({
+        Name = "📜 Tự Động Nhận Quest Boss Trước Khi Đánh",
+        Description = "Tự bay qua NPC nhận nhiệm vụ trước khi đánh Boss để tối đa Beli và EXP",
+        CurrentValue = hubState.autoTakeBossQuest,
+        Callback = function(Value: boolean)
+            hubState.autoTakeBossQuest = Value
+            saveState(hubState)
+        end,
+    }, "AutoTakeBossQuestToggle")
+
     local QuickHopSection = HopTab:CreateSection("🎯 Nhảy nhanh sang phòng khác")
     local snipeTarget = "Depth King (Sea 3)"
     QuickHopSection:CreateDropdown({
