@@ -1,5 +1,44 @@
 
     -- ========================================================
+    -- [KIỂM TRA ĐỊNH KỲ 19 PHÚT & CHỐNG KICK AFK 20 PHÚT]
+    -- ========================================================
+    pcall(function()
+        local vu = game:GetService("VirtualUser")
+        player.Idled:Connect(function()
+            if hubState.antiAfk19m ~= false then
+                pcall(function()
+                    vu:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera and workspace.CurrentCamera.CFrame or CFrame.new())
+                    task.wait(1)
+                    vu:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera and workspace.CurrentCamera.CFrame or CFrame.new())
+                end)
+            end
+        end)
+    end)
+
+    task.spawn(function()
+        local elapsed = 0
+        local checkInterval = 19 * 60
+        while genv._YokaHubToken == myToken do
+            task.wait(10)
+            elapsed += 10
+            if elapsed >= checkInterval then
+                elapsed = 0
+                if hubState.antiAfk19m ~= false then
+                    pcall(function()
+                        local vu = game:GetService("VirtualUser")
+                        if vu then
+                            vu:CaptureController()
+                            vu:ClickButton2(Vector2.new(0, 0))
+                        end
+                        safeNotify("YokaHub Định Kỳ", "Đã hoàn thành kiểm tra 19 phút: Kết nối ổn định, đã đặt lại bộ đếm Idle an toàn!", "health_and_safety")
+                    end)
+                end
+            end
+        end
+    end)
+
+
+    -- ========================================================
     -- [AUTO FIGHT BOSS WORKER] - LUỒNG CHIẾN ĐẤU VÀ NHẶT RƯƠNG BOSS
     -- ========================================================
     task.spawn(function()

@@ -280,6 +280,7 @@
         autoFightIslandBoss: boolean?,
         islandBossTarget: string?,
         autoTakeBossQuest: boolean?,
+        antiAfk19m: boolean?,
     }
 
     local function loadState(): HubState
@@ -350,6 +351,7 @@
             autoFightIslandBoss = false,
             islandBossTarget = "Hephaestus (Thợ Rèn Thần - Sea 3)",
             autoTakeBossQuest = true,
+            antiAfk19m = true,
         }
         local d = readJson(stateFile)
         if typeof(d) == "table" then
@@ -428,6 +430,7 @@
             if typeof(d.autoFightIslandBoss) == "boolean" then st.autoFightIslandBoss = d.autoFightIslandBoss end
             if typeof(d.islandBossTarget) == "string" then st.islandBossTarget = d.islandBossTarget end
             if typeof(d.autoTakeBossQuest) == "boolean" then st.autoTakeBossQuest = d.autoTakeBossQuest end
+            if typeof(d.antiAfk19m) == "boolean" then st.antiAfk19m = d.antiAfk19m end
         end
         return st
     end

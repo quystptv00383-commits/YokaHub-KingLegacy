@@ -147,6 +147,21 @@
         end,
     }, "FastModeToggle")
 
+    PerfSection:CreateToggle({
+        Name = "🛡️ Chống Văng Game 20 Phút & Kiểm Tra Định Kỳ 19 Phút",
+        Description = "Tự động phát tín hiệu kiểm tra định kỳ 19 phút, dọn rác bộ nhớ và chặn 100% mã lỗi 268/277 của Roblox",
+        CurrentValue = hubState.antiAfk19m ~= false,
+        Callback = function(Value: boolean)
+            hubState.antiAfk19m = Value
+            saveState(hubState)
+            if Value then
+                safeNotify("YokaHub", "Đã bật kiểm tra định kỳ 19 phút & Chống văng game!", "verified_user")
+            else
+                safeNotify("YokaHub", "Đã tắt kiểm tra định kỳ 19 phút.", "info")
+            end
+        end,
+    }, "AntiAfk19mToggle")
+
     local MoveSection = UtilTab:CreateSection("🏃 Hỗ Trợ Di Chuyển & Đồng Minh")
     MoveSection:CreateToggle({
         Name = "🌊 Đi Bộ Trên Mặt Nước (Walk On Water)",
