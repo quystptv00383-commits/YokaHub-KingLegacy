@@ -259,6 +259,7 @@
         snipeFruit: string?,
         snipeDelay: number?,
         -- Auto Fishing
+        autoClickPlay: boolean?,
         autoFish: boolean?,
         fishWeapon: string?,
         fishFloat: boolean?,
@@ -312,6 +313,7 @@
             dungeonCameraLock = true,
             snipeFruit = "⭐ Toàn Bộ Trái Thần Thoại & Cực Hiếm (Mythic + Legendary)",
             snipeDelay = 5,
+            autoClickPlay = true,
             autoFish = false,
             fishWeapon = "True Muramasa",
             fishFloat = true,
@@ -373,6 +375,7 @@
             if typeof(d.dungeonCameraLock) == "boolean" then st.dungeonCameraLock = d.dungeonCameraLock end
             if typeof(d.snipeFruit) == "string" then st.snipeFruit = d.snipeFruit end
             if typeof(d.snipeDelay) == "number" then st.snipeDelay = d.snipeDelay end
+            if typeof(d.autoClickPlay) == "boolean" then st.autoClickPlay = d.autoClickPlay end
             if typeof(d.autoFish) == "boolean" then st.autoFish = d.autoFish end
             if typeof(d.fishWeapon) == "string" then st.fishWeapon = d.fishWeapon end
             if typeof(d.fishFloat) == "boolean" then st.fishFloat = d.fishFloat end

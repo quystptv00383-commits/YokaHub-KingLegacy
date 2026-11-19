@@ -20,6 +20,21 @@
         end,
     }, "AutoDismiss773")
 
+    SysSection:CreateToggle({
+        Name = "▶️ Tự Động Nhấn Play Khi Load Xong",
+        Description = "Tự động bấm nút Play/Start trên giao diện Menu khi vào phòng để nhân vật xuất hiện ngay",
+        CurrentValue = hubState.autoClickPlay,
+        Callback = function(Value: boolean)
+            hubState.autoClickPlay = Value
+            saveState(hubState)
+            if Value then
+                safeNotify("YokaHub", "Đã bật tự động nhấn Play khi load xong!", "play_circle")
+            else
+                safeNotify("YokaHub", "Đã tắt tự động nhấn Play.", "info")
+            end
+        end,
+    }, "AutoClickPlayToggle")
+
     if hubState.autoReexec then
         task.defer(function() armAutoReexec(false) end)
     end
