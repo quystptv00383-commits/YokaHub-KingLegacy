@@ -564,6 +564,23 @@
         end
     end)
 
+    
+    task.spawn(function()
+        task.wait(0.5)
+        pcall(function()
+            local lg = getLunaGui()
+            if lg then
+                for _, desc in ipairs(lg:GetDescendants()) do
+                    if desc.Name == "Tabs" and desc:IsA("ScrollingFrame") then
+                        desc.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                        desc.ScrollBarThickness = 3
+                        desc.CanvasSize = UDim2.new(0, 0, 0, 0)
+                    end
+                end
+            end
+        end)
+    end)
+
     local Window = Luna:CreateWindow({
         Name = "YokaHub",
         Subtitle = "King Legacy · " .. curSeaLabel,

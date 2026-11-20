@@ -4,7 +4,7 @@
     do
         local SkillTab = Window:CreateTab({
             Name = "⚔️ Xả Chiêu & Haki",
-            Icon = "sports_martial_arts",
+            Icon = "flash_on",
             ImageSource = "Material",
             ShowTitle = false,
         })

@@ -4,7 +4,7 @@
     do
         local FishTab = Window:CreateTab({
             Name = "🎣 Câu Cá Tự Động",
-            Icon = "phishing",
+            Icon = "waves",
             ImageSource = "Material",
             ShowTitle = false,
         })

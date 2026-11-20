@@ -4,7 +4,7 @@
     do
         local DungTab = Window:CreateTab({
             Name = "🏰 Vượt Phó Bản",
-            Icon = "castle",
+            Icon = "explore",
             ImageSource = "Material",
             ShowTitle = false,
         })

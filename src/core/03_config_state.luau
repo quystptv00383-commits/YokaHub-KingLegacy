@@ -1,3 +1,10 @@
+    -- ========================================================
+    -- GLOBAL DROPDOWN HELPER (AVAILABLE TO ALL MODULES)
+    -- ========================================================
+    local function pickDropdownValue(v: any): string
+        if typeof(v) == "table" then return tostring(v[1] or "") end
+        return tostring(v or "")
+    end
     -- [END GATEWAY] - BAT DAU KHOI DONG YOKAHUB
     -- ========================================================
 

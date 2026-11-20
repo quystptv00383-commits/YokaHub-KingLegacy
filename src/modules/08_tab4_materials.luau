@@ -4,7 +4,7 @@
     do
         local MatTab = Window:CreateTab({
             Name = "📦 Gom Nguyên Liệu",
-            Icon = "inventory_2",
+            Icon = "all_inbox",
             ImageSource = "Material",
             ShowTitle = false,
         })
