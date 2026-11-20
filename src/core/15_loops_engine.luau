@@ -140,34 +140,96 @@
         return list
     end
 
+    local function isIslandMobName(n: string): boolean
+        return string.find(n, "%[lv%.") ~= nil
+            or string.find(n, "soldier", 1, true) ~= nil
+            or string.find(n, "guard", 1, true) ~= nil
+            or string.find(n, "warrior", 1, true) ~= nil
+            or string.find(n, "swordsman", 1, true) ~= nil
+            or string.find(n, "cultist", 1, true) ~= nil
+            or string.find(n, "sentry", 1, true) ~= nil
+            or string.find(n, "diver", 1, true) ~= nil
+            or string.find(n, "explorer", 1, true) ~= nil
+            or string.find(n, "raider", 1, true) ~= nil
+            or string.find(n, "wayfarer", 1, true) ~= nil
+            or string.find(n, "tidebreaker", 1, true) ~= nil
+            or string.find(n, "voyager", 1, true) ~= nil
+            or string.find(n, "villager", 1, true) ~= nil
+            or string.find(n, "combatant", 1, true) ~= nil
+            or string.find(n, "bandit", 1, true) ~= nil
+            or string.find(n, "pirate", 1, true) ~= nil
+            or string.find(n, "tamer", 1, true) ~= nil
+            or string.find(n, "seeker", 1, true) ~= nil
+            or string.find(n, "buccaneer", 1, true) ~= nil
+            or string.find(n, "gorilla", 1, true) ~= nil
+            or string.find(n, "ape", 1, true) ~= nil
+    end
+
+    local function isDepthKingBoss(n: string): boolean
+        if isIslandMobName(n) then return false end
+        return string.find(n, "depth king", 1, true) ~= nil or n == "depthking"
+    end
+
+    local function isDragonBoss(n: string): boolean
+        if isIslandMobName(n) then return false end
+        return string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno king", 1, true) ~= nil or string.find(n, "sea dragon", 1, true) ~= nil or (string.find(n, "dragon", 1, true) ~= nil and string.find(n, "fruit", 1, true) == nil and string.find(n, "claw", 1, true) == nil)
+    end
+
+    local function isAbyssalBoss(n: string): boolean
+        if isIslandMobName(n) then return false end
+        return string.find(n, "abyssal tyrant", 1, true) ~= nil or n == "abyssaltyrant" or (string.find(n, "tyrant", 1, true) ~= nil and string.find(n, "abyssal", 1, true) ~= nil)
+    end
+
+    local function isKrakenBoss(n: string): boolean
+        if isIslandMobName(n) then return false end
+        return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil
+    end
+
+    local function isCrabBoss(n: string): boolean
+        if isIslandMobName(n) then return false end
+        return string.find(n, "giant crab", 1, true) ~= nil or (string.find(n, "crab", 1, true) ~= nil and string.find(n, "meat", 1, true) == nil)
+    end
+
+    local function isSerpentBoss(n: string): boolean
+        if isIslandMobName(n) then return false end
+        return string.find(n, "serpent", 1, true) ~= nil
+    end
+
+    local function isSeaEventMiscBoss(n: string): boolean
+        if isIslandMobName(n) then return false end
+        return string.find(n, "sea beast", 1, true) ~= nil or string.find(n, "seabeast", 1, true) ~= nil or string.find(n, "galleon", 1, true) ~= nil or string.find(n, "ghost ship", 1, true) ~= nil
+    end
+
     local function isSea3BossEnabled(name: string): boolean
         local n = string.lower(name)
-        -- 1. Drakenfyr / Dragon / Sea Dragon (Top 1)
-        if string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno king", 1, true) ~= nil or string.find(n, "sea dragon", 1, true) ~= nil or (string.find(n, "dragon", 1, true) ~= nil and string.find(n, "fruit", 1, true) == nil and string.find(n, "claw", 1, true) == nil) then
-            return hubState.fightSea3Dragon ~= false
-        end
-        -- 2. Depth King (Top 2)
-        if (string.find(n, "depth", 1, true) ~= nil) and string.find(n, "abyssal", 1, true) == nil then
+        if isIslandMobName(n) then return false end
+
+        -- 1. Depth King (Top 1)
+        if isDepthKingBoss(n) then
             return hubState.fightSea3DepthKing ~= false
         end
+        -- 2. Drakenfyr / Dragon / Sea Dragon (Top 2)
+        if isDragonBoss(n) then
+            return hubState.fightSea3Dragon ~= false
+        end
         -- 3. Abyssal Tyrant (Top 3)
-        if string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "tyrant", 1, true) ~= nil then
+        if isAbyssalBoss(n) then
             return hubState.fightSea3Abyssal ~= false
         end
         -- 4. Kraken & Xúc tu (Top 4)
-        if string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil then
+        if isKrakenBoss(n) then
             return hubState.fightSea3Kraken ~= false
         end
         -- 5. Cua biển (Top 5)
-        if string.find(n, "crab", 1, true) ~= nil then
+        if isCrabBoss(n) then
             return hubState.fightSea3Crab ~= false
         end
         -- 6. Rắn biển Serpent
-        if string.find(n, "serpent", 1, true) ~= nil then
+        if isSerpentBoss(n) then
             return hubState.fightSea2Serpent ~= false
         end
         -- 7. Các Sea Events thường khác (Galleon / Ghost / Sea Beast)
-        if string.find(n, "sea beast", 1, true) ~= nil or string.find(n, "seabeast", 1, true) ~= nil or string.find(n, "galleon", 1, true) ~= nil or string.find(n, "ghost", 1, true) ~= nil then
+        if isSeaEventMiscBoss(n) then
             return hubState.fightSea3Events == true
         end
         return false
@@ -1074,32 +1136,69 @@
     -- ========================================================
     -- [AUTO FIGHT BOSS WORKER] - LUỒNG CHIẾN ĐẤU SEA EVENT, BOSS ĐẢO & NHẶT RƯƠNG BOSS
     -- ========================================================
-    local function findSeaEventIslandPos(): (Vector3?, string?)
+    local function isIslandWanted(n: string, soloKey: string?, mode: string?): boolean
+        if soloKey and soloKey ~= "" then
+            if soloKey == "dragon" then
+                return (string.find(n, "dragon", 1, true) ~= nil or string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno", 1, true) ~= nil)
+                    and string.find(n, "abyssal", 1, true) == nil and string.find(n, "depth", 1, true) == nil
+            elseif soloKey == "depth_king" then
+                return (string.find(n, "depth", 1, true) ~= nil) and string.find(n, "abyssal", 1, true) == nil
+            elseif soloKey == "abyssal_tyrant" then
+                return string.find(n, "abyssal", 1, true) ~= nil
+            elseif soloKey == "kraken" then
+                return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil
+            elseif soloKey == "crab" then
+                return string.find(n, "crab", 1, true) ~= nil
+            elseif soloKey == "sea3_events" then
+                if string.find(n, "depth", 1, true) ~= nil or string.find(n, "abyssal", 1, true) ~= nil then return false end
+                return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "crab", 1, true) ~= nil or string.find(n, "sea", 1, true) ~= nil
+            elseif soloKey == "hydra" then
+                return string.find(n, "hydra", 1, true) ~= nil
+            elseif soloKey == "sea_king" then
+                return string.find(n, "legacy", 1, true) ~= nil or string.find(n, "sea island", 1, true) ~= nil or string.find(n, "sea king", 1, true) ~= nil
+            elseif soloKey == "ghost_ship" then
+                return string.find(n, "ghost", 1, true) ~= nil
+            elseif soloKey == "serpent" then
+                return string.find(n, "serpent", 1, true) ~= nil
+            end
+        end
+        if mode == "sea3" then
+            if hubState.fightSea3DepthKing ~= false and (string.find(n, "depth", 1, true) ~= nil and string.find(n, "abyssal", 1, true) == nil) then return true end
+            if hubState.fightSea3Dragon ~= false and (string.find(n, "dragon", 1, true) ~= nil or string.find(n, "drakenfyr", 1, true) ~= nil) then return true end
+            if hubState.fightSea3Abyssal ~= false and string.find(n, "abyssal", 1, true) ~= nil then return true end
+            if hubState.fightSea3Kraken ~= false and string.find(n, "kraken", 1, true) ~= nil then return true end
+            if hubState.fightSea3Crab ~= false and string.find(n, "crab", 1, true) ~= nil then return true end
+            if hubState.fightSea3Events == true and (string.find(n, "sea", 1, true) ~= nil or string.find(n, "galleon", 1, true) ~= nil) then return true end
+            return false
+        elseif mode == "sea2" then
+            if hubState.fightSea2Hydra ~= false and string.find(n, "hydra", 1, true) ~= nil then return true end
+            if hubState.fightSea2SeaKing ~= false and (string.find(n, "legacy", 1, true) ~= nil or string.find(n, "sea island", 1, true) ~= nil or string.find(n, "sea king", 1, true) ~= nil) then return true end
+            if hubState.fightSea2GhostShip ~= false and string.find(n, "ghost", 1, true) ~= nil then return true end
+            return false
+        end
+        return false
+    end
+
+    local function findSeaEventIslandPos(soloKey: string?, mode: string?): (Vector3?, string?)
         -- 1. Kiểm tra trực tiếp tọa độ sự kiện biển từ Wukong SeaEvent API nếu có
         if typeof(genv.WK_SeaEvent) == "table" and typeof(genv.WK_SeaEvent.GetState) == "function" then
             local okS, st = pcall(genv.WK_SeaEvent.GetState)
             if okS and typeof(st) == "table" and st.phase and st.phase ~= "inactive" then
-                local rawPos = st.position or st.targetPos or (typeof(st.cframe) == "CFrame" and st.cframe.Position)
-                if typeof(rawPos) == "Vector3" then
-                    return rawPos, tostring(st.eventKey or "SeaEvent")
+                local ek = string.lower(tostring(st.eventKey or ""))
+                if isIslandWanted(ek, soloKey, mode) then
+                    local rawPos = st.position or st.targetPos or (typeof(st.cframe) == "CFrame" and st.cframe.Position)
+                    if typeof(rawPos) == "Vector3" then
+                        return rawPos, tostring(st.eventKey or "SeaEvent")
+                    end
                 end
             end
         end
-        -- 2. Quét các đảo sự kiện (Hydra / Legacy / Sea Island / Ghost Ship / Event Island) để bay tới kích hoạt StreamingEnabled
+        -- 2. Quét các đảo sự kiện tương ứng với mục tiêu đang săn
         local isl = workspace:FindFirstChild("Island")
         if isl then
             for _, c in ipairs(isl:GetChildren()) do
                 local n = string.lower(c.Name)
-                if string.find(n, "hydra", 1, true)
-                    or string.find(n, "legacy", 1, true)
-                    or string.find(n, "sea island", 1, true)
-                    or string.find(n, "sea king", 1, true)
-                    or string.find(n, "ghost", 1, true)
-                    or string.find(n, "depth", 1, true)
-                    or string.find(n, "abyssal", 1, true)
-                    or string.find(n, "kraken", 1, true)
-                    or string.find(n, "drakenfyr", 1, true)
-                    or string.find(n, "sea beast", 1, true) then
+                if isIslandWanted(n, soloKey, mode) then
                     local okB, cf = pcall(function() return c:IsA("Model") and c:GetBoundingBox() or (c:IsA("BasePart") and c.CFrame or nil) end)
                     if okB and typeof(cf) == "CFrame" then
                         return cf.Position, c.Name
@@ -1110,7 +1209,7 @@
         -- 3. Quét trực tiếp các vật thể GhostShip / SeaEvent trong workspace
         for _, obj in ipairs(workspace:GetChildren()) do
             local n = string.lower(obj.Name)
-            if (obj:IsA("Model") or obj:IsA("Folder")) and (string.find(n, "ghostship", 1, true) or string.find(n, "ghost ship", 1, true) or string.find(n, "seabeast", 1, true) or string.find(n, "hydra", 1, true)) then
+            if (obj:IsA("Model") or obj:IsA("Folder")) and isIslandWanted(n, soloKey, mode) then
                 local okB, cf = pcall(function() return obj:IsA("Model") and obj:GetBoundingBox() or nil end)
                 if okB and typeof(cf) == "CFrame" then
                     return cf.Position, obj.Name
@@ -1240,16 +1339,19 @@
                         end
                         -- Nếu đang ở chế độ Săn Riêng / Sea 2 / Sea 3: luôn đánh đúng Boss của chế độ đó!
                         if currentMode == "solo" then
-                            if soloKeyActive == "depth_king" then return string.find(n, "depth", 1, true) ~= nil and string.find(n, "abyssal", 1, true) == nil end
-                            if soloKeyActive == "abyssal_tyrant" then return string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "tyrant", 1, true) ~= nil end
-                            if soloKeyActive == "dragon" then return string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "dragon", 1, true) ~= nil end
-                            if soloKeyActive == "kraken" then return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil end
-                            if soloKeyActive == "crab" then return string.find(n, "crab", 1, true) ~= nil end
-                            if soloKeyActive == "hydra" then return string.find(n, "hydra", 1, true) ~= nil end
-                            if soloKeyActive == "sea_king" then return string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil end
-                            if soloKeyActive == "ghost_ship" then return string.find(n, "ghost", 1, true) ~= nil end
-                            if soloKeyActive == "serpent" then return string.find(n, "serpent", 1, true) ~= nil end
-                            if soloKeyActive == "sea3_events" then return folderName == "SeaMonster" or string.find(n, "sea", 1, true) ~= nil or string.find(n, "dragon", 1, true) ~= nil or string.find(n, "kraken", 1, true) ~= nil end
+                            if soloKeyActive == "depth_king" then return isDepthKingBoss(n) end
+                            if soloKeyActive == "abyssal_tyrant" then return isAbyssalBoss(n) end
+                            if soloKeyActive == "dragon" then return isDragonBoss(n) end
+                            if soloKeyActive == "kraken" then return isKrakenBoss(n) end
+                            if soloKeyActive == "crab" then return isCrabBoss(n) end
+                            if soloKeyActive == "hydra" then return string.find(n, "hydra", 1, true) ~= nil and not isIslandMobName(n) end
+                            if soloKeyActive == "sea_king" then return (string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil) and not isIslandMobName(n) end
+                            if soloKeyActive == "ghost_ship" then return string.find(n, "ghost", 1, true) ~= nil and not isIslandMobName(n) end
+                            if soloKeyActive == "serpent" then return isSerpentBoss(n) end
+                            if soloKeyActive == "sea3_events" then
+                                if isDepthKingBoss(n) or isAbyssalBoss(n) or isIslandMobName(n) then return false end
+                                return isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n) or isSerpentBoss(n) or isSeaEventMiscBoss(n) or (folderName == "SeaMonster" and not isIslandMobName(n))
+                            end
                         elseif currentMode == "sea2" then
                             return isSea2BossEnabled(rawName)
                         elseif currentMode == "sea3" then
@@ -1264,7 +1366,22 @@
                     -- Quét trong SeaMonster, GhostMonster, Monster & Monster.Boss
                     local targetBoss: Model? = nil
                     local bestBossDist = 1e9
-                    local folders = getAliveMobFolders(true, true, false)
+                    local folders
+                    if currentMode == "solo" or currentMode == "sea3" then
+                        folders = {}
+                        local sm = workspace:FindFirstChild("SeaMonster")
+                        if sm then table.insert(folders, sm) end
+                        local gm = workspace:FindFirstChild("GhostMonster")
+                        if gm then table.insert(folders, gm) end
+                        local mon = workspace:FindFirstChild("Monster")
+                        local bossF = mon and mon:FindFirstChild("Boss")
+                        if bossF then table.insert(folders, bossF) end
+                        if hubState.autoFightIslandBoss and mon then
+                            table.insert(folders, mon)
+                        end
+                    else
+                        folders = getAliveMobFolders(true, true, false)
+                    end
                     for _, fld in ipairs(folders) do
                         for _, m in ipairs(fld:GetChildren()) do
                             if m:IsA("Model") and isBossWanted(m.Name, fld.Name) then
@@ -1327,7 +1444,7 @@
                         end
                     elseif currentMode ~= "off" or hubState.autoFightMaster then
                         -- StreamingEnabled fix: Nếu SeaMonster chưa load do ở quá xa -> bay tới thẳng Đảo Sự Kiện (Hydra / Sea Island / Legacy / Ghost Ship) để nạp Boss!
-                        local evPos, _ = findSeaEventIslandPos()
+                        local evPos, _ = findSeaEventIslandPos(soloKeyActive, currentMode)
                         if evPos and (evPos - hrp.Position).Magnitude > 120 then
                             local flyPos = evPos + Vector3.new(0, 65, 0)
                             setFlightTarget(flyPos, evPos, (flyPos - hrp.Position).Magnitude > 1400, 54)
@@ -1394,18 +1511,31 @@
         local nm = string.lower(tostring(e.eventName or ""))
         if soloKey == "dragon" then
             if pid == SEA3_PLACE and (string.find(nm, "drakenfyr") ~= nil or string.find(nm, "inferno king") ~= nil or string.find(nm, "sea dragon") ~= nil or (string.find(nm, "dragon") ~= nil and string.find(nm, "fruit") == nil and string.find(nm, "claw") == nil)) then
-                return (string.find(nm, "drakenfyr") ~= nil or string.find(nm, "sea dragon") ~= nil) and 2 or 1
+                -- Tuyệt đối loại bỏ nếu tên phòng có chữ abyssal hoặc depth
+                if string.find(nm, "abyssal") == nil and string.find(nm, "tyrant") == nil and string.find(nm, "depth") == nil then
+                    return (string.find(nm, "drakenfyr") ~= nil or string.find(nm, "sea dragon") ~= nil) and 2 or 1
+                end
             end
         elseif soloKey == "abyssal_tyrant" then
-            if pid == SEA3_PLACE and (string.find(nm, "abyssal tyrant") ~= nil or string.find(nm, "abyssal") ~= nil) then return 2 end
+            if pid == SEA3_PLACE and (string.find(nm, "abyssal tyrant") ~= nil or (string.find(nm, "abyssal") ~= nil and string.find(nm, "swordsman") == nil) or string.find(nm, "tyrant") ~= nil) then
+                if string.find(nm, "dragon") == nil and string.find(nm, "depth") == nil then
+                    return 2
+                end
+            end
         elseif soloKey == "depth_king" then
-            if pid == SEA3_PLACE and (src == "depth_king" or (string.find(nm, "depth") ~= nil and string.find(nm, "abyssal") == nil)) then return 2 end
+            if pid == SEA3_PLACE and (src == "depth_king" or string.find(nm, "depth king") ~= nil or (string.find(nm, "depth") ~= nil and string.find(nm, "abyssal") == nil and string.find(nm, "voyager") == nil and string.find(nm, "diver") == nil)) then
+                return 2
+            end
         elseif soloKey == "kraken" then
             if pid == SEA3_PLACE and src == "sea_event" and (string.find(nm, "kraken") ~= nil or string.find(nm, "tentacle") ~= nil) then return 2 end
         elseif soloKey == "crab" then
             if pid == SEA3_PLACE and src == "sea_event" and string.find(nm, "crab") ~= nil then return 2 end
         elseif soloKey == "sea3_events" then
             if pid == SEA3_PLACE and src == "sea_event" then
+                -- Tuyệt đối loại bỏ Depth King & Abyssal Tyrant
+                if string.find(nm, "depth") ~= nil or string.find(nm, "abyssal") ~= nil or string.find(nm, "tyrant") ~= nil then
+                    return 0
+                end
                 if string.find(nm, "sea dragon") ~= nil or string.find(nm, "drakenfyr") ~= nil then return 4 end
                 if string.find(nm, "dragon") ~= nil then return 3 end
                 if string.find(nm, "kraken") ~= nil then return 2 end
@@ -1451,13 +1581,14 @@
                 local ok, st = pcall(genv.WK_SeaEvent.GetState)
                 if ok and typeof(st) == "table" and st.phase and st.phase ~= "inactive" then
                     local ek = string.lower(tostring(st.eventKey or ""))
-                    local isAbyssal = string.find(ek, "abyssal") ~= nil or string.find(ek, "tyrant") ~= nil
-                    local isDk = (string.find(ek, "depth") ~= nil and not isAbyssal)
+                    local isAbyssal = isAbyssalBoss(ek)
+                    local isDk = isDepthKingBoss(ek)
+                    local isDg = isDragonBoss(ek)
                     if soloKey == "abyssal_tyrant" and isAbyssal then return "boss", tostring(st.eventKey or "Abyssal Tyrant")
                     elseif soloKey == "depth_king" and isDk then return "boss", tostring(st.eventKey or "Depth King")
-                    elseif soloKey == "dragon" and (string.find(ek, "dragon") ~= nil or string.find(ek, "drakenfyr") ~= nil) then return "boss", tostring(st.eventKey or "Drakenfyr")
-                    elseif soloKey == "kraken" and string.find(ek, "kraken") ~= nil then return "boss", tostring(st.eventKey)
-                    elseif soloKey == "crab" and string.find(ek, "crab") ~= nil then return "boss", tostring(st.eventKey)
+                    elseif soloKey == "dragon" and isDg then return "boss", tostring(st.eventKey or "Drakenfyr")
+                    elseif soloKey == "kraken" and isKrakenBoss(ek) then return "boss", tostring(st.eventKey)
+                    elseif soloKey == "crab" and isCrabBoss(ek) then return "boss", tostring(st.eventKey)
                     elseif soloKey == "sea3_events" and not isDk and not isAbyssal then return "boss", tostring(st.eventKey or st.phase)
                     end
                 end
@@ -1467,12 +1598,12 @@
                 for _, m in ipairs(sm:GetChildren()) do
                     local n = string.lower(m.Name)
                     local match = false
-                    if soloKey == "abyssal_tyrant" then match = string.find(n, "abyssal") ~= nil or string.find(n, "tyrant") ~= nil
-                    elseif soloKey == "depth_king" then match = (string.find(n, "depth") ~= nil and string.find(n, "abyssal") == nil)
-                    elseif soloKey == "dragon" then match = string.find(n, "dragon") ~= nil or string.find(n, "drakenfyr") ~= nil
-                    elseif soloKey == "kraken" then match = string.find(n, "kraken") ~= nil or string.find(n, "tentacle") ~= nil
-                    elseif soloKey == "crab" then match = string.find(n, "crab") ~= nil
-                    elseif soloKey == "sea3_events" then match = string.find(n, "dragon") ~= nil or string.find(n, "drakenfyr") ~= nil or string.find(n, "kraken") ~= nil or string.find(n, "tentacle") ~= nil or string.find(n, "crab") ~= nil or string.find(n, "sea beast") ~= nil or string.find(n, "seabeast") ~= nil
+                    if soloKey == "abyssal_tyrant" then match = isAbyssalBoss(n)
+                    elseif soloKey == "depth_king" then match = isDepthKingBoss(n)
+                    elseif soloKey == "dragon" then match = isDragonBoss(n)
+                    elseif soloKey == "kraken" then match = isKrakenBoss(n)
+                    elseif soloKey == "crab" then match = isCrabBoss(n)
+                    elseif soloKey == "sea3_events" then match = not isDepthKingBoss(n) and not isAbyssalBoss(n) and (isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n) or isSerpentBoss(n) or isSeaEventMiscBoss(n))
                     end
                     if match then
                         local hum = m:FindFirstChildOfClass("Humanoid")
@@ -1486,11 +1617,12 @@
                 for _, m in ipairs(bossF:GetChildren()) do
                     local n = string.lower(m.Name)
                     local match = false
-                    if soloKey == "abyssal_tyrant" then match = string.find(n, "abyssal") ~= nil or string.find(n, "tyrant") ~= nil
-                    elseif soloKey == "depth_king" then match = (string.find(n, "depth king") ~= nil and string.find(n, "abyssal") == nil)
-                    elseif soloKey == "dragon" then match = string.find(n, "drakenfyr") ~= nil or string.find(n, "sea dragon") ~= nil or string.find(n, "dragon") ~= nil
-                    elseif soloKey == "kraken" then match = string.find(n, "kraken") ~= nil
-                    elseif soloKey == "sea3_events" then match = string.find(n, "drakenfyr") ~= nil or string.find(n, "sea dragon") ~= nil or string.find(n, "kraken") ~= nil
+                    if soloKey == "abyssal_tyrant" then match = isAbyssalBoss(n)
+                    elseif soloKey == "depth_king" then match = isDepthKingBoss(n)
+                    elseif soloKey == "dragon" then match = isDragonBoss(n)
+                    elseif soloKey == "kraken" then match = isKrakenBoss(n)
+                    elseif soloKey == "crab" then match = isCrabBoss(n)
+                    elseif soloKey == "sea3_events" then match = not isDepthKingBoss(n) and not isAbyssalBoss(n) and (isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n))
                     end
                     if match then
                         local hum = m:FindFirstChildOfClass("Humanoid")
@@ -1600,10 +1732,9 @@
         local sm = workspace:FindFirstChild("SeaMonster")
         if sm then
             for _, m in ipairs(sm:GetChildren()) do
-                local n = string.lower(m.Name)
-                if string.find(n, "depth") or string.find(n, "abyssal tyrant") or string.find(n, "dragon") or string.find(n, "drakenfyr") or string.find(n, "crab") or string.find(n, "kraken") or string.find(n, "tentacle") or string.find(n, "sea beast") or string.find(n, "seabeast") or string.find(n, "serpent") then
+                if isSea3BossEnabled(m.Name) then
                     local hum = m:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 and isSea3BossEnabled(m.Name) then return true, m.Name end
+                    if hum and hum.Health > 0 then return true, m.Name end
                 end
             end
         end
@@ -1612,10 +1743,9 @@
         local bossF = mon and mon:FindFirstChild("Boss")
         if bossF then
             for _, m in ipairs(bossF:GetChildren()) do
-                local n = string.lower(m.Name)
-                if string.find(n, "depth king") or string.find(n, "abyssal tyrant") or string.find(n, "drakenfyr") or string.find(n, "sea dragon") or string.find(n, "kraken") or string.find(n, "serpent") then
+                if isSea3BossEnabled(m.Name) then
                     local hum = m:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 and isSea3BossEnabled(m.Name) then return true, m.Name end
+                    if hum and hum.Health > 0 then return true, m.Name end
                 end
             end
         end
@@ -1927,12 +2057,12 @@
             end
 
         elseif mode == "sea3" then
-            local preferSea3Boss = (hubState.fightSea3Dragon ~= false and "dragon")
-                or (hubState.fightSea3DepthKing ~= false and "depth")
+            local preferSea3Boss = (hubState.fightSea3DepthKing ~= false and "depth")
+                or (hubState.fightSea3Dragon ~= false and "dragon")
                 or (hubState.fightSea3Abyssal ~= false and "abyssal")
                 or (hubState.fightSea3Kraken ~= false and "kraken")
                 or (hubState.fightSea3Crab ~= false and "crab")
-                or "dragon"
+                or "depth"
             if game.PlaceId ~= SEA3_PLACE then
                 ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Lệch Sea", preferSea3Boss)
                 smartWait(15.0, "sea3")
@@ -3304,17 +3434,17 @@ end)
     end
 
     local function isMegaSeaBossName(nameLower: string): boolean
-        return string.find(nameLower, "depth", 1, true) ~= nil
-            or string.find(nameLower, "abyssal", 1, true) ~= nil
-            or string.find(nameLower, "tyrant", 1, true) ~= nil
+        if isIslandMobName(nameLower) then return false end
+        return string.find(nameLower, "depth king", 1, true) ~= nil
+            or string.find(nameLower, "abyssal tyrant", 1, true) ~= nil
             or string.find(nameLower, "drakenfyr", 1, true) ~= nil
-            or string.find(nameLower, "dragon", 1, true) ~= nil
+            or string.find(nameLower, "sea dragon", 1, true) ~= nil
             or string.find(nameLower, "hydra", 1, true) ~= nil
             or string.find(nameLower, "sea king", 1, true) ~= nil
             or string.find(nameLower, "seaking", 1, true) ~= nil
             or string.find(nameLower, "kraken", 1, true) ~= nil
             or string.find(nameLower, "serpent", 1, true) ~= nil
-            or string.find(nameLower, "ghost", 1, true) ~= nil
+            or string.find(nameLower, "ghost ship", 1, true) ~= nil
             or string.find(nameLower, "crab", 1, true) ~= nil
             or string.find(nameLower, "sea beast", 1, true) ~= nil
     end

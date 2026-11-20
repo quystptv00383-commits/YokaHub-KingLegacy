@@ -172,8 +172,8 @@
 
     -- 3. Doc / Luu trang thai & phien Farm
     local SOLO_OPTIONS = {
-        "🐲 Drakenfyr the Inferno King / Dragon (Sea 3)",
         "👑 Depth King (Sea 3)",
+        "🐲 Drakenfyr the Inferno King / Dragon (Sea 3)",
         "👑 Abyssal Tyrant (Sea 3)",
         "🐙 Kraken (Sea 3)",
         "🦀 Cua Biển / Crab (Sea 3)",
@@ -185,9 +185,9 @@
     }
 
     local SOLO_KEY_MAP: { [string]: string } = {
+        ["👑 Depth King (Sea 3)"] = "depth_king",
         ["🐲 Drakenfyr the Inferno King / Dragon (Sea 3)"] = "dragon",
         ["👑 Abyssal Tyrant (Sea 3)"] = "abyssal_tyrant",
-        ["👑 Depth King (Sea 3)"] = "depth_king",
         ["🐙 Kraken (Sea 3)"] = "kraken",
         ["🦀 Cua Biển / Crab (Sea 3)"] = "crab",
         ["🌊 Sea Event Sea 3 (bỏ Depth & Abyssal)"] = "sea3_events",
