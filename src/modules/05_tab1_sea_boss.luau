@@ -21,19 +21,19 @@
         local nm = string.lower(tostring(e.eventName or ""))
 
         -- Top 1: Depth King (Sea 3) - Ưu tiên cao nhất (10 điểm)
-        if (src == "depth_king" or string.find(nm, "depth", 1, true) ~= nil) and string.find(nm, "abyssal", 1, true) == nil then
+        if (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil then
             if hubState.fightSea3DepthKing == false then return 0 end
             return 10
         end
 
         -- Top 2: Drakenfyr the Inferno King / Dragon / Sea Dragon (Sea 3) - Ưu tiên số 2 (8 điểm)
-        if string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "dragon", 1, true) ~= nil) then
+        if (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "dragon", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil and string.find(nm, "depth", 1, true) == nil and string.find(nm, "tyrant", 1, true) == nil then
             if hubState.fightSea3Dragon == false then return 0 end
             return 8
         end
 
         -- Top 3: Abyssal Tyrant (Sea 3) - Ưu tiên số 3 (6 điểm)
-        if string.find(nm, "abyssal tyrant", 1, true) ~= nil or string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil then
+        if (string.find(nm, "abyssal tyrant", 1, true) ~= nil or nm == "abyssaltyrant" or (string.find(nm, "abyssal", 1, true) ~= nil and string.find(nm, "tyrant", 1, true) ~= nil)) and string.find(nm, "depth", 1, true) == nil then
             if hubState.fightSea3Abyssal == false then return 0 end
             return 6
         end

@@ -64,6 +64,7 @@
 
     local function setFlightTarget(pos: Vector3, lookAt: Vector3?, instant: boolean?, priority: number?)
         local prio = priority or 40
+        local baseSpeed = tonumber(hubState.flySpeed or genv.YokaFlySpeed) or 420
         local now = os.clock()
         if activeFlightTarget.pos ~= nil and prio < activeFlightTarget.priority and (now - activeFlightTarget.updatedAt) < 0.9 then
             return
@@ -163,20 +164,32 @@
             or string.find(n, "buccaneer", 1, true) ~= nil
             or string.find(n, "gorilla", 1, true) ~= nil
             or string.find(n, "ape", 1, true) ~= nil
+            or string.find(n, "minion", 1, true) ~= nil
+            or string.find(n, "grunt", 1, true) ~= nil
+            or string.find(n, "scout", 1, true) ~= nil
+            or string.find(n, "fighter", 1, true) ~= nil
+            or string.find(n, "assaulter", 1, true) ~= nil
+            or string.find(n, "gunner", 1, true) ~= nil
+            or string.find(n, "marksman", 1, true) ~= nil
+            or string.find(n, "apprentice", 1, true) ~= nil
+            or string.find(n, "crew", 1, true) ~= nil
     end
 
     local function isDepthKingBoss(n: string): boolean
         if isIslandMobName(n) then return false end
-        return string.find(n, "depth king", 1, true) ~= nil or n == "depthking"
+        if string.find(n, "abyssal", 1, true) ~= nil then return false end
+        return string.find(n, "depth king", 1, true) ~= nil or n == "depthking" or (string.find(n, "depth", 1, true) ~= nil and string.find(n, "king", 1, true) ~= nil)
     end
 
     local function isDragonBoss(n: string): boolean
         if isIslandMobName(n) then return false end
-        return string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno king", 1, true) ~= nil or string.find(n, "sea dragon", 1, true) ~= nil or (string.find(n, "dragon", 1, true) ~= nil and string.find(n, "fruit", 1, true) == nil and string.find(n, "claw", 1, true) == nil)
+        if string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "depth", 1, true) ~= nil or string.find(n, "tyrant", 1, true) ~= nil then return false end
+        return string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno king", 1, true) ~= nil or string.find(n, "sea dragon", 1, true) ~= nil or (string.find(n, "dragon", 1, true) ~= nil and string.find(n, "fruit", 1, true) == nil and string.find(n, "claw", 1, true) == nil and string.find(n, "orb", 1, true) == nil)
     end
 
     local function isAbyssalBoss(n: string): boolean
         if isIslandMobName(n) then return false end
+        if string.find(n, "depth", 1, true) ~= nil then return false end
         return string.find(n, "abyssal tyrant", 1, true) ~= nil or n == "abyssaltyrant" or (string.find(n, "tyrant", 1, true) ~= nil and string.find(n, "abyssal", 1, true) ~= nil)
     end
 
@@ -1521,41 +1534,133 @@
         end
     end
 
+    local function getSlotTier(e: any): number
+        local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
+        local pMax = typeof(e.players) == "table" and (tonumber(e.players.max) or 12) or 12
+        local free = pMax - pCur
+        if pCur >= 4 and pCur <= 8 and free >= 3 then return 4 end
+        if free >= 2 then return 3 end
+        if free >= 1 then return 1 end
+        return 0
+    end
+
+    local function getSea3Prio(e: any): number
+        local src = string.lower(tostring(e.source or ""))
+        local nm = string.lower(tostring(e.eventName or ""))
+
+        -- Top 1: Depth King (Sea 3) - Ưu tiên cao nhất (10 điểm)
+        if (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil then
+            if hubState.fightSea3DepthKing == false then return 0 end
+            return 10
+        end
+
+        -- Top 2: Drakenfyr the Inferno King / Dragon / Sea Dragon (Sea 3) - Ưu tiên số 2 (8 điểm)
+        if (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "dragon", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil and string.find(nm, "depth", 1, true) == nil and string.find(nm, "tyrant", 1, true) == nil then
+            if hubState.fightSea3Dragon == false then return 0 end
+            return 8
+        end
+
+        -- Top 3: Abyssal Tyrant (Sea 3) - Ưu tiên số 3 (6 điểm)
+        if (string.find(nm, "abyssal tyrant", 1, true) ~= nil or nm == "abyssaltyrant" or (string.find(nm, "abyssal", 1, true) ~= nil and string.find(nm, "tyrant", 1, true) ~= nil)) and string.find(nm, "depth", 1, true) == nil then
+            if hubState.fightSea3Abyssal == false then return 0 end
+            return 6
+        end
+
+        -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (4 điểm)
+        if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) then
+            if hubState.fightSea3Kraken == false then return 0 end
+            return 4
+        end
+
+        -- Top 5: Cua Biển Khổng Lồ (Giant Crab Sea 3) - Ưu tiên số 5 (3 điểm)
+        if string.find(nm, "crab", 1, true) ~= nil then
+            if hubState.fightSea3Crab == false then return 0 end
+            return 3
+        end
+
+        -- Top 6: Rắn Biển / Serpent (Sea 3 & 2) - Ưu tiên số 6 (2 điểm)
+        if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
+            if hubState.fightSea2Serpent == false then return 0 end
+            return 2
+        end
+
+        -- Tuyệt đối không để Depth King, Dragon hoặc Abyssal bị người dùng tắt mà lại lọt qua Top 7
+        local isDkRoom = (src == "depth_king" or string.find(nm, "depth", 1, true) ~= nil)
+        local isAbRoom = (string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil)
+        local isDgRoom = (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "dragon", 1, true) ~= nil))
+        if isDkRoom and hubState.fightSea3DepthKing == false then return 0 end
+        if isAbRoom and hubState.fightSea3Abyssal == false then return 0 end
+        if isDgRoom and hubState.fightSea3Dragon == false then return 0 end
+
+        -- Top 7: Sea Events Thường & Tàu Galleon Boss (1 điểm - CHỈ khi người dùng bật toggle Sea Event Thường)
+        if src == "sea_event" or src == "ship_ability" or string.find(nm, "sea beast", 1, true) ~= nil or string.find(nm, "galleon", 1, true) ~= nil then
+            if hubState.fightSea3Events ~= true then return 0 end
+            return 1
+        end
+
+        return 0
+    end
+
+    local function getSea2Prio(e: any): number
+        local src = string.lower(tostring(e.source or ""))
+        local nm = string.lower(tostring(e.eventName or ""))
+        if (src == "sk_hd_chest" and string.find(nm, "hydra", 1, true) ~= nil) or src == "hydra" or string.find(nm, "hydra", 1, true) ~= nil then
+            if hubState.fightSea2Hydra == false then return 0 end
+            return src == "sk_hd_chest" and 7 or 6
+        end
+        if (src == "sk_hd_chest" and (string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil)) or src == "sea_king" or string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil then
+            if hubState.fightSea2SeaKing == false then return 0 end
+            return src == "sk_hd_chest" and 5 or 4
+        end
+        if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
+            if hubState.fightSea2Serpent == false then return 0 end
+            return 3
+        end
+        if string.find(src, "ghost", 1, true) ~= nil or string.find(nm, "ghost", 1, true) ~= nil then
+            if hubState.fightSea2GhostShip == false then return 0 end
+            return string.find(nm, "chest", 1, true) ~= nil and 2 or 1
+        end
+        return 0
+    end
+
     -- Helper cham diem cho tung che do SAN RIENG API (F7)
     local function getSoloApiPrio(e: any, soloKey: string): number
         local pid = tonumber(e.placeId)
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
         if soloKey == "dragon" then
-            if pid == SEA3_PLACE and (string.find(nm, "drakenfyr") ~= nil or string.find(nm, "inferno king") ~= nil or string.find(nm, "sea dragon") ~= nil or (string.find(nm, "dragon") ~= nil and string.find(nm, "fruit") == nil and string.find(nm, "claw") == nil)) then
-                -- Tuyệt đối loại bỏ nếu tên phòng có chữ abyssal hoặc depth
-                if string.find(nm, "abyssal") == nil and string.find(nm, "tyrant") == nil and string.find(nm, "depth") == nil then
-                    return (string.find(nm, "drakenfyr") ~= nil or string.find(nm, "sea dragon") ~= nil) and 2 or 1
+            if pid == SEA3_PLACE and (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil)) then
+                -- Tuyệt đối loại bỏ nếu tên phòng có chữ abyssal hoặc depth hoặc tyrant
+                if string.find(nm, "abyssal", 1, true) == nil and string.find(nm, "tyrant", 1, true) == nil and string.find(nm, "depth", 1, true) == nil then
+                    return (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil) and 2 or 1
                 end
             end
         elseif soloKey == "abyssal_tyrant" then
-            if pid == SEA3_PLACE and (string.find(nm, "abyssal tyrant") ~= nil or (string.find(nm, "abyssal") ~= nil and string.find(nm, "swordsman") == nil) or string.find(nm, "tyrant") ~= nil) then
-                if string.find(nm, "dragon") == nil and string.find(nm, "depth") == nil then
+            if pid == SEA3_PLACE and (string.find(nm, "abyssal tyrant", 1, true) ~= nil or nm == "abyssaltyrant" or (string.find(nm, "abyssal", 1, true) ~= nil and string.find(nm, "tyrant", 1, true) ~= nil)) then
+                if string.find(nm, "dragon", 1, true) == nil and string.find(nm, "depth", 1, true) == nil then
                     return 2
                 end
             end
         elseif soloKey == "depth_king" then
-            if pid == SEA3_PLACE and (src == "depth_king" or string.find(nm, "depth king") ~= nil or (string.find(nm, "depth") ~= nil and string.find(nm, "abyssal") == nil and string.find(nm, "voyager") == nil and string.find(nm, "diver") == nil)) then
-                return 2
+            if pid == SEA3_PLACE and (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) then
+                if string.find(nm, "abyssal", 1, true) == nil and string.find(nm, "tyrant", 1, true) == nil then
+                    return 2
+                end
             end
         elseif soloKey == "kraken" then
-            if pid == SEA3_PLACE and src == "sea_event" and (string.find(nm, "kraken") ~= nil or string.find(nm, "tentacle") ~= nil) then return 2 end
+            if pid == SEA3_PLACE and src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) then return 2 end
         elseif soloKey == "crab" then
-            if pid == SEA3_PLACE and src == "sea_event" and string.find(nm, "crab") ~= nil then return 2 end
+            if pid == SEA3_PLACE and src == "sea_event" and string.find(nm, "crab", 1, true) ~= nil then return 2 end
         elseif soloKey == "sea3_events" then
             if pid == SEA3_PLACE and src == "sea_event" then
                 -- Tuyệt đối loại bỏ Depth King & Abyssal Tyrant
-                if string.find(nm, "depth") ~= nil or string.find(nm, "abyssal") ~= nil or string.find(nm, "tyrant") ~= nil then
+                if string.find(nm, "depth", 1, true) ~= nil or string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil then
                     return 0
                 end
-                if string.find(nm, "sea dragon") ~= nil or string.find(nm, "drakenfyr") ~= nil then return 4 end
-                if string.find(nm, "dragon") ~= nil then return 3 end
-                if string.find(nm, "kraken") ~= nil then return 2 end
+                if string.find(nm, "sea dragon", 1, true) ~= nil or string.find(nm, "drakenfyr", 1, true) ~= nil then return 4 end
+                if string.find(nm, "dragon", 1, true) ~= nil then return 3 end
+                if string.find(nm, "kraken", 1, true) ~= nil then return 2 end
+                if string.find(nm, "crab", 1, true) ~= nil then return 2 end
                 return 1
             end
         elseif soloKey == "hydra" then
@@ -2337,9 +2442,9 @@ end)
     local lastGlobalBringClock = 0
     local mobLastBrought: { [Model]: number } = {}
 
-    local function bringMobsToPosition(anchorPos: Vector3, maxRange: number, maxCount: number, filterName: string?, includeDungeon: boolean?)
+    local function bringMobsToPosition(anchorPos: Vector3, maxRange: number, maxCount: number, filterName: string?, includeDungeon: boolean?, excludeMob: Model?)
         local now = os.clock()
-        if (now - lastGlobalBringClock) < 0.35 then
+        if (now - lastGlobalBringClock) < 0.8 then
             return
         end
         lastGlobalBringClock = now
@@ -2349,23 +2454,29 @@ end)
         for _, fld in ipairs(mobFolders) do
             for _, otherMob in ipairs(fld:GetChildren()) do
                 if brought >= maxCount then break end
-                if otherMob:IsA("Model") and (not filterName or otherMob.Name == filterName) then
+                -- Tuyệt đối không can thiệp quái mục tiêu chính đang bị player trực tiếp đánh
+                if otherMob:IsA("Model") and otherMob ~= excludeMob and (not filterName or otherMob.Name == filterName) then
                     local oRoot = getModelRoot(otherMob)
                     local oHum = otherMob:FindFirstChildOfClass("Humanoid")
                     if oRoot and oHum and oHum.Health > 0 then
                         local dist = (oRoot.Position - anchorPos).Magnitude
-                        -- CHỈ BRING KHI QUÁI Ở XA (> 5.5 studs) ĐỂ KHÔNG SPAM CFRAME GÂY LỖI DAMAGE
-                        if dist > 5.5 and dist <= maxRange then
+                        -- CHỈ GOM KHI QUÁI Ở XA (> 22 studs) - Tránh giật CFrame liên tục làm mất hit/mất sát thương
+                        if dist > 22 and dist <= maxRange then
                             local lastB = mobLastBrought[otherMob] or 0
-                            if (now - lastB) >= 0.5 then
+                            if (now - lastB) >= 3.0 then
                                 mobLastBrought[otherMob] = now
                                 pcall(function()
-                                    oRoot.CanCollide = false
-                                    oRoot.AssemblyLinearVelocity = Vector3.zero
-                                    oRoot.AssemblyAngularVelocity = Vector3.zero
-                                    local rx = math.random(-15, 15) * 0.08
-                                    local rz = math.random(-15, 15) * 0.08
-                                    oRoot.CFrame = CFrame.new(anchorPos.X + rx, anchorPos.Y, anchorPos.Z + rz)
+                                    for _, p in ipairs(otherMob:GetChildren()) do
+                                        if p:IsA("BasePart") then
+                                            p.CanCollide = false
+                                            p.AssemblyLinearVelocity = Vector3.zero
+                                            p.AssemblyAngularVelocity = Vector3.zero
+                                        end
+                                    end
+                                    local angle = math.random() * math.pi * 2
+                                    local rad = math.random(4, 9)
+                                    local targetPos = Vector3.new(anchorPos.X + math.cos(angle) * rad, anchorPos.Y, anchorPos.Z + math.sin(angle) * rad)
+                                    oRoot.CFrame = CFrame.new(targetPos)
                                 end)
                                 brought += 1
                             end
@@ -2377,10 +2488,10 @@ end)
         end
     end
 
-    -- Luồng độc lập giữ quái gom chặt tại vị trí nhân vật (phạm vi cả đảo, chạy cả Auto Farm & đánh tay)
+    -- Luồng độc lập giữ quái gom chặt tại vị trí nhân vật (chỉ chạy khi đứng đánh tự do, không can thiệp vào vòng farm/boss)
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.35)
+            task.wait(1.0)
             if hubState.fastMobBring ~= false and not hubState.autoFish and os.clock() >= dodgeUntilClock then
                 pcall(function()
                     local char = player.Character
@@ -2393,28 +2504,18 @@ end)
                         or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat
                         or hubState.autoDungeon
 
-                    if isBossMode and not isFarmMode then
+                    -- Khi đang ở chế độ Farm hoặc Boss, để vòng lặp của chế độ đó quản lý gom quái
+                    if isBossMode or isFarmMode then
                         return
                     end
 
-                    local rangeStuds = getBringRangeStuds()
-                    if isFarmMode then
-                        if currentCombatTarget and isModelAlive(currentCombatTarget) then
-                            local tRoot = getModelRoot(currentCombatTarget)
-                            if tRoot and (tRoot.Position - hrp.Position).Magnitude <= 45 then
-                                local anchor = Vector3.new(hrp.Position.X, tRoot.Position.Y, hrp.Position.Z)
-                                bringMobsToPosition(anchor, rangeStuds, 25, currentCombatTarget.Name, hubState.autoDungeon == true)
-                            end
-                        end
-                    else
-                        -- Đứng đánh tay tự do: CHỈ hút quái khi người dùng đang bật ít nhất 1 Auto M1 (tránh hút quái vào mặt khi đang đứng AFK chỉnh menu!)
-                        if #getActiveM1Categories() == 0 then return end
-                        local look = hrp.CFrame.LookVector
-                        local flatLook = Vector3.new(look.X, 0, look.Z)
-                        if flatLook.Magnitude < 0.1 then flatLook = Vector3.new(0, 0, -1) else flatLook = flatLook.Unit end
-                        local frontAnchor = hrp.Position + flatLook * 8
-                        bringMobsToPosition(frontAnchor, rangeStuds, 25, nil, false)
-                    end
+                    -- Đứng đánh tay tự do: CHỈ hút quái khi người dùng đang bật ít nhất 1 Auto M1
+                    if #getActiveM1Categories() == 0 then return end
+                    local look = hrp.CFrame.LookVector
+                    local flatLook = Vector3.new(look.X, 0, look.Z)
+                    if flatLook.Magnitude < 0.1 then flatLook = Vector3.new(0, 0, -1) else flatLook = flatLook.Unit end
+                    local frontAnchor = hrp.Position + flatLook * 8
+                    bringMobsToPosition(frontAnchor, getBringRangeStuds(), 25, nil, false, nil)
                 end)
             end
         end
@@ -2737,12 +2838,12 @@ end)
                             local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 45)
 
-                            -- Gom toàn bộ quái cùng loại trên cả đảo về ngay dưới chân nhân vật (tối đa 25 con)
+                            -- Gom toàn bộ quái cùng loại trên cả đảo về ngay dưới chân nhân vật (tối đa 25 con, chừa quái mục tiêu chính)
                             if (hubState.fastMobBring ~= false or genv.autocat) and (questAmount == nil or questAmount > 1) then
                                 local bringAnchor = ((hrp.Position - hoverPos).Magnitude <= 35)
                                     and Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
                                     or mRoot.Position
-                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, targetMob.Name, false)
+                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, targetMob.Name, false, targetMob)
                             end
 
                             if (hrp.Position - hoverPos).Magnitude <= 28 then
@@ -2846,7 +2947,7 @@ end)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 44)
                             if (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 35 then
                                 local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
-                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, targetMob.Name, false)
+                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, targetMob.Name, false, targetMob)
                             end
                             if (hrp.Position - hoverPos).Magnitude <= 32 then
                                 castConfiguredSkills(char, hum, targetMob)
@@ -2917,7 +3018,7 @@ end)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 48)
                             if (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 38 then
                                 local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
-                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, nil, true)
+                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, nil, true, targetMob)
                             end
                             if hubState.dungeonCameraLock == true then
                                 pcall(function()
