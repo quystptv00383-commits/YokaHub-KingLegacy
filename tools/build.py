@@ -27,7 +27,6 @@ MODULES_ORDER = [
 ]
 
 TARGET_DIST = os.path.join(DIST_DIR, "YokaHub.luau")
-TARGET_SCRIPTS = r"C:\Users\THIS PC\AppData\Local\Real\scripts\YokaHub.luau"
 TARGET_WORKSPACE = r"C:\Users\THIS PC\AppData\Local\Real\workspace\YokaHub.luau"
 
 print("==================================================")
@@ -77,12 +76,6 @@ if k_res.returncode != 0 or "Total keyword balance errors: 0" not in k_res.stdou
 print("  [x] Keyword Structure: PASSED (0 unclosed blocks)")
 
 # Deploy to destinations
-try:
-    shutil.copyfile(TARGET_DIST, TARGET_SCRIPTS)
-    print(f"[+] Deployed to Scripts: {TARGET_SCRIPTS}")
-except Exception as e:
-    print(f"[!] Warning copying to Scripts: {e}")
-
 try:
     shutil.copyfile(TARGET_DIST, TARGET_WORKSPACE)
     print(f"[+] Deployed to Workspace: {TARGET_WORKSPACE}")

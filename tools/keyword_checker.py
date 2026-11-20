@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 import re
+import os
 
-with open(r'C:\Users\THIS PC\AppData\Local\Real\scripts\YokaHub.luau', 'r', encoding='utf-8') as f:
+dist_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dist", "YokaHub.luau")
+with open(dist_path, 'r', encoding='utf-8') as f:
     text = f.read()
 
 # Strip multi-line comments
