@@ -8,7 +8,7 @@
         genv.chonmod = hubState.selectedMob or "Elite Skeleton [Lv. 3100]"
         if hubState.autoKillSelectedMob then genv.Autokillmob = true; genv.start = true end
         genv.autocat = (hubState.fastMobBring ~= false)
-        genv.MobBringRange = hubState.mobBringRange or 260
+        genv.MobBringRange = hubState.mobBringRange or 800
         if hubState.autoSkills then genv.opeskill = true; genv.autoskillsea = true end
         if hubState.autoHaki then genv.haki = true; genv.hakivutrangv2 = true end
         genv.hakiquansatv2 = (hubState.autoKenHaki ~= false)

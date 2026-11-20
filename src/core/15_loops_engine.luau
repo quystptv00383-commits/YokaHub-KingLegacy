@@ -476,9 +476,15 @@
             end
         end
 
-        -- Nếu người dùng không tích M1 nào nhưng đang bật Auto Farm / Boss, cầm vũ khí theo tab Skill đang bật
-        local fallbackCat = (hubState.skillSword and "sword") or (hubState.skillMelee and "melee") or (hubState.skillFruit and "fruit") or "sword"
-        local tool = char:FindFirstChildOfClass("Tool") or findToolByCategory(fallbackCat) or player.Backpack:FindFirstChildOfClass("Tool")
+        -- Nếu người dùng không tích M1 nào: ưu tiên giữ nguyên vũ khí đang cầm trên tay (ví dụ Trái Erebus)
+        local curHeld = char:FindFirstChildOfClass("Tool")
+        if curHeld then
+            local curCat = classifyKingLegacyTool(curHeld) or "fruit"
+            triggerKingLegacyM1(curHeld, curCat)
+            return curHeld
+        end
+        local fallbackCat = (hubState.skillFruit and "fruit") or (hubState.skillSword and "sword") or (hubState.skillMelee and "melee") or "fruit"
+        local tool = findToolByCategory(fallbackCat) or player.Backpack:FindFirstChildOfClass("Tool")
         if tool then
             local tCat = classifyKingLegacyTool(tool) or fallbackCat
             if tool.Parent == player.Backpack then
@@ -494,7 +500,7 @@
     -- ========================================================
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.11)
+            task.wait(0.06)
             local cats = getActiveM1Categories()
             if #cats > 0 and not hubState.autoFish and not isHoldingSkill and os.clock() >= dodgeUntilClock then
                 pcall(function()
@@ -614,7 +620,7 @@
             -- 2. Kiểm tra từ khóa chiêu đè / tụ lực / tia laser / xả đạn liên hoàn
             for _, kw in ipairs(HOLD_SKILL_KEYWORDS) do
                 if string.find(skillDisplayName, kw, 1, true) then
-                    return (key == "C" or key == "V") and 0.92 or 0.72
+                    return (key == "C" or key == "V") and 0.65 or 0.50
                 end
             end
         end
@@ -629,10 +635,10 @@
                 end
                 local maxH = tonumber(entry.MaxHold or entry.HoldTime or entry.ChargeTime or entry.ChannelTime)
                 if maxH and maxH > 0.15 then
-                    return math.clamp(maxH * 0.75, 0.45, 1.05)
+                    return math.clamp(maxH * 0.65, 0.35, 0.68)
                 end
                 if entry.Hold == true or entry.CanHold == true or entry.Channel == true or entry.Charge == true then
-                    return 0.80
+                    return 0.55
                 end
             end
         end
@@ -641,9 +647,9 @@
         local modTbl = getClientSkillModule(tool.Name, cat)
         if modTbl and typeof(modTbl.Deactive) == "function" then
             if key == "C" or key == "V" then
-                return 0.78
-            elseif key == "Z" or key == "X" then
                 return 0.52
+            elseif key == "Z" or key == "X" then
+                return 0.38
             end
         end
 
@@ -686,61 +692,65 @@
             setCurrentCombatTarget(targetModel)
         end
 
-        -- 1. Tự bật Haki Vũ Trang & Quan Sát (chống spam remote liên tục)
-        if (hubState.autoHaki or genv.haki) and (os.clock() - lastHakiClock) >= 4.0 then
+        -- 1. Tự bật Haki Vũ Trang (Armament) & Quan Sát (Ken) chuẩn King Legacy
+        if (hubState.autoHaki or genv.haki) and (os.clock() - lastHakiClock) >= 6.0 then
             lastHakiClock = os.clock()
             pcall(function()
                 genv.haki = true
                 genv.hakivutrangv2 = true
-                local net = sharedRS:FindFirstChild("Remotes")
-                if net and net:FindFirstChild("Functions") and net.Functions:FindFirstChild("Skill") then
-                    net.Functions.Skill:InvokeServer("Buso")
+                local chest = sharedRS:FindFirstChild("Chest")
+                local rem = chest and chest:FindFirstChild("Remotes")
+                local evts = rem and rem:FindFirstChild("Events")
+                local funcs = rem and rem:FindFirstChild("Functions")
+                if evts and evts:FindFirstChild("Armament") then
+                    local hakiOn = (char:GetAttribute("Armament") == true) or (char:FindFirstChild("Haki") ~= nil) or (char:FindFirstChild("Armament") ~= nil)
+                    if not hakiOn then
+                        evts.Armament:FireServer()
+                    end
+                end
+                if (hubState.autoKenHaki ~= false or genv.hakiquansatv2) and funcs and funcs:FindFirstChild("KenEvent") then
+                    genv.hakiquansatv2 = true
+                    local kenOn = (char:GetAttribute("Ken") == true) or (player:GetAttribute("Ken") == true)
+                    if not kenOn then
+                        pcall(function() funcs.KenEvent:InvokeServer(true) end)
+                    end
                 end
             end)
         end
-        if hubState.autoKenHaki ~= false or genv.hakiquansatv2 then
-            pcall(function() genv.hakiquansatv2 = true end)
-        end
 
-        -- 2. Đánh M1 nhanh theo đúng vũ khí người dùng tích chọn (Fruit / Sword / Melee)
+        -- 2. Đánh M1 tốc độ cao chuẩn vũ khí đang dùng (Fruit / Sword / Melee)
         if not isHoldingSkill then
             equipAndFireSelectedM1(char, hum)
         end
 
-        -- 3. Xả chiêu thông minh + Tự động nhận diện đè skill tối ưu (Smart Skill Hold)
+        -- 3. Xả chiêu thông minh + Tự động nhận diện đè skill tối ưu (ưu tiên vũ khí chính trước, không đổi tay gây đứt combo!)
         if not (hubState.autoSkills or genv.opeskill) then return end
 
-        local catPlan: { { cat: string, keys: { string } } } = {}
-        if hubState.skillFruit then
-            local kList = parseKeysFromOption(hubState.skillFruitKeys, genv.CombatSkillFruit)
-            if #kList == 0 then kList = { "Z", "X", "C", "V" } end
-            table.insert(catPlan, { cat = "fruit", keys = kList })
+        local m1Cats = getActiveM1Categories()
+        local curHeldTool = char:FindFirstChildOfClass("Tool")
+        local primaryCat = (#m1Cats == 1 and m1Cats[1]) or (curHeldTool and classifyKingLegacyTool(curHeldTool)) or "fruit"
+
+        local catPlan: { { cat: string, keys: { string }, prio: number } } = {}
+        local function addPlan(cat: string, opt: string?, fb: { string }?, defKeys: { string })
+            local kList = parseKeysFromOption(opt, fb)
+            if #kList == 0 then kList = defKeys end
+            table.insert(catPlan, { cat = cat, keys = kList, prio = (cat == primaryCat and 2 or 1) })
         end
-        if hubState.skillSword then
-            local kList = parseKeysFromOption(hubState.skillSwordKeys, genv.CombatSkillSword)
-            if #kList == 0 then kList = { "Z", "X" } end
-            table.insert(catPlan, { cat = "sword", keys = kList })
-        end
-        if hubState.skillMelee then
-            local kList = parseKeysFromOption(hubState.skillMeleeKeys, genv.CombatSkillMelee)
-            if #kList == 0 then kList = { "Z", "X", "C", "V" } end
-            table.insert(catPlan, { cat = "melee", keys = kList })
-        end
+        if hubState.skillFruit then addPlan("fruit", hubState.skillFruitKeys, genv.CombatSkillFruit, { "Z", "X", "C", "V" }) end
+        if hubState.skillSword then addPlan("sword", hubState.skillSwordKeys, genv.CombatSkillSword, { "Z", "X" }) end
+        if hubState.skillMelee then addPlan("melee", hubState.skillMeleeKeys, genv.CombatSkillMelee, { "Z", "X", "C", "V" }) end
         if #catPlan == 0 then
-            local curTool = char:FindFirstChildOfClass("Tool")
-            local curCat = (curTool and classifyKingLegacyTool(curTool)) or "sword"
-            table.insert(catPlan, { cat = curCat, keys = { "Z", "X" } })
+            table.insert(catPlan, { cat = primaryCat, keys = { "Z", "X", "C" }, prio = 2 })
         end
+        table.sort(catPlan, function(a, b) return a.prio > b.prio end)
 
         local castsDone = 0
         local maxCastsPerTick = 2
-        local planCount = #catPlan
+        local switchedAway = false
 
-        for stepIdx = 1, planCount do
+        for _, plan in ipairs(catPlan) do
             if castsDone >= maxCastsPerTick or os.clock() < dodgeUntilClock then break end
             if targetModel and not isModelAlive(targetModel) then break end
-            skillCatCursor = (skillCatCursor % planCount) + 1
-            local plan = catPlan[skillCatCursor]
             local tool = findToolByCategory(plan.cat)
             if tool then
                 for _, k in ipairs(plan.keys) do
@@ -751,7 +761,8 @@
                         if keyEnum and sharedVim then
                             if tool.Parent == player.Backpack then
                                 hum:EquipTool(tool)
-                                task.wait(0.05)
+                                if plan.cat ~= primaryCat then switchedAway = true end
+                                task.wait(0.04)
                             end
                             local tModel, tRoot = targetModel, getModelRoot(targetModel)
                             if not (tModel and tRoot) then
@@ -773,7 +784,7 @@
                                         if tModel and tRoot and tRoot.Parent then
                                             _G.MouseHit = CFrame.new(getAimPoint(tModel, tRoot))
                                         end
-                                        local slice = math.min(0.05, holdDur - held)
+                                        local slice = math.min(0.04, holdDur - held)
                                         task.wait(slice)
                                         held += slice
                                     end
@@ -784,10 +795,18 @@
                                 sharedVim:SendKeyEvent(false, keyEnum, false, game)
                             end)
                             castsDone += 1
-                            task.wait(0.06)
+                            task.wait(0.04)
                         end
                     end
                 end
+            end
+        end
+
+        -- Trả lại ngay vũ khí chính để M1 đánh liên hoàn không gián đoạn
+        if switchedAway and #m1Cats == 1 then
+            local mainTool = findToolByCategory(primaryCat)
+            if mainTool and mainTool.Parent == player.Backpack then
+                pcall(function() hum:EquipTool(mainTool) end)
             end
         end
     end
@@ -1742,10 +1761,10 @@ end)
 
 
     -- ========================================================
-    -- [HELPER GOM QUÁI VỀ VỊ TRÍ NHÂN VẬT (FAST MOB BRING)]
+    -- [HELPER GOM QUÁI CẢ ĐẢO VỀ VỊ TRÍ NHÂN VẬT (FAST MOB BRING)]
     -- ========================================================
     local function getBringRangeStuds(): number
-        return math.clamp(tonumber(hubState.mobBringRange or genv.MobBringRange) or 260, 70, 400)
+        return math.clamp(tonumber(hubState.mobBringRange or genv.MobBringRange) or 800, 100, 1200)
     end
 
     local function bringMobsToPosition(anchorPos: Vector3, maxRange: number, maxCount: number, filterName: string?, includeDungeon: boolean?)
@@ -1776,10 +1795,10 @@ end)
         end
     end
 
-    -- Luồng độc lập giữ quái gom chặt tại vị trí nhân vật (chạy cả khi đứng đánh tay lẫn Auto Farm)
+    -- Luồng độc lập giữ quái gom chặt tại vị trí nhân vật (phạm vi cả đảo, chạy cả Auto Farm & đánh tay)
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.10)
+            task.wait(0.08)
             if (hubState.fastMobBring ~= false or genv.autocat) and not hubState.autoFish and os.clock() >= dodgeUntilClock then
                 pcall(function()
                     local char = player.Character
@@ -1802,16 +1821,16 @@ end)
                             local tRoot = getModelRoot(currentCombatTarget)
                             if tRoot and (tRoot.Position - hrp.Position).Magnitude <= 45 then
                                 local anchor = Vector3.new(hrp.Position.X, tRoot.Position.Y, hrp.Position.Z)
-                                bringMobsToPosition(anchor, rangeStuds, 15, currentCombatTarget.Name, hubState.autoDungeon == true)
+                                bringMobsToPosition(anchor, rangeStuds, 25, currentCombatTarget.Name, hubState.autoDungeon == true)
                             end
                         end
                     else
-                        -- Đứng đánh tay / Auto M1 tự do: hút toàn bộ quái thường trong tầm về ngay trước mặt nhân vật
+                        -- Đứng đánh tay / Auto M1 tự do: hút toàn bộ quái thường cả đảo trong tầm về ngay trước mặt nhân vật
                         local look = hrp.CFrame.LookVector
                         local flatLook = Vector3.new(look.X, 0, look.Z)
                         if flatLook.Magnitude < 0.1 then flatLook = Vector3.new(0, 0, -1) else flatLook = flatLook.Unit end
                         local frontAnchor = hrp.Position + flatLook * 8
-                        bringMobsToPosition(frontAnchor, rangeStuds, 15, nil, false)
+                        bringMobsToPosition(frontAnchor, rangeStuds, 25, nil, false)
                     end
                 end)
             end
@@ -1819,52 +1838,203 @@ end)
     end)
 
     -- ========================================================
+    -- [QUEST MANAGER & AUTO REPEAT QUEST HELPERS (SEA 1 / 2 / 3)]
+    -- ========================================================
+    local cachedQuestManager: any = nil
+    local function getQuestManagerTable(): any
+        if cachedQuestManager ~= nil then
+            return cachedQuestManager ~= false and cachedQuestManager or nil
+        end
+        local chest = sharedRS:FindFirstChild("Chest")
+        local mods = chest and chest:FindFirstChild("Modules")
+        local qmInst = mods and mods:FindFirstChild("QuestManager")
+        if qmInst and qmInst:IsA("ModuleScript") then
+            local okReq, tbl = pcall(require, qmInst)
+            if okReq and typeof(tbl) == "table" then
+                cachedQuestManager = tbl
+                return tbl
+            end
+        end
+        cachedQuestManager = false
+        return nil
+    end
+
+    local function getSeaQuestNpcRanges(): { { name: string, minLv: number, maxLv: number, pos: Vector3 } }
+        local list = {}
+        local allNpc = workspace:FindFirstChild("AllNPC")
+        if allNpc then
+            for _, c in ipairs(allNpc:GetChildren()) do
+                local lmin = tonumber(c:GetAttribute("LevelMin"))
+                local lmax = tonumber(c:GetAttribute("LevelMax"))
+                if lmin ~= nil and lmax ~= nil then
+                    local p = c:IsA("BasePart") and c or (c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))
+                    if p then
+                        table.insert(list, { name = c.Name, minLv = lmin, maxLv = lmax, pos = p.Position })
+                    end
+                end
+            end
+        end
+        return list
+    end
+
+    local function findQuestNpcPositionForLevel(qLv: number): Vector3?
+        local ranges = getSeaQuestNpcRanges()
+        local bestPos: Vector3? = nil
+        local bestSpan = 1e9
+        for _, r in ipairs(ranges) do
+            if qLv >= r.minLv and qLv <= r.maxLv then
+                local span = r.maxLv - r.minLv
+                if span < bestSpan then
+                    bestSpan = span
+                    bestPos = r.pos
+                end
+            end
+        end
+        if not bestPos then
+            local bestDiff = 1e9
+            for _, r in ipairs(ranges) do
+                local d = math.min(math.abs(qLv - r.minLv), math.abs(qLv - r.maxLv))
+                if d < bestDiff then
+                    bestDiff = d
+                    bestPos = r.pos
+                end
+            end
+        end
+        return bestPos
+    end
+
+    local function getBestQuestForLevel(myLvl: number): (string?, any?)
+        local qm = getQuestManagerTable()
+        if not qm then return nil, nil end
+        local ranges = getSeaQuestNpcRanges()
+        local hasRanges = #ranges > 0
+        local function inCurrentSea(qLv: number): boolean
+            if not hasRanges then return true end
+            for _, r in ipairs(ranges) do
+                if qLv >= r.minLv and qLv <= r.maxLv then
+                    return true
+                end
+            end
+            return false
+        end
+
+        local bestName: string? = nil
+        local bestInfo: any = nil
+        local bestLv = -1
+        for qName, qInfo in pairs(qm) do
+            if typeof(qName) == "string" and typeof(qInfo) == "table" then
+                if not qInfo.DailyQuest and not qInfo.Interact and typeof(qInfo.Mob) == "string" and qInfo.Mob ~= "" then
+                    local qLv = tonumber(qInfo.Level)
+                    if qLv and qLv <= myLvl and inCurrentSea(qLv) then
+                        if qLv > bestLv then
+                            bestLv = qLv
+                            bestName = qName
+                            bestInfo = qInfo
+                        end
+                    end
+                end
+            end
+        end
+        return bestName, bestInfo
+    end
+
+    local function clickQuestRepeatButton(acceptRepeat: boolean)
+        pcall(function()
+            local pgui = player:FindFirstChild("PlayerGui")
+            local mainGui = pgui and pgui:FindFirstChild("MainGui")
+            local qFrame = mainGui and mainGui:FindFirstChild("QuestFrame")
+            local rep = qFrame and qFrame:FindFirstChild("RepeatFrame")
+            if rep and rep:IsA("GuiObject") and rep.Visible then
+                local btn = rep:FindFirstChild(acceptRepeat and "Yes" or "No")
+                if btn and btn:IsA("GuiButton") then
+                    local getConns = (getconnections :: any)
+                    if typeof(getConns) == "function" then
+                        for _, conn in ipairs(getConns(btn.MouseButton1Click)) do
+                            pcall(function() conn:Fire() end)
+                        end
+                    end
+                    local fireSig = (firesignal :: any)
+                    if typeof(fireSig) == "function" then
+                        pcall(function() fireSig(btn.MouseButton1Click) end)
+                    end
+                end
+            end
+        end)
+    end
+
+    local function handleQuestRepeatPopup()
+        if not hubState.autoTakeLevelQuest then return end
+        local pgui = player:FindFirstChild("PlayerGui")
+        local mainGui = pgui and pgui:FindFirstChild("MainGui")
+        local qFrame = mainGui and mainGui:FindFirstChild("QuestFrame")
+        local rep = qFrame and qFrame:FindFirstChild("RepeatFrame")
+        if not (rep and rep:IsA("GuiObject") and rep.Visible) then return end
+
+        local ps = player:FindFirstChild("PlayerStats")
+        local lvlObj = ps and ps:FindFirstChild("lvl")
+        local myLvl = lvlObj and tonumber(lvlObj.Value) or 1
+        local bestName, bestInfo = getBestQuestForLevel(myLvl)
+        local qm = getQuestManagerTable()
+        local curQ = player:FindFirstChild("CurrentQuest")
+        local curName = (curQ and typeof(curQ.Value) == "string") and curQ.Value or ""
+        local curInfo = (qm and curName ~= "") and qm[curName] or nil
+
+        -- Nếu đã lên cấp mở khóa nhiệm vụ cao hơn -> bấm No để tự chuyển sang nhiệm vụ mới
+        if bestInfo and curInfo and (tonumber(bestInfo.Level) or 0) > (tonumber(curInfo.Level) or 0) then
+            clickQuestRepeatButton(false)
+        else
+            clickQuestRepeatButton(true)
+        end
+    end
+
+    -- Bắt sự kiện RepeatFrame hiện lên ngay tức thì (< 0.05s) giống trong video
+    pcall(function()
+        local pgui = player:FindFirstChild("PlayerGui")
+        local mainGui = pgui and pgui:FindFirstChild("MainGui")
+        local qFrame = mainGui and mainGui:FindFirstChild("QuestFrame")
+        local rep = qFrame and qFrame:FindFirstChild("RepeatFrame")
+        if rep and rep:IsA("GuiObject") then
+            trackConn(rep:GetPropertyChangedSignal("Visible"):Connect(function()
+                if genv._YokaHubToken ~= myToken then return end
+                if rep.Visible then
+                    task.defer(handleQuestRepeatPopup)
+                end
+            end))
+        end
+    end)
+
+    -- ========================================================
     -- [NATIVE AUTO FARM LEVEL & SELECT MOB WORKER]
     -- ========================================================
-    local function getActiveQuestMobHint(): string?
-        local hint: string? = nil
+    local function getActiveQuestMobExact(): (string?, number?)
+        local exactMob: string? = nil
+        local reqAmount: number? = nil
         pcall(function()
+            local curQ = player:FindFirstChild("CurrentQuest")
+            local curName = (curQ and typeof(curQ.Value) == "string") and curQ.Value or ""
+            local qm = getQuestManagerTable()
+            if qm and curName ~= "" and typeof(qm[curName]) == "table" then
+                local entry = qm[curName]
+                if typeof(entry.Mob) == "string" and entry.Mob ~= "" then
+                    exactMob = entry.Mob
+                    reqAmount = tonumber(entry.Ammount) or 1
+                    return
+                end
+            end
             local pgui = player:FindFirstChild("PlayerGui")
             local mainGui = pgui and pgui:FindFirstChild("MainGui")
             local qFrame = mainGui and mainGui:FindFirstChild("QuestFrame")
             local qBoard = qFrame and qFrame:FindFirstChild("QuestBoard")
             if qBoard and qBoard:IsA("GuiObject") and qBoard.Visible then
-                -- Tự bấm nút Repeat Yes nếu bảng lặp lại nhiệm vụ xuất hiện
-                local rep = qBoard:FindFirstChild("RepeatFrame")
-                if hubState.autoTakeLevelQuest and rep and rep:IsA("GuiObject") and rep.Visible then
-                    local yesBtn = rep:FindFirstChild("Yes")
-                    if yesBtn and yesBtn:IsA("GuiButton") then
-                        local getConns = (getconnections :: any)
-                        if typeof(getConns) == "function" then
-                            for _, conn in ipairs(getConns(yesBtn.MouseButton1Click)) do
-                                pcall(function() conn:Fire() end)
-                            end
-                        end
-                    end
-                end
                 local tFrame = qBoard:FindFirstChild("TextFrame")
                 local qLbl = (tFrame and (tFrame:FindFirstChild("QuestName") or tFrame:FindFirstChildWhichIsA("TextLabel")))
                     or qBoard:FindFirstChild("QuestName", true)
                 if qLbl and qLbl:IsA("TextLabel") and qLbl.Text ~= "" then
-                    local txt = string.lower(qLbl.Text)
-                    local parsed = string.match(txt, "defeat%s+%d+%s+([%a%s']+)")
-                        or string.match(txt, "kill%s+%d+%s+([%a%s']+)")
-                        or string.match(txt, "defeat%s+([%a%s']+)")
-                    if parsed then
-                        parsed = string.gsub(parsed, "%s+lv.*$", "")
-                        parsed = string.gsub(parsed, "%s+$", "")
-                        if #parsed >= 3 then hint = parsed end
-                    end
-                end
-            end
-            if not hint then
-                local curQ = player:FindFirstChild("CurrentQuest")
-                if curQ and typeof(curQ.Value) == "string" and curQ.Value ~= "" and curQ.Value ~= "None" then
-                    hint = string.lower(curQ.Value)
+                    exactMob = qLbl.Text
                 end
             end
         end)
-        return hint
+        return exactMob, reqAmount
     end
 
     local function parseMobLevel(mobName: string): number?
@@ -1872,11 +2042,14 @@ end)
         return lv and tonumber(lv) or nil
     end
 
+    local questMobLastPos: { [string]: Vector3 } = {}
+
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.16)
+            task.wait(0.12)
             if (hubState.autoLevel or hubState.autoKillSelectedMob or genv.Autokillmob or genv.Famlevel) and currentMode == "off" then
                 pcall(function()
+                    handleQuestRepeatPopup()
                     local char = player.Character
                     if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then return end
                     local hrp = char.HumanoidRootPart
@@ -1888,10 +2061,8 @@ end)
                     local lvlObj = ps and ps:FindFirstChild("lvl")
                     local myLvl = lvlObj and tonumber(lvlObj.Value) or 1
 
-                    -- 1. Tìm quái mục tiêu thông minh: Ưu tiên Select Mob -> Quest Mob -> Quái đúng cấp -> Gần nhất
-                    local targetMob: Model? = nil
-                    local bestScore = -1e9
-                    local mobFolders = getAliveMobFolders(false, false, false)
+                    -- Quét ĐẦY ĐỦ cả Monster.Mon lẫn Monster.Boss (để đánh được cả Boss nhiệm vụ như Rumble Man [Lv. 950], Leader [Lv. 1100]...)
+                    local mobFolders = getAliveMobFolders(true, false, false)
                     local isSelectMode = (hubState.autoKillSelectedMob or genv.Autokillmob) == true
                     local selectedMobName = hubState.selectedMob or genv.chonmod or ""
                     local rawSelLower = ""
@@ -1899,7 +2070,15 @@ end)
                         local rawSel = string.match(selectedMobName, "^([%w%s%']+)") or selectedMobName
                         rawSelLower = string.lower(string.gsub(rawSel, "%s+$", ""))
                     end
-                    local questHint = (not isSelectMode) and getActiveQuestMobHint() or nil
+
+                    local questMobExact, questAmount = nil, nil
+                    if not isSelectMode then
+                        questMobExact, questAmount = getActiveQuestMobExact()
+                    end
+                    local questMobLower = questMobExact and string.lower(questMobExact) or nil
+
+                    local targetMob: Model? = nil
+                    local bestScore = -1e9
 
                     for _, fld in ipairs(mobFolders) do
                         for _, m in ipairs(fld:GetChildren()) do
@@ -1917,24 +2096,26 @@ end)
                                                 targetMob = m
                                             end
                                         end
-                                    else
-                                        local score = -dist * 0.25
-                                        -- Khớp quái của nhiệm vụ đang nhận -> ưu tiên tuyệt đối
-                                        if questHint and (string.find(mnLower, questHint, 1, true) or string.find(questHint, string.gsub(mnLower, "%s*%[.-%]", ""), 1, true)) then
-                                            score += 50000
-                                        else
-                                            local mLv = parseMobLevel(m.Name)
-                                            if mLv then
-                                                if mLv <= myLvl + 25 then
-                                                    -- Ưu tiên quái sát cấp nhân vật nhất
-                                                    score += 10000 - math.abs(myLvl - mLv) * 4
-                                                else
-                                                    -- Tránh quái vượt cấp quá xa
-                                                    score -= (mLv - myLvl) * 8
-                                                end
+                                    elseif questMobExact and questMobLower then
+                                        -- Khóa chặt đúng quái / boss của nhiệm vụ đang nhận (như Rumble Man / High-class Soldier)
+                                        if m.Name == questMobExact or string.find(mnLower, questMobLower, 1, true) then
+                                            local score = 200000 - dist
+                                            if m == currentCombatTarget then score += 500 end
+                                            if score > bestScore then
+                                                bestScore = score
+                                                targetMob = m
                                             end
                                         end
-                                        -- Ưu tiên giữ mục tiêu đang đánh dở để kết liễu dứt điểm
+                                    else
+                                        local score = -dist * 0.25
+                                        local mLv = parseMobLevel(m.Name)
+                                        if mLv then
+                                            if mLv <= myLvl + 25 then
+                                                score += 10000 - math.abs(myLvl - mLv) * 4
+                                            else
+                                                score -= (mLv - myLvl) * 8
+                                            end
+                                        end
                                         if m == currentCombatTarget then
                                             score += 1200
                                         end
@@ -1953,23 +2134,37 @@ end)
                         local mHum = targetMob:FindFirstChildOfClass("Humanoid")
                         if mRoot and mHum and mHum.Health > 0 then
                             setCurrentCombatTarget(targetMob)
-                            -- Độ cao bay tối ưu cho quái thường: 10.5 studs (an toàn + M1 Kiếm/Melee/Fruit đánh trúng 100%)
-                            local sHeight = (hubState.safeDistance ~= false) and 10.5 or 7.5
+                            if questMobExact then
+                                questMobLastPos[questMobExact] = mRoot.Position
+                            end
+                            -- Lơ lửng ngay trên đầu quái/boss nhìn thẳng xuống (8.5 studs an toàn, đánh M1 + Skill trúng 100%)
+                            local sHeight = (hubState.safeDistance ~= false) and 8.5 or 7.0
                             local aimPos = getAimPoint(targetMob, mRoot)
                             local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 45)
 
-                            -- Gom quái xung quanh về thẳng vị trí nhân vật (tối đa 15 con trong phạm vi Bring Range)
-                            if hubState.fastMobBring ~= false or genv.autocat then
+                            -- Gom toàn bộ quái cùng loại trên cả đảo về ngay dưới chân nhân vật (tối đa 25 con)
+                            if (hubState.fastMobBring ~= false or genv.autocat) and (questAmount == nil or questAmount > 1) then
                                 local bringAnchor = ((hrp.Position - hoverPos).Magnitude <= 35)
                                     and Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
                                     or mRoot.Position
-                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 15, targetMob.Name, false)
+                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, targetMob.Name, false)
                             end
 
-                            if (hrp.Position - hoverPos).Magnitude <= 30 then
+                            if (hrp.Position - hoverPos).Magnitude <= 28 then
                                 castConfiguredSkills(char, hum, targetMob)
                             end
+                        end
+                    elseif questMobExact then
+                        -- Quái / Boss nhiệm vụ vừa chết đang hồi sinh -> Bay lên cao (+36 studs) đứng chờ an toàn ngay bãi spawn như trong video
+                        local waitAnchor = questMobLastPos[questMobExact]
+                        if not waitAnchor then
+                            local qLv = parseMobLevel(questMobExact) or myLvl
+                            waitAnchor = findQuestNpcPositionForLevel(qLv)
+                        end
+                        if waitAnchor then
+                            local safeWaitPos = waitAnchor + Vector3.new(0, 36, 0)
+                            setFlightTarget(safeWaitPos, waitAnchor, (safeWaitPos - hrp.Position).Magnitude > 1600, 44)
                         end
                     end
                 end)
@@ -2057,7 +2252,7 @@ end)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 44)
                             if (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 35 then
                                 local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
-                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 15, targetMob.Name, false)
+                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, targetMob.Name, false)
                             end
                             if (hrp.Position - hoverPos).Magnitude <= 32 then
                                 castConfiguredSkills(char, hum, targetMob)
@@ -2126,7 +2321,7 @@ end)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 48)
                             if (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 38 then
                                 local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
-                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 15, nil, true)
+                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, nil, true)
                             end
                             if hubState.dungeonCameraLock ~= false then
                                 pcall(function()
@@ -2421,30 +2616,61 @@ end)
     -- ========================================================
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(2.5)
-            if hubState.autoTakeLevelQuest then
+            task.wait(0.75)
+            if hubState.autoTakeLevelQuest and (hubState.autoLevel or genv.Famlevel) and currentMode == "off" then
                 pcall(function()
-                    local curQuest = player:FindFirstChild("CurrentQuest")
-                    if curQuest and typeof(curQuest.Value) == "string" and curQuest.Value ~= "" and curQuest.Value ~= "None" then
-                        return
-                    end
+                    handleQuestRepeatPopup()
+                    local char = player.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if not (hrp and hum and hum.Health > 0) then return end
+                    if os.clock() < dodgeUntilClock then return end
 
                     local ps = player:FindFirstChild("PlayerStats")
                     local lvlObj = ps and ps:FindFirstChild("lvl")
                     local myLvl = lvlObj and tonumber(lvlObj.Value) or 1
 
-                    local chestFuncs = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
-                    local remFuncs = chestFuncs and chestFuncs:FindFirstChild("Remotes") and chestFuncs.Remotes:FindFirstChild("Functions")
-                    local qRemote = remFuncs and (remFuncs:FindFirstChild("Quest") or remFuncs:FindFirstChild("CheckQuest"))
+                    local bestName, bestInfo = getBestQuestForLevel(myLvl)
+                    if not (bestName and bestInfo) then return end
 
-                    if qRemote then
-                        pcall(function() qRemote:InvokeServer() end)
+                    local chest = sharedRS:FindFirstChild("Chest")
+                    local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                    local qRemote = remFuncs and remFuncs:FindFirstChild("Quest")
+                    local etcRemote = remFuncs and remFuncs:FindFirstChild("EtcFunction")
+                    local curQuestObj = player:FindFirstChild("CurrentQuest")
+                    local curName = (curQuestObj and typeof(curQuestObj.Value) == "string") and curQuestObj.Value or ""
+
+                    -- Nếu đã lên cấp mở khóa nhiệm vụ cao hơn -> tự hủy quest cũ để nhận quest mới
+                    if curName ~= "" and curName ~= "None" then
+                        local qm = getQuestManagerTable()
+                        local curInfo = qm and qm[curName] or nil
+                        local curLv = curInfo and tonumber(curInfo.Level) or 0
+                        local bestLv = tonumber(bestInfo.Level) or 0
+                        if bestLv > curLv and etcRemote then
+                            pcall(function() etcRemote:InvokeServer("CancelQuest", {}) end)
+                            task.wait(0.25)
+                            curName = (curQuestObj and typeof(curQuestObj.Value) == "string") and curQuestObj.Value or ""
+                        else
+                            return
+                        end
                     end
-                    if typeof(genv.TakeQuest) == "function" then
-                        pcall(function() genv.TakeQuest() end)
-                    end
-                    if typeof(genv.GetQuest) == "function" then
-                        pcall(function() genv.GetQuest() end)
+
+                    -- Nhận nhiệm vụ mới chuẩn King Legacy: Quest:InvokeServer("take", bestName)
+                    if (curName == "" or curName == "None") and qRemote then
+                        pcall(function() qRemote:InvokeServer("take", bestName) end)
+                        task.wait(0.22)
+                        local afterName = (curQuestObj and typeof(curQuestObj.Value) == "string") and curQuestObj.Value or ""
+                        if afterName == "" or afterName == "None" then
+                            -- Nếu server yêu cầu đứng gần NPC Quest -> bay mượt tới đúng NPC Quest theo cấp
+                            local npcPos = findQuestNpcPositionForLevel(tonumber(bestInfo.Level) or myLvl)
+                            if npcPos then
+                                local dest = npcPos + Vector3.new(0, 6, 0)
+                                setFlightTarget(dest, npcPos, (dest - hrp.Position).Magnitude > 1600, 52)
+                                if (hrp.Position - npcPos).Magnitude <= 30 then
+                                    pcall(function() qRemote:InvokeServer("take", bestName) end)
+                                end
+                            end
+                        end
                     end
                 end)
             end

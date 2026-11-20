@@ -195,13 +195,13 @@
         }, "FastMobBringToggle")
 
         MobSection:CreateSlider({
-            Name = "🧲 Phạm Vi Hút Quái Về Vị Trí Mình (Bring Range)",
-            Range = { 70, 400 },
-            Increment = 10,
+            Name = "🧲 Phạm Vi Hút Quái Cả Đảo Về Vị Trí Mình (Bring Range)",
+            Range = { 100, 1200 },
+            Increment = 25,
             Suffix = " studs",
-            CurrentValue = hubState.mobBringRange or 260,
+            CurrentValue = hubState.mobBringRange or 800,
             Callback = function(Value: number)
-                hubState.mobBringRange = math.clamp(math.floor(Value), 70, 400)
+                hubState.mobBringRange = math.clamp(math.floor(Value), 100, 1200)
                 saveState(hubState)
                 pcall(function()
                     genv.MobBringRange = hubState.mobBringRange
