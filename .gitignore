@@ -14,6 +14,11 @@ sepay_token.txt
 webhook_private.txt
 CombinedSettings.json
 
+# Temporary tools & inspect scripts
+tools/inspect_*.py
+tools/test_*.py
+tools/check_*.py
+
 # Local IDE & OS files
 .vscode/
 .idea/
