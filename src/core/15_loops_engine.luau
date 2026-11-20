@@ -142,28 +142,35 @@
 
     local function isSea3BossEnabled(name: string): boolean
         local n = string.lower(name)
+        -- 1. Drakenfyr / Dragon / Sea Dragon (Top 1)
+        if string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno king", 1, true) ~= nil or string.find(n, "sea dragon", 1, true) ~= nil or (string.find(n, "dragon", 1, true) ~= nil and string.find(n, "fruit", 1, true) == nil and string.find(n, "claw", 1, true) == nil) then
+            return hubState.fightSea3Dragon ~= false
+        end
+        -- 2. Depth King (Top 2)
         if (string.find(n, "depth", 1, true) ~= nil) and string.find(n, "abyssal", 1, true) == nil then
             return hubState.fightSea3DepthKing ~= false
         end
-        if string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno king", 1, true) ~= nil or (string.find(n, "dragon", 1, true) ~= nil and string.find(n, "fruit", 1, true) == nil) then
-            return hubState.fightSea3Dragon ~= false
-        end
+        -- 3. Abyssal Tyrant (Top 3)
         if string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "tyrant", 1, true) ~= nil then
             return hubState.fightSea3Abyssal ~= false
         end
+        -- 4. Kraken & Xúc tu (Top 4)
         if string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil then
             return hubState.fightSea3Kraken ~= false
         end
+        -- 5. Cua biển (Top 5)
         if string.find(n, "crab", 1, true) ~= nil then
             return hubState.fightSea3Crab ~= false
         end
+        -- 6. Rắn biển Serpent
         if string.find(n, "serpent", 1, true) ~= nil then
             return hubState.fightSea2Serpent ~= false
         end
-        if string.find(n, "sea beast", 1, true) ~= nil or string.find(n, "seabeast", 1, true) ~= nil or string.find(n, "sea event", 1, true) ~= nil then
-            return hubState.fightSea3Events ~= false
+        -- 7. Các Sea Events thường khác (Galleon / Ghost / Sea Beast)
+        if string.find(n, "sea beast", 1, true) ~= nil or string.find(n, "seabeast", 1, true) ~= nil or string.find(n, "galleon", 1, true) ~= nil or string.find(n, "ghost", 1, true) ~= nil then
+            return hubState.fightSea3Events == true
         end
-        return hubState.fightSea3Events ~= false
+        return false
     end
 
     local function isSea2BossEnabled(name: string): boolean
@@ -1383,7 +1390,7 @@
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
         if soloKey == "dragon" then
-            if pid == SEA3_PLACE and (string.find(nm, "drakenfyr") ~= nil or string.find(nm, "inferno king") ~= nil or (src == "sea_event" and string.find(nm, "dragon") ~= nil)) then
+            if pid == SEA3_PLACE and (string.find(nm, "drakenfyr") ~= nil or string.find(nm, "inferno king") ~= nil or string.find(nm, "sea dragon") ~= nil or (string.find(nm, "dragon") ~= nil and string.find(nm, "fruit") == nil and string.find(nm, "claw") == nil)) then
                 return (string.find(nm, "drakenfyr") ~= nil or string.find(nm, "sea dragon") ~= nil) and 2 or 1
             end
         elseif soloKey == "abyssal_tyrant" then
@@ -1580,7 +1587,10 @@
         if typeof(genv.WK_SeaEvent) == "table" and typeof(genv.WK_SeaEvent.GetState) == "function" then
             local ok, st = pcall(genv.WK_SeaEvent.GetState)
             if ok and typeof(st) == "table" and st.phase and st.phase ~= "inactive" then
-                return true, tostring(st.eventKey or st.phase)
+                local evName = tostring(st.eventKey or st.phase or "")
+                if isSea3BossEnabled(evName) then
+                    return true, evName
+                end
             end
         end
         -- 1. Quet trong Workspace.SeaMonster (noi spawn Depth King / SeaDragon / Kraken / Crab / Serpent)
@@ -1609,7 +1619,7 @@
         if genv.DepthKingChestWaitStarted == true and genv.DepthKingChestReadyToHop == false and hubState.fightSea3DepthKing ~= false then
             return true, "Đang mở rương Depth King"
         end
-        if genv.SeaKingChestWaitStarted == true and genv.SeaKingChestReadyToHop == false then
+        if genv.SeaKingChestWaitStarted == true and genv.SeaKingChestReadyToHop == false and hubState.fightSea3Events == true then
             return true, "Đang mở rương"
         end
         return false, "none"
@@ -1914,15 +1924,21 @@
             end
 
         elseif mode == "sea3" then
+            local preferSea3Boss = (hubState.fightSea3Dragon ~= false and "dragon")
+                or (hubState.fightSea3DepthKing ~= false and "depth")
+                or (hubState.fightSea3Abyssal ~= false and "abyssal")
+                or (hubState.fightSea3Kraken ~= false and "kraken")
+                or (hubState.fightSea3Crab ~= false and "crab")
+                or "dragon"
             if game.PlaceId ~= SEA3_PLACE then
-                ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Lệch Sea", "depth")
+                ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Lệch Sea", preferSea3Boss)
                 smartWait(15.0, "sea3")
                 continue
             end
             pcall(function()
-                genv.AutoDepthKing = true
-                genv.SeaEvent = true
-                genv.Serpent = true
+                genv.AutoDepthKing = (hubState.fightSea3DepthKing ~= false)
+                genv.SeaEvent = (hubState.fightSea3Dragon ~= false or hubState.fightSea3Kraken ~= false or hubState.fightSea3Crab ~= false or hubState.fightSea3Events == true)
+                genv.Serpent = (hubState.fightSea2Serpent ~= false)
                 genv.utienSeaEvent = true
                 genv.autoskillsea = true
                 genv.autoskhdhop = false

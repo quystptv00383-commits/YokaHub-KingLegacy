@@ -19,40 +19,49 @@
     local function getSea3Prio(e: any): number
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
-        -- Top 1: Depth King (Sea 3) - Ưu tiên cao nhất (6 điểm)
+
+        -- Top 1: Drakenfyr the Inferno King / Dragon / Sea Dragon (Sea 3) - Ưu tiên cao nhất (10 điểm)
+        if string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "dragon", 1, true) ~= nil) then
+            if hubState.fightSea3Dragon == false then return 0 end
+            return 10
+        end
+
+        -- Top 2: Depth King (Sea 3) - Ưu tiên số 2 (8 điểm)
         if (src == "depth_king" or string.find(nm, "depth", 1, true) ~= nil) and string.find(nm, "abyssal", 1, true) == nil then
             if hubState.fightSea3DepthKing == false then return 0 end
-            return 6
+            return 8
         end
-        -- Top 2: Drakenfyr the Inferno King / Dragon (Sea 3) - Ưu tiên số 2 (5 điểm)
-        if string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "dragon", 1, true) ~= nil) then
-            if hubState.fightSea3Dragon == false then return 0 end
-            return 5
-        end
-        -- Top 3: Abyssal Tyrant (Sea 3) - Ưu tiên số 3 (4 điểm)
+
+        -- Top 3: Abyssal Tyrant (Sea 3) - Ưu tiên số 3 (6 điểm)
         if string.find(nm, "abyssal tyrant", 1, true) ~= nil or string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil then
             if hubState.fightSea3Abyssal == false then return 0 end
-            return 4
+            return 6
         end
-        -- Top 4: Kraken (Sea 3) - Ưu tiên số 4 (3 điểm)
+
+        -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (4 điểm)
         if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) then
             if hubState.fightSea3Kraken == false then return 0 end
+            return 4
+        end
+
+        -- Top 5: Cua Biển Khổng Lồ (Giant Crab Sea 3) - Ưu tiên số 5 (3 điểm)
+        if string.find(nm, "crab", 1, true) ~= nil then
+            if hubState.fightSea3Crab == false then return 0 end
             return 3
         end
-        -- Top 5: Cua Biển (Giant Crab) & Các Sea Events khác (2 điểm)
-        if src == "sea_event" or string.find(nm, "crab", 1, true) ~= nil or string.find(nm, "sea beast", 1, true) ~= nil then
-            if string.find(nm, "crab", 1, true) ~= nil then
-                if hubState.fightSea3Crab == false then return 0 end
-            else
-                if hubState.fightSea3Events == false and hubState.fightSea3Crab == false then return 0 end
-            end
-            return 2
-        end
-        -- Top 6: Rắn Biển / Serpent (1 điểm)
+
+        -- Top 6: Rắn Biển / Serpent (Sea 3 & 2) - Ưu tiên số 6 (2 điểm)
         if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
             if hubState.fightSea2Serpent == false then return 0 end
+            return 2
+        end
+
+        -- Top 7: Sea Events Thường & Tàu Galleon Boss (1 điểm - CHỈ khi người dùng bật toggle Sea Event Thường)
+        if src == "sea_event" or src == "ship_ability" or string.find(nm, "sea beast", 1, true) ~= nil or string.find(nm, "galleon", 1, true) ~= nil then
+            if hubState.fightSea3Events ~= true then return 0 end
             return 1
         end
+
         return 0
     end
 
@@ -132,7 +141,7 @@
 
     local function applyMode(newMode: string, notifyUser: boolean)
         if newMode == "depth_king" then
-            currentSoloTarget = SOLO_OPTIONS[1]
+            currentSoloTarget = "👑 Depth King (Sea 3)"
             hubState.soloTarget = currentSoloTarget
             newMode = "solo"
         end
@@ -203,7 +212,13 @@
                 safeNotify("YokaHub", "Đã bật săn riêng: " .. currentSoloTarget, "public")
             end
         elseif newMode == "sea3" then
-            if not ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Săn tổng hợp", "depth") then
+            local preferSea3Boss = (hubState.fightSea3Dragon ~= false and "dragon")
+                or (hubState.fightSea3DepthKing ~= false and "depth")
+                or (hubState.fightSea3Abyssal ~= false and "abyssal")
+                or (hubState.fightSea3Kraken ~= false and "kraken")
+                or (hubState.fightSea3Crab ~= false and "crab")
+                or "dragon"
+            if not ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Săn tổng hợp", preferSea3Boss) then
                 setStatus("Đang tự động chuyển sang Sea 3 để săn Boss tổng hợp...", true)
                 return
             end
@@ -253,7 +268,7 @@
     genv.SetKingAutoHopMode = function(m: string) applyMode(m, false) end
     genv.SetAutoDepthKingHopEnabled = function(on: boolean)
         if on then
-            currentSoloTarget = SOLO_OPTIONS[1]
+            currentSoloTarget = "👑 Depth King (Sea 3)"
             hubState.soloTarget = currentSoloTarget
         end
         applyMode(on and "solo" or "off", false)
@@ -310,7 +325,7 @@
 
     Sea3Toggle = StatusSection:CreateToggle({
         Name = "🐉 Săn tổng hợp Sea 3 (Phím F8)",
-        Description = "Ưu tiên: Depth King → Rồng → Kraken → Cua → Serpent",
+        Description = "Ưu tiên: Rồng Drakenfyr (Top 1) → Depth King → Abyssal → Kraken → Cua → Serpent",
         CurrentValue = (currentMode == "sea3"),
         Callback = function(Value: boolean)
             if syncingToggles then return end
