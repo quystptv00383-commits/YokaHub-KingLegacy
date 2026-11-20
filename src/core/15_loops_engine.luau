@@ -1702,6 +1702,136 @@ end)
     end)
 
     -- ========================================================
+    -- [NATIVE COMBAT AIMBOT, DODGE & AUTO TRANSFORM WORKER]
+    -- ========================================================
+    task.spawn(function()
+        local lastTransformTick = 0
+        local lastDodgeTick = 0
+        local vim = game:GetService("VirtualInputManager")
+
+        while genv._YokaHubToken == myToken do
+            task.wait(0.1)
+            pcall(function()
+                local char = player.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if not (hrp and hum and hum.Health > 0) then return end
+
+                -- 1. Auto Transform
+                if genv.bienhinh and (os.clock() - lastTransformTick) > 12.0 then
+                    local isFighting = (currentMode ~= "off") or (hubState.autoLevel) or (hubState.autoFightMaster)
+                    if isFighting then
+                        lastTransformTick = os.clock()
+                        pcall(function()
+                            vim:SendKeyEvent(true, Enum.KeyCode.V, false, game)
+                            task.wait(0.05)
+                            vim:SendKeyEvent(false, Enum.KeyCode.V, false, game)
+                        end)
+                        pcall(function()
+                            local chest = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
+                            local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                            if remFuncs and remFuncs:FindFirstChild("SkillAction") then
+                                remFuncs.SkillAction:InvokeServer("Transform")
+                            end
+                        end)
+                    end
+                end
+
+                -- 2. Skill Direction Aimbot
+                if genv.PlayerAimbotEnabled then
+                    local aimRange = tonumber(genv.PlayerAimRange) or 350
+                    local myPos = hrp.Position
+                    local closestTarget: Instance? = nil
+                    local closestDist = aimRange
+
+                    local monFolder = workspace:FindFirstChild("Monster")
+                    if monFolder then
+                        for _, m in ipairs(monFolder:GetDescendants()) do
+                            if m:IsA("Model") and m:FindFirstChild("HumanoidRootPart") and m:FindFirstChildOfClass("Humanoid") then
+                                local mHum = m:FindFirstChildOfClass("Humanoid")
+                                if mHum and mHum.Health > 0 then
+                                    local mHrp = m.HumanoidRootPart
+                                    local dist = (mHrp.Position - myPos).Magnitude
+                                    if dist < closestDist then
+                                        closestDist = dist
+                                        closestTarget = mHrp
+                                    end
+                                end
+                            end
+                        end
+                    end
+
+                    if closestTarget and closestTarget:IsA("BasePart") then
+                        local tPos = closestTarget.Position
+                        hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(tPos.X, hrp.Position.Y, tPos.Z))
+                    end
+                end
+
+                -- 3. Auto Dodge
+                if genv.autoDodgeEnabled and (os.clock() - lastDodgeTick) > 2.0 then
+                    local isLowHp = (hum.Health / math.max(1, hum.MaxHealth)) < 0.45
+                    local mobClose = false
+                    local monFolder = workspace:FindFirstChild("Monster")
+                    if monFolder then
+                        for _, m in ipairs(monFolder:GetDescendants()) do
+                            if m:IsA("Model") and m:FindFirstChild("HumanoidRootPart") then
+                                if (m.HumanoidRootPart.Position - hrp.Position).Magnitude < 22 then
+                                    mobClose = true
+                                    break
+                                end
+                            end
+                        end
+                    end
+
+                    if isLowHp or mobClose then
+                        lastDodgeTick = os.clock()
+                        pcall(function()
+                            vim:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
+                            task.wait(0.04)
+                            vim:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
+                        end)
+                    end
+                end
+            end)
+        end
+    end)
+
+    -- ========================================================
+    -- [NATIVE MATERIAL QUANTITY TRACKER WORKER]
+    -- ========================================================
+    task.spawn(function()
+        local lastCheckTick = 0
+        local quotaTarget = 50
+
+        while genv._YokaHubToken == myToken do
+            task.wait(2.5)
+            pcall(function()
+                if not genv.MaterialQuantityTracker then return end
+                if (os.clock() - lastCheckTick) < 5.0 then return end
+                lastCheckTick = os.clock()
+
+                local ps = player:FindFirstChild("PlayerStats")
+                local matObj = ps and ps:FindFirstChild("Material")
+                if not matObj or typeof(matObj.Value) ~= "string" or #matObj.Value < 3 then return end
+
+                local okDecode, matTable = pcall(function()
+                    return game:GetService("HttpService"):JSONDecode(matObj.Value)
+                end)
+                if not okDecode or typeof(matTable) ~= "table" then return end
+
+                local curMat = genv.nguyenlieusea3 or hubState.nguyenlieuSea3 or "Coral"
+                curMat = string.match(curMat, "^([%w%s%']+)") or curMat
+                curMat = string.gsub(curMat, "%s+$", "")
+
+                local count = tonumber(matTable[curMat]) or 0
+                if count >= quotaTarget then
+                    safeNotify("Gom Nguyên Liệu", "Đã gom đủ " .. tostring(count) .. " " .. curMat .. "! Đạt chỉ tiêu " .. quotaTarget .. ".", "verified")
+                end
+            end)
+        end
+    end)
+
+    -- ========================================================
     -- [NATIVE ESP RENDER WORKER (FRUITS, PLAYERS & CHESTS)]
     -- ========================================================
     task.spawn(function()

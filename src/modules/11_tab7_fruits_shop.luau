@@ -130,11 +130,29 @@
                 pcall(function()
                     local char = player.Character
                     local held = char and char:FindFirstChildOfClass("Tool")
-                    if held and string.find(string.lower(held.Name), "fruit") then
-                        held.Parent = workspace
+                    if not held then
+                        for _, t in ipairs(player.Backpack:GetChildren()) do
+                            if t:IsA("Tool") and string.find(string.lower(t.Name), "fruit") then
+                                held = t
+                                if char and char:FindFirstChildOfClass("Humanoid") then
+                                    char.Humanoid:EquipTool(t)
+                                    task.wait(0.2)
+                                end
+                                break
+                            end
+                        end
                     end
-                    genv.dropfruit = true
-                    safeNotify("YokaHub", "Đã thả trái trên tay ra đất!", "file_download")
+                    if held and string.find(string.lower(held.Name), "fruit") then
+                        local chest = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
+                        local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                        if remFuncs and remFuncs:FindFirstChild("DealFruit") then
+                            pcall(function() remFuncs.DealFruit:InvokeServer(held.Name, "Drop") end)
+                        end
+                        held.Parent = workspace
+                        safeNotify("YokaHub", "Đã thả trái [" .. held.Name .. "] ra đất!", "file_download")
+                    else
+                        safeNotify("YokaHub", "Không tìm thấy trái trên tay hoặc trong túi đồ!", "warning")
+                    end
                 end)
             end,
         })
