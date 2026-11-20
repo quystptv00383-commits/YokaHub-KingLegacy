@@ -382,17 +382,19 @@
             end
 
             -- 1. TỰ ĐỘNG KHÓA MỤC TIÊU (NATIVE ALWAYS-ON AUTO AIM CHO MỌI CHẾ ĐỘ QUÁI / BOSS / SEA EVENT)
-            local aimPos: Vector3? = nil
-            local tModel, tRoot = getBestCombatTarget(650)
-            if tModel and tRoot then
-                aimPos = getAimPoint(tModel, tRoot)
-                _G.MouseHit = CFrame.new(aimPos)
+            if hubState.skillAimbot ~= false then
+                local aimPos: Vector3? = nil
+                local tModel, tRoot = getBestCombatTarget(650)
+                if tModel and tRoot then
+                    aimPos = getAimPoint(tModel, tRoot)
+                    _G.MouseHit = CFrame.new(aimPos)
 
-                -- Khi không bay (đứng trên mặt đất hoặc tự do di chuyển): Luôn tự động xoay mặt nhân vật hướng thẳng vào quái/boss
-                if not flightAlive and (aimPos - hrp.Position).Magnitude <= 220 then
-                    local flatLook = Vector3.new(aimPos.X, hrp.Position.Y, aimPos.Z)
-                    if (flatLook - hrp.Position).Magnitude > 0.5 then
-                        hrp.CFrame = CFrame.lookAt(hrp.Position, flatLook)
+                    -- Khi không bay (đứng trên mặt đất hoặc tự do di chuyển): Luôn tự động xoay mặt nhân vật hướng thẳng vào quái/boss
+                    if not flightAlive and (aimPos - hrp.Position).Magnitude <= 220 then
+                        local flatLook = Vector3.new(aimPos.X, hrp.Position.Y, aimPos.Z)
+                        if (flatLook - hrp.Position).Magnitude > 0.5 then
+                            hrp.CFrame = CFrame.lookAt(hrp.Position, flatLook)
+                        end
                     end
                 end
             end
@@ -4042,10 +4044,12 @@ end)
                 end
 
                 -- 2. Skill Direction Aimbot (Luôn cập nhật _G.MouseHit vào tâm Quái / Boss / Sea Event thời gian thực)
-                local tModel, tRoot = getBestCombatTarget(650)
-                if tModel and tRoot then
-                    local aimPos = getAimPoint(tModel, tRoot)
-                    _G.MouseHit = CFrame.new(aimPos)
+                if hubState.skillAimbot ~= false then
+                    local tModel, tRoot = getBestCombatTarget(650)
+                    if tModel and tRoot then
+                        local aimPos = getAimPoint(tModel, tRoot)
+                        _G.MouseHit = CFrame.new(aimPos)
+                    end
                 end
 
                 -- 3. Predictive Boss AOE Teleport Dodge (Né bằng Teleport + Hover Lock, dự đoán tầm chiêu Boss, KHÔNG dùng Q Dash)
