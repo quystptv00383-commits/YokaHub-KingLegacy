@@ -1019,6 +1019,27 @@
                 ttl.TextYAlignment = Enum.TextYAlignment.Center
                 ttl.TextTruncate = Enum.TextTruncate.AtEnd
             end
+        elseif kind == "slider" then
+            card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 52)
+            if ttl and ttl:IsA("TextLabel") then
+                ttl.Position = UDim2.new(0, 14, 0, 8)
+                ttl.Size = UDim2.new(1, -75, 0, 18)
+                ttl.TextTruncate = Enum.TextTruncate.AtEnd
+            end
+            local valLbl = card:FindFirstChild("Value") or card:FindFirstChild("Current")
+            if valLbl and valLbl:IsA("TextLabel") then
+                valLbl.Font = Enum.Font.GothamBold
+                valLbl.TextColor3 = THEME.c1
+                valLbl.TextSize = 13
+                valLbl.AnchorPoint = Vector2.new(1, 0)
+                valLbl.Position = UDim2.new(1, -14, 0, 8)
+            end
+            local bar = card:FindFirstChild("Slider") or card:FindFirstChild("Bar") or card:FindFirstChild("Main")
+            if bar and bar:IsA("GuiObject") then
+                bar.Position = UDim2.new(0, 14, 0, 32)
+                bar.Size = UDim2.new(1, -28, 0, 8)
+                setCorner(bar, 4)
+            end
         elseif kind == "dropdown" then
             if card.Size.Y.Offset <= 55 then
                 card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 44)
@@ -1360,13 +1381,16 @@
                                                 local nm = item.Name
                                                 local isToggle = string.find(nm, " - Toggle") ~= nil or item:FindFirstChild("toggle") ~= nil
                                                 local isDropdown = item:FindFirstChild("List") ~= nil or item:FindFirstChild("Selected") ~= nil
-                                                local isParagraph = item:FindFirstChild("Text") ~= nil and item:FindFirstChild("Title") ~= nil and not isToggle and not isDropdown
+                                                local isSlider = string.find(nm, " - Slider") ~= nil or item:FindFirstChild("Slider") ~= nil or item:FindFirstChild("Bar") ~= nil
+                                                local isParagraph = item:FindFirstChild("Text") ~= nil and item:FindFirstChild("Title") ~= nil and not isToggle and not isDropdown and not isSlider
                                                 if isParagraph then
                                                     styleCard(item, THEME.infoBg, THEME.infoStroke, 0.42, THEME.infoTitle, Color3.fromRGB(238, 244, 250), "paragraph")
                                                 elseif isToggle then
                                                     styleCard(item, THEME.cardBg, THEME.cardStroke, 0.50, THEME.textMain, THEME.textDesc, "toggle")
                                                 elseif isDropdown then
                                                     styleCard(item, THEME.cardBg, THEME.cardStroke, 0.50, THEME.textMain, THEME.textDesc, "dropdown")
+                                                elseif isSlider then
+                                                    styleCard(item, THEME.cardBg, THEME.cardStroke, 0.50, THEME.textMain, THEME.textDesc, "slider")
                                                 elseif string.find(nm, "Tắt hoàn toàn") then
                                                     styleCard(item, THEME.dangerBg, THEME.dangerStroke, 0.40, THEME.dangerTitle, THEME.textDesc, "danger")
                                                 else
@@ -1528,6 +1552,22 @@
     local preFullPos: UDim2? = nil
 
     updateTopBarResponsive = function(winW: number)
+        local smartWin = Window and (Window.Main or Window.Holder) or nil
+        if not smartWin then
+            local lg = getLunaGui()
+            smartWin = lg and lg:FindFirstChild("Main")
+        end
+        local nav = smartWin and smartWin:FindFirstChild("Navigation")
+        if nav and nav:IsA("GuiObject") then
+            if winW < 460 then
+                nav.Size = UDim2.new(0, 145, 1, -43)
+            elseif winW < 560 then
+                nav.Size = UDim2.new(0, 170, 1, -43)
+            else
+                nav.Size = UDim2.new(0, 205, 1, -43)
+            end
+        end
+
         if exitBtnObj and exitBtnObj:IsA("TextButton") then
             if winW < 440 then
                 exitBtnObj.Size = UDim2.fromOffset(56, 28)

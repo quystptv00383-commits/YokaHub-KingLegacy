@@ -29,7 +29,6 @@
                     pcall(function()
                         local vu = game:GetService("VirtualUser")
                         if vu then
-                            vu:CaptureController()
                             vu:ClickButton2(Vector2.new(0, 0))
                         end
                         safeNotify("YokaHub Định Kỳ", "Đã hoàn thành kiểm tra 19 phút: Kết nối ổn định, đã đặt lại bộ đếm Idle an toàn!", "health_and_safety")
@@ -390,15 +389,7 @@
                     bv.P = 20000
                     bv.Velocity = Vector3.zero
                     bv.Parent = hrp
-                else
-                    bv.Velocity = Vector3.zero
-                    bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
                 end
-
-                pcall(function()
-                    hrp.AssemblyLinearVelocity = Vector3.zero
-                    hrp.AssemblyAngularVelocity = Vector3.zero
-                end)
 
                 local targetPos = activeFlightTarget.pos
                 local lookTarget = activeFlightTarget.lookAt or aimPos
@@ -413,12 +404,31 @@
                 local delta = targetPos - curPos
                 local dist = delta.Magnitude
 
-                -- Tất cả di chuyển đều dùng teleport tức thì, không bay đường dài
+                -- Nhận diện thao tác phím chủ động của người chơi (WASD hoặc cần gạt Joystick cảm ứng)
+                local isManualMoving = (hum.MoveDirection.Magnitude > 0.05)
+
                 if dist > 20 or activeFlightTarget.instant then
+                    -- Đang di chuyển tầm xa tới bãi quái / boss: Teleport tức thì
+                    bv.Velocity = Vector3.zero
+                    bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+                    pcall(function()
+                        hrp.AssemblyLinearVelocity = Vector3.zero
+                        hrp.AssemblyAngularVelocity = Vector3.zero
+                    end)
                     hrp.CFrame = orientAt(targetPos)
                     activeFlightTarget.instant = false
+                elseif isManualMoving then
+                    -- Người chơi đang chủ động bấm phím WASD / vuốt Joystick: Nhường quyền di chuyển tự do, chỉ giữ trục Y chống rơi nước
+                    bv.Velocity = Vector3.zero
+                    bv.MaxForce = Vector3.new(0, 1e7, 0)
                 else
-                    -- Tại khu vực đánh (farm mob hoặc săn boss): Bay tại chỗ (hover lock) giữ vững độ cao
+                    -- Trạng thái đứng yên (AFK Farm): Khóa vững độ cao và giữ chắc vị trí trên đầu mục tiêu
+                    bv.Velocity = Vector3.zero
+                    bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+                    pcall(function()
+                        hrp.AssemblyLinearVelocity = Vector3.zero
+                        hrp.AssemblyAngularVelocity = Vector3.zero
+                    end)
                     hrp.CFrame = orientAt(targetPos)
                 end
 
@@ -441,10 +451,14 @@
             local isFlying = activeFlightTarget.pos ~= nil and (now - activeFlightTarget.updatedAt) <= 2.6 and isAnyFlightConsumerActive(now)
             if isFlying then
                 noclipWasActive = true
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp and hrp:IsA("BasePart") then
-                    hrp.AssemblyLinearVelocity = Vector3.zero
-                    hrp.AssemblyAngularVelocity = Vector3.zero
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                local isManualMoving = hum and (hum.MoveDirection.Magnitude > 0.05)
+                if not isManualMoving then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp and hrp:IsA("BasePart") then
+                        hrp.AssemblyLinearVelocity = Vector3.zero
+                        hrp.AssemblyAngularVelocity = Vector3.zero
+                    end
                 end
                 for _, part in ipairs(char:GetDescendants()) do
                     if part:IsA("BasePart") and part.CanCollide then
@@ -669,7 +683,6 @@
             local modTbl = getClientSkillModule(tool.Name, cat)
             local sa = getSkillActionRemote()
             local sm1 = (cat == "sword") and getSwordM1Remote() or nil
-            local vu = game:GetService("VirtualUser")
 
             -- Fast Attack Multi-Vector (2 xung nhịp liên tiếp chuẩn siêu tốc)
             for _ = 1, 2 do
@@ -694,13 +707,6 @@
                 if tool.Parent == player.Character then
                     pcall(function() tool:Activate() end)
                 end
-            end
-
-            if tool.Parent == player.Character and vu then
-                pcall(function()
-                    vu:CaptureController()
-                    vu:ClickButton1(Vector2.zero)
-                end)
             end
 
             -- Tăng tốc Animation swing / attack (Animation Speedup Bypass)
