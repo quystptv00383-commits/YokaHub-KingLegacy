@@ -210,7 +210,8 @@ def run_deep_audit():
         ("Anti-AFK 19 Min Pulse", "hubState.antiAfk19m"),
         ("Daily Quest & Race Roll", "[NATIVE DAILY QUEST & RACE ROLL WORKER]"),
         ("Auto Dismiss & Auto Ally", "[NATIVE AUTO DISMISS & AUTO ALLY WORKER]"),
-        ("ESP Render Worker", "[NATIVE ESP RENDER WORKER (FRUITS, PLAYERS & CHESTS)]")
+        ("ESP Render Worker", "[NATIVE ESP RENDER WORKER (FRUITS, PLAYERS & CHESTS)]"),
+        ("Auto Max Level Worker", "[NATIVE AUTO MAX LEVEL TO HYDRA SEA 2 WORKER]")
     ]
 
     for w_name, w_key in required_workers:

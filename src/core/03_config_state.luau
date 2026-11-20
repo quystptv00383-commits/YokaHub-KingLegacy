@@ -238,6 +238,7 @@
         -- Wukong Farm Features
         autoLevel: boolean?,
         autoTakeLevelQuest: boolean?,
+        autoMaxLevelHydra: boolean?,
         selectedMob: string?,
         autoKillSelectedMob: boolean?,
         fastMobBring: boolean?,
@@ -349,6 +350,7 @@
             dockY = nil,
             autoLevel = false,
             autoTakeLevelQuest = true,
+            autoMaxLevelHydra = true,
             selectedMob = "Elite Skeleton [Lv. 3100]",
             autoKillSelectedMob = false,
             fastMobBring = true,
@@ -460,6 +462,7 @@
             end
             if typeof(d.autoLevel) == "boolean" then st.autoLevel = d.autoLevel end
             if typeof(d.autoTakeLevelQuest) == "boolean" then st.autoTakeLevelQuest = d.autoTakeLevelQuest end
+            if typeof(d.autoMaxLevelHydra) == "boolean" then st.autoMaxLevelHydra = d.autoMaxLevelHydra end
             if typeof(d.selectedMob) == "string" then st.selectedMob = d.selectedMob end
             if typeof(d.autoKillSelectedMob) == "boolean" then st.autoKillSelectedMob = d.autoKillSelectedMob end
             if typeof(d.fastMobBring) == "boolean" then st.fastMobBring = d.fastMobBring end

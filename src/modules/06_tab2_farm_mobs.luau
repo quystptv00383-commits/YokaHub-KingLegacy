@@ -81,6 +81,17 @@
             end,
         }, "AutoTakeLevelQuestToggle")
 
+        LevelSection:CreateToggle({
+            Name = "🐍 Tự Về Sea 2 Săn & Nhặt Rương Hydra Khi Max Level",
+            Description = "Tự động phát hiện khi đạt cấp tối đa (Lv 5450), tắt cày level, dịch chuyển về Sea 2 và treo Hop API nhặt rương Hydra",
+            CurrentValue = (hubState.autoMaxLevelHydra ~= false),
+            Callback = function(Value: boolean)
+                hubState.autoMaxLevelHydra = Value
+                saveState(hubState)
+                if Value then safeNotify("YokaHub Farm", "Đã bật: Đạt Max Level (5450) sẽ tự động về Sea 2 nhặt rương Hydra!", "military_tech") end
+            end,
+        }, "AutoMaxLevelHydraToggle")
+
         local StatsSection = FarmTab:CreateSection("💪 Tự Tăng Điểm Chỉ Số (Auto Stats)")
         StatsSection:CreateToggle({
             Name = "👊 Tự Tăng Cận Chiến (Auto Melee)",

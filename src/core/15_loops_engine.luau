@@ -3578,6 +3578,79 @@ end)
     end)
 
     -- ========================================================
+    -- [NATIVE AUTO MAX LEVEL TO HYDRA SEA 2 WORKER]
+    -- ========================================================
+    task.spawn(function()
+        local maxLevelTriggered = false
+        while genv._YokaHubToken == myToken do
+            task.wait(4.0)
+            if hubState.autoMaxLevelHydra ~= false then
+                pcall(function()
+                    local ps = player:FindFirstChild("PlayerStats")
+                    local lvlObj = ps and (ps:FindFirstChild("lvl") or ps:FindFirstChild("Level"))
+                    local myLvl = lvlObj and tonumber(lvlObj.Value) or 0
+                    local expNeedObj = ps and ps:FindFirstChild("expneed")
+                    local expNeedVal = expNeedObj and tonumber(expNeedObj.Value) or -1
+
+                    -- Kiểm tra đạt Max Level (King Legacy hiện tại là 5450, hoặc expneed == 0 khi lv >= 4400)
+                    local isMax = (myLvl >= 5450) or (expNeedVal == 0 and myLvl >= 4400)
+
+                    if isMax then
+                        local needsSwitch = (hubState.autoLevel == true)
+                            or (hubState.autoKillSelectedMob == true)
+                            or (currentMode ~= "sea2")
+                            or (hubState.fightSea2Hydra ~= true)
+                            or (not maxLevelTriggered)
+
+                        if needsSwitch then
+                            maxLevelTriggered = true
+                            print(string.format("[YokaHub Auto Max Level] Đạt cấp tối đa Lv %d! Tự động tắt farm, chuyển Sea 2 treo Hop API nhặt rương Hydra...", myLvl))
+
+                            -- 1. Hủy nhận quest lặp
+                            pcall(function()
+                                local chest = sharedRS:FindFirstChild("Chest")
+                                local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                                local etcRemote = remFuncs and remFuncs:FindFirstChild("EtcFunction")
+                                if etcRemote then
+                                    etcRemote:InvokeServer("CancelQuest", {})
+                                end
+                            end)
+
+                            -- 2. Tắt farm level và các chế độ cày cục bộ
+                            hubState.autoLevel = false
+                            hubState.autoKillSelectedMob = false
+                            genv.Famlevel = false
+                            deactivateOtherLocalModes("none")
+
+                            -- 3. Bật Sea 2 Hydra + Rương
+                            hubState.fightSea2Hydra = true
+                            hubState.autoFightMaster = true
+                            hubState.autoCollectChest = true
+                            if bossToggles and bossToggles.Sea2Hydra and typeof(bossToggles.Sea2Hydra.Set) == "function" then
+                                pcall(function() bossToggles.Sea2Hydra:Set({ CurrentValue = true }) end)
+                            end
+
+                            -- 4. Lưu trạng thái bền vững
+                            saveState(hubState)
+
+                            -- 5. Thông báo trên màn hình
+                            safeNotify("YokaHub", string.format("🎉 ĐẠT MAX LEVEL (%d)! Tự động về Sea 2 nhặt rương Hydra.", myLvl), "military_tech")
+
+                            -- 6. Áp dụng mode sea2 và chuyển Sea an toàn
+                            applyMode("sea2", true)
+                            if game.PlaceId ~= SEA2_PLACE then
+                                ensureCorrectSea(SEA2_PLACE, "Hydra & Rương Hydra (Sea 2)", "Đạt Max Level", "hydra")
+                            end
+                        end
+                    else
+                        maxLevelTriggered = false
+                    end
+                end)
+            end
+        end
+    end)
+
+    -- ========================================================
     -- [NATIVE ISLAND TELEPORT HANDLER]
     -- ========================================================
     local ISLAND_COORDS: { [string]: Vector3 } = {
