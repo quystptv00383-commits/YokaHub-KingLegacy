@@ -208,7 +208,8 @@ def run_deep_audit():
         ("Black Screen AFK", "YokaBlackScreen"),
         ("Anti-AFK 19 Min Pulse", "hubState.antiAfk19m"),
         ("Daily Quest & Race Roll", "[NATIVE DAILY QUEST & RACE ROLL WORKER]"),
-        ("Auto Dismiss & Auto Ally", "[NATIVE AUTO DISMISS & AUTO ALLY WORKER]")
+        ("Auto Dismiss & Auto Ally", "[NATIVE AUTO DISMISS & AUTO ALLY WORKER]"),
+        ("ESP Render Worker", "[NATIVE ESP RENDER WORKER (FRUITS, PLAYERS & CHESTS)]")
     ]
 
     for w_name, w_key in required_workers:

@@ -1003,10 +1003,18 @@ end)
                         end
                     end
 
-                    -- Kích hoạt quăng mồi / giật cần (Activate tool)
+                    -- Kích hoạt quăng mồi / giật cần (Activate tool + Fishing Remote)
                     local equipped = char:FindFirstChildOfClass("Tool")
                     if equipped then
                         equipped:Activate()
+                    end
+                    local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                    if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Fishing") then
+                        pcall(function()
+                            rem.Functions.Fishing:InvokeServer("Cast")
+                            task.wait(0.5)
+                            rem.Functions.Fishing:InvokeServer("Reel")
+                        end)
                     end
                 end)
             end
@@ -1182,7 +1190,6 @@ end)
                     local hrp = char.HumanoidRootPart
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
-                    local dMode = hubState.dungeonMode or genv.dungeonmode or "Easy"
 
                     -- Xác định nguyên liệu đang chọn
                     local targetMat = hubState.nguyenlieuSea3 or "Coral"
@@ -1191,6 +1198,23 @@ end)
 
                     local rawMat = string.match(targetMat, "^([%w%s%']+)") or targetMat
                     rawMat = string.lower(string.gsub(rawMat, "%s+$", ""))
+
+                    local MAT_MOB_MAP = {
+                        ["coral"] = { "coral", "fishman", "ocean", "deep" },
+                        ["shark's fin"] = { "shark", "megalodon", "gladiator" },
+                        ["dragon scale"] = { "dragon", "drake", "volcano" },
+                        ["sea king's blood"] = { "sea king", "hydra", "serpent" },
+                        ["phoenix tear"] = { "phoenix", "fire bird", "blaze" },
+                        ["iron ingot"] = { "samurai", "soldier", "knight" },
+                        ["dark powder"] = { "shadow", "dark", "skeleton" },
+                        ["ghost flesh"] = { "ghost", "zombie", "spirit" },
+                        ["magma crystal"] = { "magma", "lava", "volcano" },
+                        ["leather"] = { "bandit", "pirate", "thief" },
+                        ["wood"] = { "monkey", "gorilla", "jungle" },
+                        ["rope"] = { "sailor", "marine", "guard" },
+                        ["thief rag"] = { "thief", "bandit", "clown" },
+                    }
+                    local keywords = MAT_MOB_MAP[rawMat] or { rawMat }
 
                     -- Tìm quái rơi nguyên liệu
                     local targetMob: Model? = nil
@@ -1203,7 +1227,14 @@ end)
                                     local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
                                     if mHum and mHum.Health > 0 and mRoot then
                                         local mn = string.lower(m.Name)
-                                        if string.find(mn, rawMat) or string.find(rawMat, mn) or string.find(mn, "golem") or string.find(mn, "guardian") or string.find(mn, "soldier") or string.find(mn, "bandit") then
+                                        local matched = false
+                                        for _, kw in ipairs(keywords) do
+                                            if string.find(mn, kw) or string.find(kw, mn) then
+                                                matched = true
+                                                break
+                                            end
+                                        end
+                                        if matched then
                                             targetMob = m
                                             break
                                         end
@@ -1532,5 +1563,151 @@ end)
                     end
                 end)
             end
+        end
+    end)
+
+    -- ========================================================
+    -- [NATIVE ESP RENDER WORKER (FRUITS, PLAYERS & CHESTS)]
+    -- ========================================================
+    task.spawn(function()
+        local activeEspObjects: { [Instance]: BillboardGui } = {}
+
+        local function cleanupEsp(tag: string)
+            for inst, bb in pairs(activeEspObjects) do
+                if bb.Name == tag then
+                    pcall(function() bb:Destroy() end)
+                    activeEspObjects[inst] = nil
+                end
+            end
+        end
+
+        while genv._YokaHubToken == myToken do
+            task.wait(0.4)
+            pcall(function()
+                local char = player.Character
+                local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+                local myPos = myRoot and myRoot.Position or Vector3.new(0, 0, 0)
+
+                -- 1. Fruit ESP
+                if hubState.fruitESP or genv.FruitESPEnabled then
+                    for _, obj in ipairs(workspace:GetChildren()) do
+                        if obj:IsA("Tool") and string.find(string.lower(obj.Name), "fruit") then
+                            local handle = obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("BasePart")
+                            if handle and not handle:FindFirstChild("YokaFruitESP") then
+                                local bb = Instance.new("BillboardGui")
+                                bb.Name = "YokaFruitESP"
+                                bb.AlwaysOnTop = true
+                                bb.Size = UDim2.new(0, 160, 0, 30)
+                                bb.StudsOffset = Vector3.new(0, 2.5, 0)
+                                local lbl = Instance.new("TextLabel")
+                                lbl.Size = UDim2.new(1, 0, 1, 0)
+                                lbl.BackgroundTransparency = 1
+                                lbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+                                lbl.TextStrokeTransparency = 0.2
+                                lbl.Font = Enum.Font.GothamBold
+                                lbl.TextSize = 13
+                                local dist = math.floor((handle.Position - myPos).Magnitude)
+                                lbl.Text = "🍎 " .. obj.Name .. " [" .. dist .. "m]"
+                                lbl.Parent = bb
+                                bb.Adornee = handle
+                                bb.Parent = handle
+                                activeEspObjects[handle] = bb
+                            elseif handle and handle:FindFirstChild("YokaFruitESP") then
+                                local lbl = handle.YokaFruitESP:FindFirstChildOfClass("TextLabel")
+                                if lbl then
+                                    local dist = math.floor((handle.Position - myPos).Magnitude)
+                                    lbl.Text = "🍎 " .. obj.Name .. " [" .. dist .. "m]"
+                                end
+                            end
+                        end
+                    end
+                else
+                    cleanupEsp("YokaFruitESP")
+                end
+
+                -- 2. Player ESP
+                if hubState.playerESP or genv.PlayerESPEnabled then
+                    for _, p in ipairs(players:GetPlayers()) do
+                        if p ~= player and p.Character then
+                            local pHead = p.Character:FindFirstChild("Head")
+                            local pHum = p.Character:FindFirstChildOfClass("Humanoid")
+                            if pHead and pHum and pHum.Health > 0 and not pHead:FindFirstChild("YokaPlayerESP") then
+                                local bb = Instance.new("BillboardGui")
+                                bb.Name = "YokaPlayerESP"
+                                bb.AlwaysOnTop = true
+                                bb.Size = UDim2.new(0, 160, 0, 32)
+                                bb.StudsOffset = Vector3.new(0, 3, 0)
+                                local lbl = Instance.new("TextLabel")
+                                lbl.Size = UDim2.new(1, 0, 1, 0)
+                                lbl.BackgroundTransparency = 1
+                                lbl.TextColor3 = Color3.fromRGB(80, 255, 180)
+                                lbl.TextStrokeTransparency = 0.2
+                                lbl.Font = Enum.Font.GothamBold
+                                lbl.TextSize = 13
+                                local dist = math.floor((pHead.Position - myPos).Magnitude)
+                                local hpPct = math.floor((pHum.Health / math.max(1, pHum.MaxHealth)) * 100)
+                                lbl.Text = "👤 " .. p.DisplayName .. " (" .. hpPct .. "% | " .. dist .. "m)"
+                                lbl.Parent = bb
+                                bb.Adornee = pHead
+                                bb.Parent = pHead
+                                activeEspObjects[pHead] = bb
+                            elseif pHead and pHead:FindFirstChild("YokaPlayerESP") and pHum then
+                                local lbl = pHead.YokaPlayerESP:FindFirstChildOfClass("TextLabel")
+                                if lbl then
+                                    local dist = math.floor((pHead.Position - myPos).Magnitude)
+                                    local hpPct = math.floor((pHum.Health / math.max(1, pHum.MaxHealth)) * 100)
+                                    lbl.Text = "👤 " .. p.DisplayName .. " (" .. hpPct .. "% | " .. dist .. "m)"
+                                end
+                            end
+                        end
+                    end
+                else
+                    cleanupEsp("YokaPlayerESP")
+                end
+
+                -- 3. Chest ESP
+                if hubState.chestESP or genv.ChestESPEnabled then
+                    local chestFolders = { workspace:FindFirstChild("Chests"), workspace:FindFirstChild("ChestFolder") }
+                    for _, cf in ipairs(chestFolders) do
+                        if cf then
+                            for _, ch in ipairs(cf:GetChildren()) do
+                                local root = ch:IsA("BasePart") and ch or ch:FindFirstChildWhichIsA("BasePart")
+                                if root and not root:FindFirstChild("YokaChestESP") then
+                                    local bb = Instance.new("BillboardGui")
+                                    bb.Name = "YokaChestESP"
+                                    bb.AlwaysOnTop = true
+                                    bb.Size = UDim2.new(0, 140, 0, 28)
+                                    bb.StudsOffset = Vector3.new(0, 2, 0)
+                                    local lbl = Instance.new("TextLabel")
+                                    lbl.Size = UDim2.new(1, 0, 1, 0)
+                                    lbl.BackgroundTransparency = 1
+                                    lbl.TextColor3 = Color3.fromRGB(255, 170, 40)
+                                    lbl.TextStrokeTransparency = 0.2
+                                    lbl.Font = Enum.Font.GothamBold
+                                    lbl.TextSize = 12
+                                    local dist = math.floor((root.Position - myPos).Magnitude)
+                                    lbl.Text = "📦 Rương [" .. dist .. "m]"
+                                    lbl.Parent = bb
+                                    bb.Adornee = root
+                                    bb.Parent = root
+                                    activeEspObjects[root] = bb
+                                elseif root and root:FindFirstChild("YokaChestESP") then
+                                    local lbl = root.YokaChestESP:FindFirstChildOfClass("TextLabel")
+                                    if lbl then
+                                        local dist = math.floor((root.Position - myPos).Magnitude)
+                                        lbl.Text = "📦 Rương [" .. dist .. "m]"
+                                    end
+                                end
+                            end
+                        end
+                    end
+                else
+                    cleanupEsp("YokaChestESP")
+                end
+            end)
+        end
+
+        for _, bb in pairs(activeEspObjects) do
+            pcall(function() bb:Destroy() end)
         end
     end)

@@ -236,6 +236,8 @@
         storeFruits: boolean?,
         snipeShop: boolean?,
         fruitESP: boolean?,
+        playerESP: boolean?,
+        chestESP: boolean?,
         -- Wukong Utility & Performance Features
         blackScreen: boolean?,
         fastMode: boolean?,
@@ -314,6 +316,8 @@
             storeFruits = true,
             snipeShop = false,
             fruitESP = false,
+            playerESP = false,
+            chestESP = false,
             blackScreen = false,
             fastMode = false,
             walkOnWater = true,
@@ -393,6 +397,8 @@
             if typeof(d.storeFruits) == "boolean" then st.storeFruits = d.storeFruits end
             if typeof(d.snipeShop) == "boolean" then st.snipeShop = d.snipeShop end
             if typeof(d.fruitESP) == "boolean" then st.fruitESP = d.fruitESP end
+            if typeof(d.playerESP) == "boolean" then st.playerESP = d.playerESP end
+            if typeof(d.chestESP) == "boolean" then st.chestESP = d.chestESP end
             if typeof(d.blackScreen) == "boolean" then st.blackScreen = d.blackScreen end
             if typeof(d.fastMode) == "boolean" then st.fastMode = d.fastMode end
             if typeof(d.walkOnWater) == "boolean" then st.walkOnWater = d.walkOnWater end

@@ -13,6 +13,43 @@
             ShowTitle = false,
         })
 
+        local EspSection = MetricsTab:CreateSection("👁️ Định Vị Toàn Cảnh (ESP Trái & Người Chơi)")
+        EspSection:CreateToggle({
+            Name = "🍎 Bật ESP Trái Ác Quỷ (Fruit ESP)",
+            Description = "Hiển thị khung sáng và khoảng cách mét của mọi trái ác quỷ trên bản đồ",
+            CurrentValue = hubState.fruitESP,
+            Callback = function(Value: boolean)
+                hubState.fruitESP = Value
+                saveState(hubState)
+                pcall(function() genv.FruitESPEnabled = Value end)
+                if Value then safeNotify("YokaHub ESP", "Đã bật ESP Trái Ác Quỷ!", "spa") end
+            end,
+        }, "FruitESPToggle")
+
+        EspSection:CreateToggle({
+            Name = "👤 Bật ESP Người Chơi (Player ESP)",
+            Description = "Hiển thị tên, thanh máu và khoảng cách mét của người chơi khác trong server",
+            CurrentValue = hubState.playerESP,
+            Callback = function(Value: boolean)
+                hubState.playerESP = Value
+                saveState(hubState)
+                pcall(function() genv.PlayerESPEnabled = Value end)
+                if Value then safeNotify("YokaHub ESP", "Đã bật ESP Người Chơi!", "person") end
+            end,
+        }, "PlayerESPToggle")
+
+        EspSection:CreateToggle({
+            Name = "📦 Bật ESP Rương Kho Báu (Chest ESP)",
+            Description = "Hiển thị vị trí các rương kho báu rải rác trên đảo",
+            CurrentValue = hubState.chestESP,
+            Callback = function(Value: boolean)
+                hubState.chestESP = Value
+                saveState(hubState)
+                pcall(function() genv.ChestESPEnabled = Value end)
+                if Value then safeNotify("YokaHub ESP", "Đã bật ESP Rương Kho Báu!", "all_inbox") end
+            end,
+        }, "ChestESPToggle")
+
         local SessionSection = MetricsTab:CreateSection("💎 Thống kê Gems & Beli kiếm được")
         local SessionParagraph = SessionSection:CreateParagraph({
             Title = "Đang tính...",
