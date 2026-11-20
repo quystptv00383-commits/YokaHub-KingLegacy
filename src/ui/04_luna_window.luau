@@ -686,6 +686,10 @@
     local userOpenedHub = false
     local hubDesiredOpen = false
     local preHideConn: RBXScriptConnection? = nil
+    local titleBoxObj: GuiObject? = nil
+    local exitBtnObj: TextButton? = nil
+    local fsIconObj: ImageLabel? = nil
+    local updateTopBarResponsive: ((number) -> ())? = nil
     preHideConn = guiParent.ChildAdded:Connect(function(ch: Instance)
         if ch.Name == "Luna UI" and ch:IsA("ScreenGui") then
             if preHideConn then preHideConn:Disconnect(); preHideConn = nil end
@@ -1209,6 +1213,11 @@
             if not (smartWin and smartWin:IsA("GuiObject")) then return end
 
             smartWin.ClipsDescendants = true
+            smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
+            local shadow = lunaGui:FindFirstChild("ShadowHolder")
+            if shadow and shadow:IsA("GuiObject") then
+                shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+            end
             setCorner(smartWin, 12)
             smartWin.BackgroundColor3 = THEME.sidebarBg
             smartWin.BackgroundTransparency = 0.01
@@ -1226,7 +1235,8 @@
 
             local titleBox = smartWin:FindFirstChild("Title")
             if titleBox and titleBox:IsA("GuiObject") then
-                titleBox.Size = UDim2.new(1, -265, 0, 22)
+                titleBoxObj = titleBox
+                titleBox.Size = UDim2.new(1, -215, 0, 22)
                 titleBox.ClipsDescendants = true
                 local tbLL = titleBox:FindFirstChildOfClass("UIListLayout")
                 if tbLL then tbLL.Padding = UDim.new(0, 10) end
@@ -1521,6 +1531,26 @@
     local preFullW, preFullH = 720, 450
     local preFullPos: UDim2? = nil
 
+    updateTopBarResponsive = function(winW: number)
+        if exitBtnObj and exitBtnObj:IsA("TextButton") then
+            if winW < 560 then
+                exitBtnObj.Size = UDim2.fromOffset(76, 28)
+                exitBtnObj.Text = "🚪 THOÁT"
+                exitBtnObj.TextSize = 9
+                if titleBoxObj and titleBoxObj:IsA("GuiObject") then
+                    titleBoxObj.Size = UDim2.new(1, -156, 0, 22)
+                end
+            else
+                exitBtnObj.Size = UDim2.fromOffset(130, 28)
+                exitBtnObj.Text = "🚪 THOÁT RA CỔNG KEY"
+                exitBtnObj.TextSize = 10
+                if titleBoxObj and titleBoxObj:IsA("GuiObject") then
+                    titleBoxObj.Size = UDim2.new(1, -215, 0, 22)
+                end
+            end
+        end
+    end
+
     doExitToGateway = function()
         pcall(function()
             game:GetService("StarterGui"):SetCore("SendNotification", {
@@ -1589,7 +1619,7 @@
     end
 
     local function getResponsiveScaleFactor(vp: Vector2): number
-        return math.clamp(math.min(vp.X / 960, vp.Y / 600), 0.55, 1.25)
+        return math.clamp(math.min(vp.X / 920, vp.Y / 580), 0.50, 1.20)
     end
 
     local function syncResponsiveScale(smartWin: GuiObject, shadow: GuiObject?, scaleFactor: number)
@@ -1619,9 +1649,9 @@
         local effVpY = math.floor((vp.Y - 16) / scaleFactor)
 
         -- Nguong an toan dong phu hop moi man hinh (Mobile / Tablet / PC nho / 4K)
-        local minW = math.clamp(math.floor(effVpX * 0.38), 380, 520)
+        local minW = math.clamp(math.floor(effVpX * 0.35), 360, 520)
         local maxW = math.max(minW, effVpX)
-        local minH = math.clamp(math.floor(effVpY * 0.38), 260, 340)
+        local minH = math.clamp(math.floor(effVpY * 0.35), 250, 340)
         local maxH = math.max(minH, effVpY)
 
         local finalW = math.clamp(math.floor(w + 0.5), minW, maxW)
@@ -1636,6 +1666,15 @@
         local shadow = lunaGui:FindFirstChild("ShadowHolder")
         if not (smartWin and smartWin:IsA("GuiObject")) then return end
 
+        smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
+        if shadow and shadow:IsA("GuiObject") then
+            shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+        end
+        if smartWin.Position.X.Scale == 0 and smartWin.Position.Y.Scale == 0 then
+            smartWin.Position = UDim2.fromScale(0.5, 0.5)
+            if shadow and shadow:IsA("GuiObject") then shadow.Position = UDim2.fromScale(0.5, 0.5) end
+        end
+
         syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
 
         local newSize = UDim2.fromOffset(finalW, finalH)
@@ -1647,6 +1686,7 @@
             smartWin.Size = newSize
             if shadow and shadow:IsA("GuiObject") then shadow.Size = newSize end
         end
+        if updateTopBarResponsive then updateTopBarResponsive(finalW) end
     end
 
     local function toggleFullscreen()
@@ -1681,17 +1721,24 @@
             if shadow and shadow:IsA("GuiObject") then
                 tweenService:Create(shadow, twInfo, { Size = fullSz, Position = centerPos }):Play()
             end
+            if fsIconObj then
+                fsIconObj.Image = "http://www.roblox.com/asset/?id=6026568240"
+            end
         else
             isFullscreen = false
-            local backW = math.clamp(preFullW, 480, effMaxW)
-            local backH = math.clamp(preFullH, 320, effMaxH)
+            local backW = math.clamp(preFullW, 380, effMaxW)
+            local backH = math.clamp(preFullH, 260, effMaxH)
             local backSz = UDim2.fromOffset(backW, backH)
             local backPos = preFullPos or UDim2.fromScale(0.5, 0.5)
             tweenService:Create(smartWin, twInfo, { Size = backSz, Position = backPos }):Play()
             if shadow and shadow:IsA("GuiObject") then
                 tweenService:Create(shadow, twInfo, { Size = backSz, Position = backPos }):Play()
             end
+            if fsIconObj then
+                fsIconObj.Image = "http://www.roblox.com/asset/?id=6026568245"
+            end
         end
+        if updateTopBarResponsive then updateTopBarResponsive(smartWin.Size.X.Offset) end
     end
 
     attachCornerResizer = function()
@@ -1727,6 +1774,7 @@
         exitBtn.Text = "🚪 THOÁT RA CỔNG KEY"
         exitBtn.ZIndex = 1002
         exitBtn.Parent = smartWin
+        exitBtnObj = exitBtn
 
         local exitCorner = Instance.new("UICorner")
         exitCorner.CornerRadius = UDim.new(0, 7)
@@ -1804,10 +1852,11 @@
         fsIcon.Position = UDim2.fromScale(0.5, 0.5)
         fsIcon.Size = UDim2.fromOffset(17, 17)
         fsIcon.BackgroundTransparency = 1
-        fsIcon.Image = "http://www.roblox.com/asset/?id=6026568245"
+        fsIcon.Image = isFullscreen and "http://www.roblox.com/asset/?id=6026568240" or "http://www.roblox.com/asset/?id=6026568245"
         fsIcon.ImageColor3 = Color3.fromRGB(205, 212, 226)
         fsIcon.ZIndex = 1000
         fsIcon.Parent = fsBtn
+        fsIconObj = fsIcon
 
         trackConn(fsBtn.MouseEnter:Connect(function()
             tweenService:Create(fsBtn, TweenInfo.new(0.12), { BackgroundTransparency = 0.15 }):Play()
@@ -1865,10 +1914,14 @@
             local expanded = (smartWin.Size.Y.Offset >= 120)
             handle.Visible = expanded
             fsBtn.Visible = expanded
+            if exitBtnObj then exitBtnObj.Visible = expanded end
+            if updateTopBarResponsive then updateTopBarResponsive(smartWin.Size.X.Offset) end
         end))
         local initExpanded = (smartWin.Size.Y.Offset >= 120)
         handle.Visible = initExpanded
         fsBtn.Visible = initExpanded
+        if exitBtnObj then exitBtnObj.Visible = initExpanded end
+        if updateTopBarResponsive then updateTopBarResponsive(smartWin.Size.X.Offset) end
 
         local resizing = false
         local rStartMouse = Vector2.new(0, 0)
@@ -1893,9 +1946,9 @@
             local delta = (Vector2.new(input.Position.X, input.Position.Y) - rStartMouse) / scaleFactor
             local effVpX = math.floor((vp.X - 16) / scaleFactor)
             local effVpY = math.floor((vp.Y - 16) / scaleFactor)
-            local dragMinW = math.clamp(math.floor(effVpX * 0.45), 480, 560)
+            local dragMinW = math.clamp(math.floor(effVpX * 0.35), 360, 520)
             local dragMaxW = math.max(dragMinW, effVpX)
-            local dragMinH = math.clamp(math.floor(effVpY * 0.45), 320, 360)
+            local dragMinH = math.clamp(math.floor(effVpY * 0.35), 250, 340)
             local dragMaxH = math.max(dragMinH, effVpY)
             local newW = math.clamp(math.floor(rStartW + delta.X), dragMinW, dragMaxW)
             local newH = math.clamp(math.floor(rStartH + delta.Y), dragMinH, dragMaxH)
@@ -1910,6 +1963,7 @@
             end
             hubState.winW = newW
             hubState.winH = newH
+            if updateTopBarResponsive then updateTopBarResponsive(newW) end
         end))
         trackConn(userInputService.InputEnded:Connect(function(input: InputObject)
             if resizing and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
@@ -1923,6 +1977,19 @@
     task.spawn(function()
         task.wait(0.5)
         pcall(function()
+            local lunaGui = getLunaGui()
+            if lunaGui then
+                local smartWin = lunaGui:FindFirstChild("SmartWindow")
+                local shadow = lunaGui:FindFirstChild("ShadowHolder")
+                if smartWin and smartWin:IsA("GuiObject") then
+                    smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
+                    if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0.5, 0.5) end
+                    if smartWin.Position.X.Scale == 0 and smartWin.Position.Y.Scale == 0 then
+                        smartWin.Position = UDim2.fromScale(0.5, 0.5)
+                        if shadow and shadow:IsA("GuiObject") then shadow.Position = UDim2.fromScale(0.5, 0.5) end
+                    end
+                end
+            end
             if attachCornerResizer then attachCornerResizer() end
             applyWindowSize(hubState.winW or 720, hubState.winH or 450, false, false)
         end)
@@ -1940,9 +2007,11 @@
                     local smartWin = lunaGui:FindFirstChild("SmartWindow")
                     local shadow = lunaGui:FindFirstChild("ShadowHolder")
                     if smartWin and smartWin:IsA("GuiObject") then
+                        smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
+                        if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0.5, 0.5) end
                         syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
-                        local effMaxW = math.max(480, math.floor((vp.X - 16) / scaleFactor))
-                        local effMaxH = math.max(320, math.floor((vp.Y - 16) / scaleFactor))
+                        local effMaxW = math.max(380, math.floor((vp.X - 16) / scaleFactor))
+                        local effMaxH = math.max(260, math.floor((vp.Y - 16) / scaleFactor))
                         if isFullscreen then
                             local fullSz = UDim2.fromOffset(effMaxW, effMaxH)
                             smartWin.Size = fullSz
@@ -1958,6 +2027,7 @@
                                 applyWindowSize(math.min(curW, effMaxW), math.min(curH, effMaxH), false, false)
                             end
                         end
+                        if updateTopBarResponsive then updateTopBarResponsive(smartWin.Size.X.Offset) end
                     end
                 end
             end)

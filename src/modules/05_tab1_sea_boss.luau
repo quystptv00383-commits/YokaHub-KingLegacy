@@ -26,7 +26,7 @@
 
         -- Top 1: Depth King (Sea 3) - Ưu tiên cao nhất (10 điểm)
         if (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil then
-            if hubState.fightSea3DepthKing == false then return 0 end
+            if hubState.fightSea3DepthKing ~= true then return 0 end
             return 10
         end
 
@@ -42,7 +42,7 @@
             and string.find(src, "abyssal", 1, true) == nil
             and string.find(src, "depth", 1, true) == nil
         if isDragonMatch and notDragonOther then
-            if hubState.fightSea3Dragon == false then return 0 end
+            if hubState.fightSea3Dragon ~= true then return 0 end
             return 8
         end
 
@@ -55,25 +55,25 @@
             and string.find(nm, "drakenfyr", 1, true) == nil
             and (string.find(nm, "king", 1, true) == nil or string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil)
         if isAbyssalMatch and notAbyssalOther then
-            if hubState.fightSea3Abyssal == false then return 0 end
+            if hubState.fightSea3Abyssal ~= true then return 0 end
             return 6
         end
 
         -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (4 điểm)
         if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) then
-            if hubState.fightSea3Kraken == false then return 0 end
+            if hubState.fightSea3Kraken ~= true then return 0 end
             return 4
         end
 
         -- Top 5: Cua Biển Khổng Lồ (Giant Crab Sea 3) - Ưu tiên số 5 (3 điểm)
         if string.find(nm, "crab", 1, true) ~= nil then
-            if hubState.fightSea3Crab == false then return 0 end
+            if hubState.fightSea3Crab ~= true then return 0 end
             return 3
         end
 
         -- Top 6: Rắn Biển / Serpent (Sea 3 & 2) - Ưu tiên số 6 (2 điểm)
         if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
-            if hubState.fightSea2Serpent == false then return 0 end
+            if hubState.fightSea2Serpent ~= true then return 0 end
             return 2
         end
 
@@ -81,9 +81,9 @@
         local isDkRoom = (src == "depth_king" or string.find(nm, "depth", 1, true) ~= nil)
         local isAbRoom = (string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil)
         local isDgRoom = (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "dragon", 1, true) ~= nil))
-        if isDkRoom and hubState.fightSea3DepthKing == false then return 0 end
-        if isAbRoom and hubState.fightSea3Abyssal == false then return 0 end
-        if isDgRoom and hubState.fightSea3Dragon == false then return 0 end
+        if isDkRoom and hubState.fightSea3DepthKing ~= true then return 0 end
+        if isAbRoom and hubState.fightSea3Abyssal ~= true then return 0 end
+        if isDgRoom and hubState.fightSea3Dragon ~= true then return 0 end
 
         -- Top 7: Sea Events Thường & Tàu Galleon Boss (1 điểm - CHỈ khi người dùng bật toggle Sea Event Thường)
         if src == "sea_event" or src == "ship_ability" or string.find(nm, "sea beast", 1, true) ~= nil or string.find(nm, "galleon", 1, true) ~= nil then
@@ -98,19 +98,19 @@
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
         if (src == "sk_hd_chest" and string.find(nm, "hydra", 1, true) ~= nil) or src == "hydra" or string.find(nm, "hydra", 1, true) ~= nil then
-            if hubState.fightSea2Hydra == false then return 0 end
+            if hubState.fightSea2Hydra ~= true then return 0 end
             return src == "sk_hd_chest" and 7 or 6
         end
         if (src == "sk_hd_chest" and (string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil)) or src == "sea_king" or string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil then
-            if hubState.fightSea2SeaKing == false then return 0 end
+            if hubState.fightSea2SeaKing ~= true then return 0 end
             return src == "sk_hd_chest" and 5 or 4
         end
         if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
-            if hubState.fightSea2Serpent == false then return 0 end
+            if hubState.fightSea2Serpent ~= true then return 0 end
             return 3
         end
         if string.find(src, "ghost", 1, true) ~= nil or string.find(nm, "ghost", 1, true) ~= nil then
-            if hubState.fightSea2GhostShip == false then return 0 end
+            if hubState.fightSea2GhostShip ~= true then return 0 end
             return string.find(nm, "chest", 1, true) ~= nil and 2 or 1
         end
         return 0

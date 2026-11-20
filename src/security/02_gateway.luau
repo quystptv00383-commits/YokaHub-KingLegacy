@@ -131,7 +131,8 @@
         local MainFrame = Instance.new("Frame")
         MainFrame.Name = "MainFrame"
         MainFrame.Size = UDim2.new(0, 560, 0, 420)
-        MainFrame.Position = UDim2.new(0.5, -280, 0.5, -210)
+        MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+        MainFrame.Position = UDim2.fromScale(0.5, 0.5)
         MainFrame.BackgroundColor3 = Color3.fromRGB(13, 16, 22)
         MainFrame.BorderSizePixel = 0
         MainFrame.Active = true
@@ -153,7 +154,7 @@
         local function updateGatewayScale()
             local cam = workspace.CurrentCamera
             local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-            GatewayScale.Scale = math.clamp(math.min((vp.X - 24) / 560, (vp.Y - 24) / 420), 0.65, 1.0)
+            GatewayScale.Scale = math.clamp(math.min((vp.X - 20) / 560, (vp.Y - 20) / 420), 0.52, 1.0)
         end
         updateGatewayScale()
         if workspace.CurrentCamera then
@@ -250,7 +251,16 @@
         UserInputService.InputChanged:Connect(function(input)
             if input == dragInput and dragging then
                 local delta = input.Position - dragStart
-                MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                local cam = workspace.CurrentCamera
+                local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+                local sc = GatewayScale.Scale
+                local halfW = (560 * sc) * 0.5
+                local halfH = (420 * sc) * 0.5
+                local targetX = startPos.X.Scale * vp.X + startPos.X.Offset + delta.X
+                local targetY = startPos.Y.Scale * vp.Y + startPos.Y.Offset + delta.Y
+                local clampedX = math.clamp(targetX, halfW + 6, math.max(halfW + 6, vp.X - halfW - 6))
+                local clampedY = math.clamp(targetY, halfH + 6, math.max(halfH + 6, vp.Y - halfH - 6))
+                MainFrame.Position = UDim2.fromOffset(clampedX, clampedY)
             end
         end)
         
