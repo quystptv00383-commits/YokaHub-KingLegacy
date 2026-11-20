@@ -5,6 +5,20 @@
         if typeof(v) == "table" then return tostring(v[1] or "") end
         return tostring(v or "")
     end
+
+    local function pickMultiDropdownValue(v: any): { string }
+        local res = {}
+        if typeof(v) == "table" then
+            for _, item in ipairs(v) do
+                if typeof(item) == "string" and item ~= "" then
+                    table.insert(res, item)
+                end
+            end
+        elseif typeof(v) == "string" and v ~= "" then
+            table.insert(res, v)
+        end
+        return res
+    end
     -- [END GATEWAY] - BAT DAU KHOI DONG YOKAHUB
     -- ========================================================
 
@@ -268,6 +282,8 @@
         whFruit: boolean?,
         whDrop: boolean?,
         -- Advanced Auto Skills & Auto M1
+        toolMode: string?,
+        m1SpamList: { string }?,
         autoM1Fruit: boolean?,
         autoM1Sword: boolean?,
         autoM1Melee: boolean?,
@@ -276,10 +292,13 @@
         flySpeed: number?,
         skillFruit: boolean?,
         skillFruitKeys: string?,
+        fruitSkillsList: { string }?,
         skillSword: boolean?,
         skillSwordKeys: string?,
+        swordSkillsList: { string }?,
         skillMelee: boolean?,
         skillMeleeKeys: string?,
+        meleeSkillsList: { string }?,
         -- Advanced Materials
         nguyenlieuSea3: string?,
         nguyenlieuSea2: string?,
@@ -370,6 +389,8 @@
             webhookUrl = "",
             whFruit = false,
             whDrop = false,
+            toolMode = "Auto Mode",
+            m1SpamList = { "Sword M1", "Melee M1", "Fruit M1" },
             autoM1Fruit = false,
             autoM1Sword = false,
             autoM1Melee = false,
@@ -378,10 +399,13 @@
             flySpeed = 420,
             skillFruit = true,
             skillFruitKeys = "Z + X",
+            fruitSkillsList = { "Z", "X", "C", "E" },
             skillSword = true,
             skillSwordKeys = "Z + X",
+            swordSkillsList = { "Z", "X" },
             skillMelee = true,
             skillMeleeKeys = "Toàn Bộ (Z, X, C, V, E)",
+            meleeSkillsList = { "Z", "X", "C", "V" },
             nguyenlieuSea3 = "Coral (San Hô)",
             nguyenlieuSea2 = "Iron Ingot (Sắt Thỏi)",
             nguyenlieuSea1 = "Leather (Da Thuộc)",
@@ -516,6 +540,22 @@
             if typeof(d.islandBossTarget) == "string" then st.islandBossTarget = d.islandBossTarget end
             if typeof(d.autoTakeBossQuest) == "boolean" then st.autoTakeBossQuest = d.autoTakeBossQuest end
             if typeof(d.antiAfk19m) == "boolean" then st.antiAfk19m = d.antiAfk19m end
+            if typeof(d.toolMode) == "string" then st.toolMode = d.toolMode end
+            if typeof(d.m1SpamList) == "table" then
+                st.m1SpamList = d.m1SpamList
+                st.autoM1Sword = table.find(d.m1SpamList, "Sword M1") ~= nil
+                st.autoM1Melee = table.find(d.m1SpamList, "Melee M1") ~= nil
+                st.autoM1Fruit = table.find(d.m1SpamList, "Fruit M1") ~= nil
+            else
+                local mList = {}
+                if st.autoM1Sword then table.insert(mList, "Sword M1") end
+                if st.autoM1Melee then table.insert(mList, "Melee M1") end
+                if st.autoM1Fruit then table.insert(mList, "Fruit M1") end
+                st.m1SpamList = mList
+            end
+            if typeof(d.swordSkillsList) == "table" then st.swordSkillsList = d.swordSkillsList end
+            if typeof(d.meleeSkillsList) == "table" then st.meleeSkillsList = d.meleeSkillsList end
+            if typeof(d.fruitSkillsList) == "table" then st.fruitSkillsList = d.fruitSkillsList end
         end
         return st
     end

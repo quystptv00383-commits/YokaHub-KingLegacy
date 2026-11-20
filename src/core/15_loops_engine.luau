@@ -537,10 +537,33 @@
     end
 
     getActiveM1Categories = function(): { string }
+        local hasSword = (hubState.autoM1Sword == true) or (genv.AutoM1Sword == true)
+        local hasMelee = (hubState.autoM1Melee == true) or (genv.AutoM1Melee == true)
+        local hasFruit = (hubState.autoM1Fruit == true) or (genv.AutoM1Fruit == true)
+
+        if typeof(hubState.m1SpamList) == "table" then
+            for _, opt in ipairs(hubState.m1SpamList) do
+                if opt == "Sword M1" then hasSword = true end
+                if opt == "Melee M1" then hasMelee = true end
+                if opt == "Fruit M1" then hasFruit = true end
+            end
+        end
+
+        local mode = hubState.toolMode or "Auto Mode"
+        if mode == "Sword" then
+            return (hasSword or not (hasMelee or hasFruit)) and { "sword" } or {}
+        elseif mode == "Melee" then
+            return (hasMelee or not (hasSword or hasFruit)) and { "melee" } or {}
+        elseif mode == "Fruit" then
+            return (hasFruit or not (hasSword or hasMelee)) and { "fruit" } or {}
+        end
+
+        -- Auto Mode: CHỈ dùng đúng các vũ khí đã được người dùng tích chọn
+        -- Nếu không tích chọn vũ khí nào -> trả về danh sách rỗng {} (tuyệt đối không tự lấy từ kho/bộ nhớ!)
         local cats = {}
-        if hubState.autoM1Fruit or genv.AutoM1Fruit then table.insert(cats, "fruit") end
-        if hubState.autoM1Sword or genv.AutoM1Sword then table.insert(cats, "sword") end
-        if hubState.autoM1Melee or genv.AutoM1Melee then table.insert(cats, "melee") end
+        if hasSword then table.insert(cats, "sword") end
+        if hasMelee then table.insert(cats, "melee") end
+        if hasFruit then table.insert(cats, "fruit") end
         return cats
     end
 
@@ -549,36 +572,12 @@
         local available = {}
         local seen = {}
 
-        -- 1. Nếu người dùng chủ động chọn nhiều hơn 1 loại vũ khí: tuân thủ đúng các loại được chọn
-        if #userCats > 1 then
-            for _, cat in ipairs(userCats) do
-                if findToolByCategory(cat) and not seen[cat] then
-                    seen[cat] = true
-                    table.insert(available, cat)
-                end
-            end
-            if #available > 0 then
-                return available
-            end
-        end
-
-        -- 2. Tự động nhận diện toàn bộ kho vũ khí người chơi đang sở hữu (Sword ↔ Fruit ↔ Melee)
-        -- Luân chuyển mượt mà: Sword -> Fruit -> Melee (tự động 100%, không cần hiện thêm giao diện)
-        local preferred = { "sword", "fruit", "melee" }
-        for _, cat in ipairs(preferred) do
+        -- CHỈ tìm vũ khí người chơi đang có mà người dùng ĐÃ TÍCH CHỌN
+        -- Không bao giờ fallback sang vũ khí không được tích chọn
+        for _, cat in ipairs(userCats) do
             if findToolByCategory(cat) and not seen[cat] then
                 seen[cat] = true
                 table.insert(available, cat)
-            end
-        end
-
-        -- 3. Fallback: Nếu không tìm thấy qua danh mục, lấy theo Tool đang cầm trên người
-        if #available == 0 then
-            local char = player.Character
-            local curHeld = char and char:FindFirstChildOfClass("Tool")
-            if curHeld then
-                local cCat = classifyKingLegacyTool(curHeld) or "fruit"
-                table.insert(available, cCat)
             end
         end
 
@@ -705,25 +704,13 @@
     local m1HitsOnCurrentTool = 0
 
     local function equipAndFireSelectedM1(char: Model, hum: Humanoid): Tool?
-        -- CHỈ ĐÁNH KHI CÓ MỤC TIÊU TRONG TẦM
+        -- CHỈ ĐÁNH KHI CÓ MỤC TIÊU SỐNG TRONG TẦM
         local tModel, tRoot = getBestCombatTarget(150)
         if not tModel or not tRoot then return nil end
 
         local cats = getAvailableM1Categories()
         if #cats == 0 then
-            local curHeld = char:FindFirstChildOfClass("Tool")
-            if curHeld then
-                local curCat = classifyKingLegacyTool(curHeld) or "fruit"
-                triggerKingLegacyM1(curHeld, curCat)
-                return curHeld
-            end
-            local bpTool = player.Backpack and player.Backpack:FindFirstChildOfClass("Tool")
-            if bpTool then
-                hum:EquipTool(bpTool)
-                local bCat = classifyKingLegacyTool(bpTool) or "fruit"
-                triggerKingLegacyM1(bpTool, bCat)
-                return bpTool
-            end
+            -- Người dùng không tích chọn vũ khí nào -> tuyệt đối dừng, không tự cầm vũ khí từ kho/balo!
             return nil
         end
 
@@ -771,8 +758,17 @@
     task.spawn(function()
         while genv._YokaHubToken == myToken do
             task.wait(0.02)
+            local cats = getAvailableM1Categories()
+            if #cats == 0 then
+                task.wait(0.15)
+                continue
+            end
+
             local hasAnyM1 = (hubState.autoM1Fruit == true) or (hubState.autoM1Sword == true) or (hubState.autoM1Melee == true) 
                 or (genv.AutoM1Fruit == true) or (genv.AutoM1Sword == true) or (genv.AutoM1Melee == true)
+            if typeof(hubState.m1SpamList) == "table" and #hubState.m1SpamList > 0 then
+                hasAnyM1 = true
+            end
             local inCombat = (currentMode ~= "off") or (hubState.autoLevel == true) or (hubState.autoKillSelectedMob == true) 
                 or (hubState.autoFightMaster == true) or (hubState.autoFightIslandBoss == true) or (hubState.autoDungeon == true) 
                 or (hubState.farmSea3Mat == true) or (hubState.farmSea2Mat == true) or (hubState.farmSea1Mat == true)
@@ -972,7 +968,7 @@
         return 0.04
     end
 
-    local function parseKeysFromOption(opt: string?, fallbackList: { string }?): { string }
+    local function parseKeysFromOption(opt: any, fallbackList: { string }?): { string }
         local res = {}
         local function addUnique(k: string)
             for _, ek in ipairs(res) do
@@ -980,7 +976,17 @@
             end
             table.insert(res, k)
         end
-        if typeof(opt) == "string" and opt ~= "" then
+        if typeof(opt) == "table" then
+            for _, item in ipairs(opt) do
+                if typeof(item) == "string" then
+                    for _, k in ipairs({ "Z", "X", "C", "V", "E" }) do
+                        if string.find(string.upper(item), k) then
+                            addUnique(k)
+                        end
+                    end
+                end
+            end
+        elseif typeof(opt) == "string" and opt ~= "" then
             if opt == "Chỉ Phím Z" then addUnique("Z")
             elseif opt == "Chỉ Phím X" then addUnique("X")
             else
@@ -991,7 +997,7 @@
                 if string.find(opt, "E") then addUnique("E") end
             end
         end
-        if typeof(fallbackList) == "table" then
+        if #res == 0 and typeof(fallbackList) == "table" then
             for _, k in ipairs(fallbackList) do
                 addUnique(k)
             end
@@ -1044,17 +1050,28 @@
 
         local m1Cats = getActiveM1Categories()
         local curHeldTool = char:FindFirstChildOfClass("Tool")
-        local primaryCat = (#m1Cats == 1 and m1Cats[1]) or (curHeldTool and classifyKingLegacyTool(curHeldTool)) or "fruit"
+        local mode = hubState.toolMode or "Auto Mode"
+        local primaryCat = (mode == "Sword" and "sword") or (mode == "Melee" and "melee") or (mode == "Fruit" and "fruit")
+            or (#m1Cats == 1 and m1Cats[1]) or (curHeldTool and classifyKingLegacyTool(curHeldTool)) or "fruit"
 
         local catPlan: { { cat: string, keys: { string }, prio: number } } = {}
-        local function addPlan(cat: string, opt: string?, fb: { string }?, defKeys: { string })
+        local function addPlan(cat: string, opt: any, fb: { string }?, defKeys: { string })
             local kList = parseKeysFromOption(opt, fb)
             if #kList == 0 then kList = defKeys end
             table.insert(catPlan, { cat = cat, keys = kList, prio = (cat == primaryCat and 2 or 1) })
         end
-        if hubState.skillFruit then addPlan("fruit", hubState.skillFruitKeys, genv.CombatSkillFruit, { "Z", "X", "C", "V" }) end
-        if hubState.skillSword then addPlan("sword", hubState.skillSwordKeys, genv.CombatSkillSword, { "Z", "X" }) end
-        if hubState.skillMelee then addPlan("melee", hubState.skillMeleeKeys, genv.CombatSkillMelee, { "Z", "X", "C", "V" }) end
+        if hubState.skillFruit then
+            local fOpt = (typeof(hubState.fruitSkillsList) == "table" and #hubState.fruitSkillsList > 0) and hubState.fruitSkillsList or hubState.skillFruitKeys
+            addPlan("fruit", fOpt, genv.CombatSkillFruit, { "Z", "X", "C", "E" })
+        end
+        if hubState.skillSword then
+            local sOpt = (typeof(hubState.swordSkillsList) == "table" and #hubState.swordSkillsList > 0) and hubState.swordSkillsList or hubState.skillSwordKeys
+            addPlan("sword", sOpt, genv.CombatSkillSword, { "Z", "X" })
+        end
+        if hubState.skillMelee then
+            local mOpt = (typeof(hubState.meleeSkillsList) == "table" and #hubState.meleeSkillsList > 0) and hubState.meleeSkillsList or hubState.skillMeleeKeys
+            addPlan("melee", mOpt, genv.CombatSkillMelee, { "Z", "X", "C", "V" })
+        end
         if #catPlan == 0 then return end
         table.sort(catPlan, function(a, b) return a.prio > b.prio end)
 
