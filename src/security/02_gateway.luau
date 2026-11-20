@@ -68,7 +68,7 @@
         local _HEX_SALT     = "00070e1507332b1b19335141140e340063076feabcab9a9eb9ed"
         local _HEX_KEYS_URL = "311c11043c7c666b2d3f4140480c392b39423fa9909d8991a2a2b7aac3cb8588bfb8f7a5c959200a030a0378677d0813094d0338332c2fb284e19d92a0cceeefd38094c39de5bba5ace925487b402a7855316c055a5c4b2a3e70362ad2e4e8afa4ad8793bbfff4c6c8d8b1b5b7a65a"
         local _HEX_GET_KEY  = "311c11043c7c666b263f5c5f100e222b384438f2809796ddb4a3b6bd80d6cfc4a9bab3b5d4553153141b01233237"
-        local _HEX_DISCORD  = "311c11043c7c666b2e3f415709193471365072a58c8d89dfa9a5b0acc2cdcfc6bcbcb6bf"
+        local _HEX_DISCORD  = "311c11043c7c666b2e3f41570919347136507298a89ebcb5a59e99a8"
         local _HEX_STORE    = "https://quystptv00383-commits.github.io/yokahub-store/"
         local LICENSE_FILE  = "YokaHub_License.json"
         
