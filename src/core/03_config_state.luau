@@ -159,7 +159,7 @@
         }
     end
 
-    -- 1 TONG MAU THONG NHAT SACH DEP (OBSIDIAN + XANH NGOC CHUAN WUKONG)
+    -- 1 TÔNG MÀU THỐNG NHẤT SẠCH ĐẸP (OBSIDIAN + XANH NGỌC YOKAHUB CHUẨN HIỆN ĐẠI)
     local THEME = {
         c1 = Color3.fromRGB(110, 231, 183),
         c2 = Color3.fromRGB(64, 198, 148),
@@ -235,7 +235,7 @@
         damageMeter: boolean,
         dockX: number?,
         dockY: number?,
-        -- Wukong Farm Features
+        -- YokaHub Native Farm Features
         autoLevel: boolean?,
         autoTakeLevelQuest: boolean?,
         selectedMob: string?,
@@ -261,14 +261,14 @@
         materialQuantityTracker: boolean?,
         autoDungeon: boolean?,
         dungeonMode: string?,
-        -- Wukong Fruit Features
+        -- YokaHub Fruit & Storage Features
         bringFruits: boolean?,
         storeFruits: boolean?,
         snipeShop: boolean?,
         fruitESP: boolean?,
         playerESP: boolean?,
         chestESP: boolean?,
-        -- Wukong Utility & Performance Features
+        -- YokaHub Utility & Performance Engine
         blackScreen: boolean?,
         fastMode: boolean?,
         walkOnWater: boolean?,
@@ -449,8 +449,8 @@
             if typeof(d.soloTarget) == "string" and SOLO_KEY_MAP[d.soloTarget] ~= nil then
                 st.soloTarget = d.soloTarget
             end
-            if typeof(d.winW) == "number" and d.winW >= 540 and d.winW <= 3840 then st.winW = math.floor(d.winW) end
-            if typeof(d.winH) == "number" and d.winH >= 340 and d.winH <= 2160 then st.winH = math.floor(d.winH) end
+            if typeof(d.winW) == "number" and d.winW >= 360 and d.winW <= 3840 then st.winW = math.floor(d.winW) end
+            if typeof(d.winH) == "number" and d.winH >= 240 and d.winH <= 2160 then st.winH = math.floor(d.winH) end
             if typeof(d.autoDismiss773) == "boolean" then st.autoDismiss773 = d.autoDismiss773 end
             if typeof(d.autoReexec) == "boolean" then st.autoReexec = d.autoReexec end
             if typeof(d.damageMeter) == "boolean" then st.damageMeter = d.damageMeter end

@@ -258,7 +258,7 @@
                 safeNotify("YokaHub", "Đã bật Auto Hop: " .. summary, "public")
             end
         else
-            -- Tat toan bo co tu dong hop cua Wukong de khong bi nhay phong ngam khi da tat YokaHub
+            -- Tắt toàn bộ cờ tự động nhảy phòng ngầm để bảo đảm đứng yên tại server hiện tại
             pcall(function()
                 genv.AutoHop = false
                 genv.HopDepthKing = false
@@ -833,11 +833,6 @@
             snipeBusy = true
             task.spawn(function()
                 local function done() snipeBusy = false end
-                if typeof(genv.WK_FetchLiveBossApiSnapshot) ~= "function" or typeof(genv.WK_JoinLiveBossApiEntry) ~= "function" then
-                    setStatus("Cần mở Wukong HUD để tìm phòng có Boss.")
-                    safeNotify("YokaHub", "Cần mở Wukong HUD để tìm phòng có Boss.", "info")
-                    done(); return
-                end
                 local reqPlace = nil
                 if string.find(snipeTarget, "Serpent", 1, true) ~= nil then
                     reqPlace = (game.PlaceId == SEA2_PLACE) and SEA2_PLACE or SEA3_PLACE
@@ -855,35 +850,44 @@
                     return
                 end
 
-                setStatus("Đang quét API tìm " .. snipeTarget .. "...")
-                local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
-                if not ok or typeof(snap) ~= "table" or typeof(snap.entries) ~= "table" then
-                    setStatus("Không đọc được Live Boss API, thử bấm lại.")
-                    safeNotify("YokaHub", "Không đọc được Live Boss API, thử bấm lại.", "info")
-                    done(); return
-                end
+                local hasLiveApi = (typeof(genv.WK_FetchLiveBossApiSnapshot) == "function")
                 local list = {}
                 local fullCount = 0
-                for _, e in ipairs(snap.entries) do
-                    if matchSnipe(e, snipeTarget) then
-                        e._tier = getSlotTier(e)
-                        e._hp = typeof(e.health) == "table" and (tonumber(e.health.percent) or 100) or 100
-                        e._pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
-                        table.insert(list, e)
-                    elseif e.alive == true then
-                        local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 0) or 0
-                        local pMax = typeof(e.players) == "table" and (tonumber(e.players.max) or 12) or 12
-                        if pCur >= pMax and matchSnipe(e, snipeTarget, true) then
-                            fullCount += 1
+
+                if hasLiveApi then
+                    setStatus("Đang quét API tìm " .. snipeTarget .. "...")
+                    local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
+                    if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
+                        for _, e in ipairs(snap.entries) do
+                            if matchSnipe(e, snipeTarget) then
+                                e._tier = getSlotTier(e)
+                                e._hp = typeof(e.health) == "table" and (tonumber(e.health.percent) or 100) or 100
+                                e._pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
+                                table.insert(list, e)
+                            elseif e.alive == true then
+                                local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 0) or 0
+                                local pMax = typeof(e.players) == "table" and (tonumber(e.players.max) or 12) or 12
+                                if pCur >= pMax and matchSnipe(e, snipeTarget, true) then
+                                    fullCount += 1
+                                end
+                            end
                         end
                     end
                 end
+
                 if #list == 0 then
-                    local msg = fullCount > 0
-                        and string.format("%s đang có %d phòng nhưng đều đầy 12/12! Thử chọn Boss khác.", snipeTarget, fullCount)
-                        or ("Hiện chưa có phòng nào trên API cho " .. snipeTarget)
-                    setStatus(msg)
-                    safeNotify("YokaHub", msg, "info")
+                    -- Tự động đổi server công khai qua TeleportService nếu không có kết quả từ snapshot
+                    setStatus("Đang tự động chuyển sang server công khai mới để săn " .. snipeTarget .. "...")
+                    safeNotify("YokaHub", "Đang tìm server mới để săn " .. snipeTarget .. "...", "public")
+                    recordHop()
+                    armAutoReexec(false)
+                    if teleportToSea then
+                        teleportToSea(reqPlace or game.PlaceId, snipeTarget)
+                    elseif ensureCorrectSea then
+                        ensureCorrectSea(reqPlace or game.PlaceId, snipeTarget, "Chuyển server", snipeTarget, true)
+                    else
+                        pcall(function() teleportService:Teleport(reqPlace or game.PlaceId, players.LocalPlayer) end)
+                    end
                     done(); return
                 end
                 table.sort(list, function(a, b)
@@ -902,7 +906,17 @@
                     if idx == 1 then recordHop() end
                     armAutoReexec(false)
                     local hopStart = os.clock()
-                    pcall(genv.WK_JoinLiveBossApiEntry, chosen)
+                    if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
+                        pcall(genv.WK_JoinLiveBossApiEntry, chosen)
+                    else
+                        local srvId = chosen.jobId or chosen.serverId or chosen.serverRef or chosen.id
+                        local pId = tonumber(chosen.placeId) or reqPlace or game.PlaceId
+                        if srvId and srvId ~= "" then
+                            pcall(function() teleportService:TeleportToPlaceInstance(pId, srvId, players.LocalPlayer) end)
+                        else
+                            pcall(function() teleportService:Teleport(pId, players.LocalPlayer) end)
+                        end
+                    end
                     safeNotify("Đang bay tới", info, "public")
                     local failed = false
                     local w = 0

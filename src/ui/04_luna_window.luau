@@ -56,17 +56,8 @@
         end)
     end
 
-    -- Tu dong dong bo cai dat YokaHub khi khoi dong (khong danh nhau voi loop Farm cu cua Wukong)
+    -- Tự động đồng bộ cài đặt YokaHub khi khởi động hệ thống
     pcall(function()
-        if hubState.autoLevel or hubState.autoKillSelectedMob or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat or hubState.autoDungeon then
-            genv.Famlevel = false
-            genv.Autokillmob = false
-            genv.farmMaterialsea3 = false
-            genv.farmMaterialsea2 = false
-            genv.farmMaterialsea1 = false
-            genv.autodungeon = false
-            genv.start = false
-        end
         if hubState.fastMode then applyFastModeSetting(true) end
         genv.PlayerSpeedEnabled = (hubState.speedBoost == true)
         genv.clickTeleportEnabled = (hubState.clickTeleport == true)
@@ -90,9 +81,7 @@
         if hubState.fruitESP then genv.FruitESPEnabled = true end
         if hubState.playerESP then genv.PlayerESPEnabled = true end
         if hubState.chestESP then genv.ChestESPEnabled = true end
-        if hubState.blackScreen then
-            if typeof(genv.WK_ApplyBlackScreen) == "function" then genv.WK_ApplyBlackScreen(true) else genv.BlackScreen = true end
-        end
+        if hubState.blackScreen then genv.BlackScreen = true end
         if hubState.fastMode then genv.fastMode = true; genv.lowTextureMap = true; genv.removeEffects = true end
         if hubState.walkOnWater then genv.Walkonwater = true end
         if hubState.infiniteJump then genv.InfiniteJumpEnabled = true end
@@ -487,11 +476,6 @@
             '        if ok and typeof(res) == "string" and #res > 1000 then src = res end',
             '    end',
             '    if src then local fn = loadstring(src); if fn then task.spawn(fn) end end',
-            '    pcall(function()',
-            '        if not g._WukongMasterLoaded then',
-            '            loadstring(game:HttpGet("https://raw.githubusercontent.com/duymanhm6-cyber/wukonghud/refs/heads/main/wukonghud"))()',
-            '        end',
-            '    end)',
             'end)',
         }, "\n")
         local okQ = pcall(qFn, payload)
@@ -570,9 +554,9 @@
 
             -- TH1: NẾU CÙNG PLACEID (ĐỔI SERVER TRONG CÙNG SEA)
             if targetPlace == game.PlaceId then
-                -- Nếu có yêu cầu Boss cụ thể (preferKey), thử dùng Wukong Live Boss API
+                -- Nếu có yêu cầu Boss cụ thể (preferKey), thử dùng Live Boss API nếu có sẵn
                 if preferKey and preferKey ~= "" then
-                    if typeof(genv.WK_FetchLiveBossApiSnapshot) == "function" and typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
+                    if typeof(genv.WK_FetchLiveBossApiSnapshot) == "function" then
                         local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
                         if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
                             local matched = nil
@@ -586,8 +570,17 @@
                                 end
                             end
                             if matched then
-                                print("[YokaHub][Auto-Sea-Switch] Same-place hop via Wukong Live Boss API:", matched.eventName)
-                                pcall(genv.WK_JoinLiveBossApiEntry, matched)
+                                print("[YokaHub][Auto-Sea-Switch] Same-place hop to Boss server:", matched.eventName)
+                                if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
+                                    pcall(genv.WK_JoinLiveBossApiEntry, matched)
+                                else
+                                    local srvId = matched.jobId or matched.serverId or matched.serverRef or matched.id
+                                    if srvId and srvId ~= "" then
+                                        pcall(function() teleportService:TeleportToPlaceInstance(targetPlace, srvId, lp) end)
+                                    else
+                                        pcall(function() teleportService:Teleport(targetPlace, lp) end)
+                                    end
+                                end
                                 task.wait(12.0)
                                 isSwitchingSea = false
                                 return
@@ -665,12 +658,12 @@
         return true
     end
 
-    local function ensureCorrectSea(targetPlace: number, bossName: string, reason: string?, preferKey: string?): boolean
-        if game.PlaceId == targetPlace then
+    local function ensureCorrectSea(targetPlace: number, bossName: string, reason: string?, preferKey: string?, forceHop: boolean?): boolean
+        if game.PlaceId == targetPlace and not forceHop then
             return true
         end
         local seaName = (targetPlace == SEA3_PLACE and "Sea 3") or (targetPlace == SEA2_PLACE and "Sea 2") or (targetPlace == SEA1_PLACE and "Sea 1") or "Sea"
-        local notifyMsg = "Đang tự động chuyển sang " .. seaName .. " để săn " .. bossName .. "!"
+        local notifyMsg = (game.PlaceId == targetPlace) and ("Đang đổi server " .. seaName .. " để săn " .. bossName .. "!") or ("Đang tự động chuyển sang " .. seaName .. " để săn " .. bossName .. "!")
         if reason and reason ~= "" then
             notifyMsg = "[" .. reason .. "] " .. notifyMsg
         end
@@ -678,7 +671,9 @@
         safeNotify("Tự chuyển Sea", notifyMsg, "flight_takeoff")
 
         saveState(hubState)
-        teleportToSea(targetPlace, preferKey)
+        if teleportToSea then
+            teleportToSea(targetPlace, preferKey)
+        end
         return false
     end
 
@@ -756,7 +751,7 @@
     hideHubImmediate()
 
     -- ========================================================
-    -- NUT HINH NEN MO/TAT GIONG WUKONG (60x60 BO TRON · LUON NAM TREN CUNG MOI GIAO DIEN)
+    -- NÚT AVATAR MỞ/TẮT YOKAHUB (60x60 BO TRÒN · LUÔN NẰM TRÊN CÙNG MỌI GIAO DIỆN)
     -- ========================================================
     local DOCK_TOP_ORDER = 2147483646
     local HUB_ORDER = 1000010
@@ -789,7 +784,7 @@
     local dockBtn = Instance.new("ImageButton")
     dockBtn.Name = "DockButton"
     dockBtn.Size = UDim2.fromOffset(60, 60)
-    -- Dat gon goc tren phai ngay duoi nut Wukong va gioi han an toan trong man hinh
+    -- Đặt gọn góc trên phải và giới hạn an toàn trong màn hình
     local function clampDockPos(x: number, y: number): (number, number)
         local cam = workspace.CurrentCamera
         local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
@@ -1213,10 +1208,10 @@
             if not (smartWin and smartWin:IsA("GuiObject")) then return end
 
             smartWin.ClipsDescendants = true
-            smartWin.AnchorPoint = Vector2.new(0, 0)
+            smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
             local shadow = lunaGui:FindFirstChild("ShadowHolder")
             if shadow and shadow:IsA("GuiObject") then
-                shadow.AnchorPoint = Vector2.new(0, 0)
+                shadow.AnchorPoint = Vector2.new(0.5, 0.5)
             end
             setCorner(smartWin, 12)
             smartWin.BackgroundColor3 = THEME.sidebarBg
@@ -1244,6 +1239,7 @@
                 if t1 and t1:IsA("TextLabel") then
                     t1.Font = Enum.Font.GothamBold
                     t1.TextColor3 = THEME.c1
+                    t1.TextTruncate = Enum.TextTruncate.AtEnd
                 end
                 local t2 = titleBox:FindFirstChild("subtitle")
                 if t2 and t2:IsA("TextLabel") then
@@ -1253,7 +1249,7 @@
                 end
             end
 
-            -- Dam bao YokaHub noi gon tren Wukong va nut avatar LUON o tang cao nhat man hinh
+            -- Đảm bảo cửa sổ YokaHub và nút avatar LUÔN ở tầng hiển thị rõ ràng nhất trên màn hình
             lunaGui.DisplayOrder = HUB_ORDER
             dockGui.DisplayOrder = DOCK_TOP_ORDER
             dockBtn.Visible = true
@@ -1533,7 +1529,14 @@
 
     updateTopBarResponsive = function(winW: number)
         if exitBtnObj and exitBtnObj:IsA("TextButton") then
-            if winW < 560 then
+            if winW < 440 then
+                exitBtnObj.Size = UDim2.fromOffset(56, 28)
+                exitBtnObj.Text = "🚪"
+                exitBtnObj.TextSize = 12
+                if titleBoxObj and titleBoxObj:IsA("GuiObject") then
+                    titleBoxObj.Size = UDim2.new(1, -135, 0, 22)
+                end
+            elseif winW < 560 then
                 exitBtnObj.Size = UDim2.fromOffset(76, 28)
                 exitBtnObj.Text = "🚪 THOÁT"
                 exitBtnObj.TextSize = 9
@@ -1666,27 +1669,34 @@
         local shadow = lunaGui:FindFirstChild("ShadowHolder")
         if not (smartWin and smartWin:IsA("GuiObject")) then return end
 
-        smartWin.AnchorPoint = Vector2.new(0, 0)
+        smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
         if shadow and shadow:IsA("GuiObject") then
-            shadow.AnchorPoint = Vector2.new(0, 0)
+            shadow.AnchorPoint = Vector2.new(0.5, 0.5)
         end
 
         syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
 
         local newSize = UDim2.fromOffset(finalW, finalH)
-        local posX = math.floor((vp.X - (finalW * scaleFactor)) / 2)
-        local posY = math.floor((vp.Y - (finalH * scaleFactor)) / 2)
         local curPos = smartWin.Position
-        local absX = smartWin.AbsolutePosition.X
-        local absY = smartWin.AbsolutePosition.Y
         local curScaledW = finalW * scaleFactor
         local curScaledH = finalH * scaleFactor
-        local minX, maxX = 8, math.max(8, vp.X - curScaledW - 8)
-        local minY, maxY = 8, math.max(8, vp.Y - curScaledH - 8)
+        local halfW = curScaledW * 0.5
+        local halfH = curScaledH * 0.5
+        local minCenterX = halfW + 8
+        local maxCenterX = math.max(minCenterX, vp.X - halfW - 8)
+        local minCenterY = halfH + 8
+        local maxCenterY = math.max(minCenterY, vp.Y - halfH - 8)
 
         local targetPos = curPos
-        if absX < minX or absX > maxX or absY < minY or absY > maxY or (curPos.X.Scale == 0 and curPos.X.Offset == 0) then
-            targetPos = UDim2.fromOffset(math.clamp(posX, minX, maxX), math.clamp(posY, minY, maxY))
+        local isInitialPos = (curPos.X.Scale == 0.5 and curPos.Y.Scale == 0.5 and curPos.X.Offset == 0 and curPos.Y.Offset == 0)
+        if isInitialPos or (curPos.X.Scale == 0 and curPos.X.Offset == 0) then
+            targetPos = UDim2.fromScale(0.5, 0.5)
+        else
+            local curX = curPos.X.Scale * vp.X + curPos.X.Offset
+            local curY = curPos.Y.Scale * vp.Y + curPos.Y.Offset
+            if curX < minCenterX or curX > maxCenterX or curY < minCenterY or curY > maxCenterY then
+                targetPos = UDim2.fromOffset(math.clamp(curX, minCenterX, maxCenterX), math.clamp(curY, minCenterY, maxCenterY))
+            end
         end
 
         local twInfo = TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
@@ -1724,17 +1734,13 @@
             local curW = smartWin.Size.X.Offset
             local curH = smartWin.Size.Y.Offset
             if curW >= (effMaxW - 24) or curH >= (effMaxH - 24) then
-                local defPosX = math.floor((vp.X - (720 * scaleFactor)) / 2)
-                local defPosY = math.floor((vp.Y - (450 * scaleFactor)) / 2)
-                preFullW, preFullH, preFullPos = 720, 450, UDim2.fromOffset(defPosX, defPosY)
+                preFullW, preFullH, preFullPos = 720, 450, UDim2.fromScale(0.5, 0.5)
             else
                 preFullW, preFullH, preFullPos = curW, curH, smartWin.Position
             end
 
             local fullSz = UDim2.fromOffset(effMaxW, effMaxH)
-            local fullPosX = math.floor((vp.X - (effMaxW * scaleFactor)) / 2)
-            local fullPosY = math.floor((vp.Y - (effMaxH * scaleFactor)) / 2)
-            local centerPos = UDim2.fromOffset(fullPosX, fullPosY)
+            local centerPos = UDim2.fromScale(0.5, 0.5)
 
             tweenService:Create(smartWin, twInfo, { Size = fullSz, Position = centerPos }):Play()
             if shadow and shadow:IsA("GuiObject") then
@@ -1748,9 +1754,7 @@
             local backW = math.clamp(preFullW, 380, effMaxW)
             local backH = math.clamp(preFullH, 260, effMaxH)
             local backSz = UDim2.fromOffset(backW, backH)
-            local backPosX = math.floor((vp.X - (backW * scaleFactor)) / 2)
-            local backPosY = math.floor((vp.Y - (backH * scaleFactor)) / 2)
-            local backPos = preFullPos or UDim2.fromOffset(backPosX, backPosY)
+            local backPos = preFullPos or UDim2.fromScale(0.5, 0.5)
             tweenService:Create(smartWin, twInfo, { Size = backSz, Position = backPos }):Play()
             if shadow and shadow:IsA("GuiObject") then
                 tweenService:Create(shadow, twInfo, { Size = backSz, Position = backPos }):Play()
@@ -1973,8 +1977,10 @@
             local dragMaxH = math.max(dragMinH, effVpY)
             local newW = math.clamp(math.floor(rStartW + delta.X), dragMinW, dragMaxW)
             local newH = math.clamp(math.floor(rStartH + delta.Y), dragMinH, dragMaxH)
+            local ddx = (newW - rStartW) * 0.5 * scaleFactor
+            local ddy = (newH - rStartH) * 0.5 * scaleFactor
             smartWin.Size = UDim2.fromOffset(newW, newH)
-            smartWin.Position = rStartPos
+            smartWin.Position = UDim2.new(rStartPos.X.Scale, rStartPos.X.Offset + ddx, rStartPos.Y.Scale, rStartPos.Y.Offset + ddy)
             if shadow and shadow:IsA("GuiObject") then
                 shadow.Size = smartWin.Size
                 shadow.Position = smartWin.Position
@@ -2000,8 +2006,8 @@
                 local smartWin = lunaGui:FindFirstChild("SmartWindow")
                 local shadow = lunaGui:FindFirstChild("ShadowHolder")
                 if smartWin and smartWin:IsA("GuiObject") then
-                    smartWin.AnchorPoint = Vector2.new(0, 0)
-                    if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0, 0) end
+                    smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
+                    if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0.5, 0.5) end
                 end
             end
             if attachCornerResizer then attachCornerResizer() end
@@ -2021,16 +2027,14 @@
                     local smartWin = lunaGui:FindFirstChild("SmartWindow")
                     local shadow = lunaGui:FindFirstChild("ShadowHolder")
                     if smartWin and smartWin:IsA("GuiObject") then
-                        smartWin.AnchorPoint = Vector2.new(0, 0)
-                        if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0, 0) end
+                        smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
+                        if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0.5, 0.5) end
                         syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
                         local effMaxW = math.max(380, math.floor((vp.X - 16) / scaleFactor))
                         local effMaxH = math.max(260, math.floor((vp.Y - 16) / scaleFactor))
                         if isFullscreen then
                             local fullSz = UDim2.fromOffset(effMaxW, effMaxH)
-                            local fullPosX = math.floor((vp.X - (effMaxW * scaleFactor)) / 2)
-                            local fullPosY = math.floor((vp.Y - (effMaxH * scaleFactor)) / 2)
-                            local fullPos = UDim2.fromOffset(fullPosX, fullPosY)
+                            local fullPos = UDim2.fromScale(0.5, 0.5)
                             smartWin.Size = fullSz
                             smartWin.Position = fullPos
                             if shadow and shadow:IsA("GuiObject") then

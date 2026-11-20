@@ -154,7 +154,16 @@
         local function updateGatewayScale()
             local cam = workspace.CurrentCamera
             local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-            GatewayScale.Scale = math.clamp(math.min((vp.X - 20) / 560, (vp.Y - 20) / 420), 0.52, 1.0)
+            local sc = math.clamp(math.min((vp.X - 20) / 560, (vp.Y - 20) / 420), 0.52, 1.0)
+            GatewayScale.Scale = sc
+            -- Chống rơi cửa sổ ra ngoài màn hình khi đổi độ phân giải hoặc xoay màn hình mobile:
+            local halfW = (560 * sc) * 0.5
+            local halfH = (420 * sc) * 0.5
+            local curX = MainFrame.Position.X.Scale * vp.X + MainFrame.Position.X.Offset
+            local curY = MainFrame.Position.Y.Scale * vp.Y + MainFrame.Position.Y.Offset
+            local clampedX = math.clamp(curX, halfW + 6, math.max(halfW + 6, vp.X - halfW - 6))
+            local clampedY = math.clamp(curY, halfH + 6, math.max(halfH + 6, vp.Y - halfH - 6))
+            MainFrame.Position = UDim2.fromOffset(clampedX, clampedY)
         end
         updateGatewayScale()
         if workspace.CurrentCamera then
@@ -174,7 +183,7 @@
         
         local TitleLabel = Instance.new("TextLabel")
         TitleLabel.Name = "TitleLabel"
-        TitleLabel.Size = UDim2.new(1, -60, 0, 24)
+        TitleLabel.Size = UDim2.new(1, -180, 0, 24)
         TitleLabel.Position = UDim2.new(0, 16, 0, 5)
         TitleLabel.BackgroundTransparency = 1
         TitleLabel.Font = Enum.Font.GothamBold
@@ -182,11 +191,12 @@
         TitleLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
         TitleLabel.TextSize = 15
         TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        TitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
         TitleLabel.Parent = TopBar
         
         local SubTitle = Instance.new("TextLabel")
         SubTitle.Name = "SubTitle"
-        SubTitle.Size = UDim2.new(1, -60, 0, 16)
+        SubTitle.Size = UDim2.new(1, -180, 0, 16)
         SubTitle.Position = UDim2.new(0, 16, 0, 27)
         SubTitle.BackgroundTransparency = 1
         SubTitle.Font = Enum.Font.Gotham
@@ -194,6 +204,7 @@
         SubTitle.TextColor3 = Color3.fromRGB(150, 165, 185)
         SubTitle.TextSize = 11
         SubTitle.TextXAlignment = Enum.TextXAlignment.Left
+        SubTitle.TextTruncate = Enum.TextTruncate.AtEnd
         SubTitle.Parent = TopBar
         
         local TopBarGetKeyBtn = Instance.new("TextButton")

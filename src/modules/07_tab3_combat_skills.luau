@@ -17,7 +17,7 @@
         local M1SpamDropdownObj: any = nil
 
         -- ========================================================
-        -- SECTION 1: 👊 COMBAT (CHUẨN GIAO DIỆN WUKONG HUD)
+        -- SECTION 1: 👊 CHIẾN ĐẤU & TRANG BỊ VŨ KHÍ (COMBAT ENGINE)
         -- ========================================================
         local CombatSection = SkillTab:CreateSection("👊 Combat")
 

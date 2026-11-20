@@ -121,11 +121,7 @@
             hubState.blackScreen = Value
             saveState(hubState)
             pcall(function()
-                if typeof(genv.WK_ApplyBlackScreen) == "function" then
-                    genv.WK_ApplyBlackScreen(Value)
-                else
-                    genv.BlackScreen = Value
-                end
+                genv.BlackScreen = Value
             end)
             if Value then
                 safeNotify("YokaHub AFK", "Đã bật Màn hình đen tiết kiệm pin!", "dark_mode")

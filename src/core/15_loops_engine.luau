@@ -772,7 +772,7 @@
             end
         end
 
-        -- 2. ĐÁNH NGẦM PHÍA DƯỚI GIAO DIỆN (LUÂN CHUYỂN CÁC VŨ KHÍ ĐÃ TÍCH CHỌN GIỐNG BẢN WUKONG)
+        -- 2. ĐÁNH NGẦM PHÍA DƯỚI GIAO DIỆN (CƠ CHẾ FAST ATTACK NATIVE KHÔNG GIẬT HOTBAR)
         if #cats > 1 then
             m1CycleIndex = (m1CycleIndex % #cats) + 1
         else
@@ -2175,7 +2175,17 @@
             setStatus("Đang sang phòng: " .. infoStr)
             if idx == 1 then recordHop() end
             armAutoReexec(false)
-            pcall(genv.WK_JoinLiveBossApiEntry, chosen)
+            if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
+                pcall(genv.WK_JoinLiveBossApiEntry, chosen)
+            else
+                local srvId = chosen.jobId or chosen.serverId or chosen.serverRef or chosen.id
+                local pId = tonumber(chosen.placeId) or game.PlaceId
+                if srvId and srvId ~= "" then
+                    pcall(function() teleportService:TeleportToPlaceInstance(pId, srvId, players.LocalPlayer) end)
+                else
+                    pcall(function() teleportService:Teleport(pId, players.LocalPlayer) end)
+                end
+            end
             local waited = 0
             local failed = false
             while waited < 4.0 and currentMode == expectedMode and genv._YokaHubToken == myToken do
@@ -2211,11 +2221,6 @@
             task.wait(0.35)
             continue
         end
-        if typeof(genv.WK_FetchLiveBossApiSnapshot) ~= "function" or typeof(genv.WK_JoinLiveBossApiEntry) ~= "function" then
-            setStatus("Đang chờ Wukong HUD khởi động...")
-            smartWait(1.2, mode)
-            continue
-        end
         if not didInitialRoomSettle then
             didInitialRoomSettle = true
             setStatus("Kiểm tra nhanh phòng hiện tại...")
@@ -2240,7 +2245,7 @@
                 prevSoloKey = soloKey
             end
 
-            -- Bat dung co danh cua Wukong cho tung Boss rieng & tat toan bo hopper xung dot
+            -- Đồng bộ cờ trạng thái Boss và tắt toàn bộ hopper xung đột
             pcall(function()
                 genv.autoskhdhop = false
                 genv.HopDepthKing = false
@@ -2326,8 +2331,12 @@
                 if hubState.bringFruits then pcall(function() genv.BringDroppedFruit = true end) end
             end
 
-            setStatus("Đang quét riêng API: " .. soloOpt .. "...")
-            local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
+            local hasApi = typeof(genv.WK_FetchLiveBossApiSnapshot) == "function"
+            local ok, snap = false, nil
+            if hasApi then
+                setStatus("Đang quét API phòng Boss: " .. soloOpt .. "...")
+                ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
+            end
             if currentMode ~= "solo" or genv._YokaHubToken ~= myToken then continue end
             if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
                 local visited = loadVisited(visitedSoloFile)
@@ -2378,19 +2387,31 @@
                     burstHopCandidates(candidates, visited, visitedSoloFile, "solo", shortCd, vPrefix)
                 else
                     if fullRooms > 0 then
-                        setStatus(string.format("Có %d phòng %s đều đầy 12/12 — dò lại sau 1.2s...", fullRooms, soloOpt))
-                        smartWait(1.2, "solo")
+                        setStatus(string.format("Có %d phòng %s đều đầy 12/12 — đổi server khác...", fullRooms, soloOpt))
                     elseif visitedRooms > 0 then
-                        setStatus(string.format("Có %d phòng %s vừa ghé — chờ phòng mới sau 1.2s...", visitedRooms, soloOpt))
-                        smartWait(1.2, "solo")
+                        setStatus(string.format("Có %d phòng %s vừa ghé — đổi server khác...", visitedRooms, soloOpt))
                     else
-                        setStatus("Chưa có phòng trống cho " .. soloOpt .. " — dò lại sau 1.2s...")
-                        smartWait(1.2, "solo")
+                        setStatus("Chưa có phòng có sẵn cho " .. soloOpt .. " — đang tự động đổi server...")
                     end
+                    recordHop()
+                    armAutoReexec(false)
+                    if teleportToSea then
+                        teleportToSea(targetPlace, soloKey)
+                    else
+                        ensureCorrectSea(targetPlace, soloOpt, "Dò phòng " .. soloOpt, soloKey, true)
+                    end
+                    smartWait(12.0, "solo")
                 end
             else
-                setStatus("Đang chờ API, thử lại sau 1.2s...")
-                smartWait(1.2, "solo")
+                setStatus("Đang tự động chuyển server mới để tìm " .. soloOpt .. "...")
+                recordHop()
+                armAutoReexec(false)
+                if teleportToSea then
+                    teleportToSea(targetPlace, soloKey)
+                else
+                    ensureCorrectSea(targetPlace, soloOpt, "Săn " .. soloOpt, soloKey, true)
+                end
+                smartWait(12.0, "solo")
             end
 
         elseif mode == "sea3" then
@@ -2450,8 +2471,12 @@
                 genv.DepthKingChestReadyToHop = false
             end
 
-            setStatus("Đang quét nhanh phòng Boss Sea 3...")
-            local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
+            local hasApi = typeof(genv.WK_FetchLiveBossApiSnapshot) == "function"
+            local ok, snap = false, nil
+            if hasApi then
+                setStatus("Đang quét nhanh phòng Boss Sea 3...")
+                ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
+            end
             if currentMode ~= "sea3" or genv._YokaHubToken ~= myToken then continue end
             if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
                 local visited = loadVisited(visitedSea3File)
@@ -2481,12 +2506,26 @@
                 if #candidates > 0 then
                     burstHopCandidates(candidates, visited, visitedSea3File, "sea3")
                 else
-                    setStatus("Chưa có phòng phù hợp, quét lại sau 1.2s...")
-                    smartWait(1.2, "sea3")
+                    setStatus("Không còn phòng trống, đang tự động đổi server Sea 3...")
+                    recordHop()
+                    armAutoReexec(false)
+                    if teleportToSea then
+                        teleportToSea(SEA3_PLACE, preferSea3Boss)
+                    else
+                        ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Dò phòng Sea 3", preferSea3Boss, true)
+                    end
+                    smartWait(12.0, "sea3")
                 end
             else
-                setStatus("Đang chờ API, thử lại sau 1.2s...")
-                smartWait(1.2, "sea3")
+                setStatus("Đang tự động chuyển server mới để săn Boss Sea 3...")
+                recordHop()
+                armAutoReexec(false)
+                if teleportToSea then
+                    teleportToSea(SEA3_PLACE, preferSea3Boss)
+                else
+                    ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Săn Boss Sea 3", preferSea3Boss, true)
+                end
+                smartWait(12.0, "sea3")
             end
 
         elseif mode == "sea2" then
@@ -2541,6 +2580,9 @@
 
             setStatus("Đang ưu tiên dò phòng Hydra & Rương Hydra...")
             local function scanSea2Pools(): ({ any }, { any }, { [string]: number }?, boolean)
+                if typeof(genv.WK_FetchLiveBossApiSnapshot) ~= "function" then
+                    return {}, {}, nil, false
+                end
                 local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
                 if not ok or typeof(snap) ~= "table" or typeof(snap.entries) ~= "table" then
                     return {}, {}, nil, false
@@ -2608,14 +2650,28 @@
                         if #fallback > 0 then
                             burstHopCandidates(fallback, visUse, visitedSea2File, "sea2")
                         else
-                            setStatus("Chưa có phòng phù hợp, quét lại sau 2.5s...")
-                            smartWait(2.5, "sea2")
+                            setStatus("Chưa có phòng phù hợp, đang tự động đổi server Sea 2...")
+                            recordHop()
+                            armAutoReexec(false)
+                            if teleportToSea then
+                                teleportToSea(SEA2_PLACE, "hydra")
+                            else
+                                ensureCorrectSea(SEA2_PLACE, "Boss Sea 2", "Dò phòng Sea 2", "hydra", true)
+                            end
+                            smartWait(12.0, "sea2")
                         end
                     end
                 end
             else
-                setStatus("Đang chờ API, thử lại sau 2.5s...")
-                smartWait(2.5, "sea2")
+                setStatus("Đang tự động chuyển server mới để săn Boss Sea 2...")
+                recordHop()
+                armAutoReexec(false)
+                if teleportToSea then
+                    teleportToSea(SEA2_PLACE, "hydra")
+                else
+                    ensureCorrectSea(SEA2_PLACE, "Boss Sea 2", "Săn Boss Sea 2", "hydra", true)
+                end
+                smartWait(12.0, "sea2")
             end
         end
     end
