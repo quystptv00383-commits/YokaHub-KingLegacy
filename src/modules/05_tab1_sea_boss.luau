@@ -117,8 +117,9 @@
             hubState.soloTarget = currentSoloTarget
             newMode = "solo"
         end
-        -- Khử xung đột: Khi chuyển sang Săn Boss, tự động tạm tắt các chế độ cày cục bộ
+        -- Khử xung đột: Khi chuyển sang Săn Boss, tự động bật Master Auto Fight và tắt các chế độ cày cục bộ
         if newMode ~= "off" then
+            hubState.autoFightMaster = true
             local hadConflict = false
             if hubState.autoLevel or hubState.autoKillSelectedMob or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat or hubState.autoDungeon or hubState.autoFish or hubState.autoFightIslandBoss then
                 hadConflict = true
@@ -496,21 +497,48 @@
         end,
     }, "AutoFightIslandBossToggle")
 
-    local islandBossList = {
-        "Hephaestus (Thợ Rèn Thần - Sea 3)",
-        "Dark Beard (Râu Đen - Sea 3)",
-        "Gryphon Boss (Sea 3)",
-        "Lucidus (Sea 2)",
-        "Sunken Blade Boss (Sea 2)",
-        "Snow Boss (Sea 2)",
-        "Smoker (Sea 1)",
-        "Tashigi (Sea 1)",
-        "Buggy (Sea 1)",
-        "Arlong (Sea 1)",
-    }
-    local defaultIslandBoss = table.find(islandBossList, hubState.islandBossTarget) and hubState.islandBossTarget or "Hephaestus (Thợ Rèn Thần - Sea 3)"
-    IslandFightSection:CreateDropdown({
-        Name = "Chọn Boss Đảo Muốn Tiêu Diệt",
+    local function scanCurrentSeaBossOptions(): { string }
+        local list: { string } = {}
+        local seen: { [string]: boolean } = {}
+        local mon = workspace:FindFirstChild("Monster")
+        local bSub = mon and mon:FindFirstChild("Boss")
+        if bSub then
+            for _, b in ipairs(bSub:GetChildren()) do
+                if b:IsA("Model") and not seen[b.Name] then
+                    seen[b.Name] = true
+                    table.insert(list, b.Name)
+                end
+            end
+        end
+        table.sort(list, function(a, b)
+            local la = tonumber(string.match(a, "[Ll][Vv]%.?%s*(%d+)")) or 999999
+            local lb = tonumber(string.match(b, "[Ll][Vv]%.?%s*(%d+)")) or 999999
+            if la ~= lb then return la < lb end
+            return a < b
+        end)
+        if #list == 0 then
+            list = {
+                "Smoky [Lv. 20]",
+                "Tashi [Lv. 30]",
+                "Shark Man [Lv. 230]",
+                "King Snow [Lv. 450]",
+                "Rumble Man [Lv. 950]",
+                "Leader [Lv. 1100]",
+                "Quake Woman [Lv. 1925]",
+                "Gazelle Man [Lv. 2350]",
+                "Kitsune Samurai [Lv. 2650]",
+                "Flame User [Lv. 3200]",
+                "Sunken Vessel [Lv. 3225]",
+                "Ryu [Lv. 3975]",
+            }
+        end
+        return list
+    end
+
+    local islandBossList = scanCurrentSeaBossOptions()
+    local defaultIslandBoss = table.find(islandBossList, hubState.islandBossTarget) and hubState.islandBossTarget or islandBossList[1]
+    local IslandBossDropdownObj = IslandFightSection:CreateDropdown({
+        Name = "Chọn Boss Đảo Muốn Tiêu Diệt (Tự quét đúng Sea hiện tại)",
         Options = islandBossList,
         CurrentOption = { defaultIslandBoss },
         MultipleOptions = false,
@@ -521,6 +549,22 @@
             safeNotify("Mục Tiêu Boss Đảo", "Đã chọn: " .. val, "flag")
         end,
     }, "IslandBossDropdown")
+
+    IslandFightSection:CreateButton({
+        Name = "🔄 Tải Lại Danh Sách Boss Đảo Trong Sea Này",
+        Description = "Quét lại toàn bộ Boss Đảo thực tế đang có mặt trong server hiện tại",
+        Callback = function()
+            local fresh = scanCurrentSeaBossOptions()
+            pcall(function()
+                if IslandBossDropdownObj and typeof(IslandBossDropdownObj.Set) == "function" then
+                    IslandBossDropdownObj:Set({ Options = fresh, CurrentOption = { fresh[1] } })
+                end
+            end)
+            hubState.islandBossTarget = fresh[1]
+            saveState(hubState)
+            safeNotify("Mục Tiêu Boss Đảo", "Đã cập nhật " .. tostring(#fresh) .. " Boss Đảo trong Sea hiện tại!", "refresh")
+        end,
+    })
 
     IslandFightSection:CreateToggle({
         Name = "📜 Tự Động Nhận Quest Boss Trước Khi Đánh",

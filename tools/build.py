@@ -88,6 +88,10 @@ if "--sync" in sys.argv:
     if os.path.exists(sync_script):
         print("[+] Triggering Cloud Gist Synchronization...")
         subprocess.run([sys.executable, sync_script])
+    discord_script = os.path.join(PROJECT_ROOT, "tools", "post_discord_script.py")
+    if os.path.exists(discord_script):
+        note_args = [a for a in sys.argv[1:] if a != "--sync"]
+        subprocess.run([sys.executable, discord_script, *note_args])
 
 print("==================================================")
 print("       [SUCCESS] BUILD COMPLETED PERFECTLY!       ")

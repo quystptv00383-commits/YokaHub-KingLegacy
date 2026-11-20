@@ -214,7 +214,7 @@
         if hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat then return true end
         if hubState.autoDungeon then return true end
         if hubState.bringFruits then return true end
-        if (hubState.autoFightMaster or hubState.autoFightIslandBoss) and not hubState.autoFish then return true end
+        if (currentMode ~= "off" or hubState.autoFightMaster or hubState.autoFightIslandBoss) and not hubState.autoFish then return true end
         return false
     end
 
@@ -929,14 +929,61 @@
     end
 
     -- ========================================================
-    -- [AUTO FIGHT BOSS WORKER] - LUỒNG CHIẾN ĐẤU VÀ NHẶT RƯƠNG BOSS
+    -- [AUTO FIGHT BOSS WORKER] - LUỒNG CHIẾN ĐẤU SEA EVENT, BOSS ĐẢO & NHẶT RƯƠNG BOSS
     -- ========================================================
+    local function findSeaEventIslandPos(): (Vector3?, string?)
+        -- 1. Kiểm tra trực tiếp tọa độ sự kiện biển từ Wukong SeaEvent API nếu có
+        if typeof(genv.WK_SeaEvent) == "table" and typeof(genv.WK_SeaEvent.GetState) == "function" then
+            local okS, st = pcall(genv.WK_SeaEvent.GetState)
+            if okS and typeof(st) == "table" and st.phase and st.phase ~= "inactive" then
+                local rawPos = st.position or st.targetPos or (typeof(st.cframe) == "CFrame" and st.cframe.Position)
+                if typeof(rawPos) == "Vector3" then
+                    return rawPos, tostring(st.eventKey or "SeaEvent")
+                end
+            end
+        end
+        -- 2. Quét các đảo sự kiện (Hydra / Legacy / Sea Island / Ghost Ship / Event Island) để bay tới kích hoạt StreamingEnabled
+        local isl = workspace:FindFirstChild("Island")
+        if isl then
+            for _, c in ipairs(isl:GetChildren()) do
+                local n = string.lower(c.Name)
+                if string.find(n, "hydra", 1, true)
+                    or string.find(n, "legacy", 1, true)
+                    or string.find(n, "sea island", 1, true)
+                    or string.find(n, "sea king", 1, true)
+                    or string.find(n, "ghost", 1, true)
+                    or string.find(n, "depth", 1, true)
+                    or string.find(n, "abyssal", 1, true)
+                    or string.find(n, "kraken", 1, true)
+                    or string.find(n, "drakenfyr", 1, true)
+                    or string.find(n, "sea beast", 1, true) then
+                    local okB, cf = pcall(function() return c:IsA("Model") and c:GetBoundingBox() or (c:IsA("BasePart") and c.CFrame or nil) end)
+                    if okB and typeof(cf) == "CFrame" then
+                        return cf.Position, c.Name
+                    end
+                end
+            end
+        end
+        -- 3. Quét trực tiếp các vật thể GhostShip / SeaEvent trong workspace
+        for _, obj in ipairs(workspace:GetChildren()) do
+            local n = string.lower(obj.Name)
+            if (obj:IsA("Model") or obj:IsA("Folder")) and (string.find(n, "ghostship", 1, true) or string.find(n, "ghost ship", 1, true) or string.find(n, "seabeast", 1, true) or string.find(n, "hydra", 1, true)) then
+                local okB, cf = pcall(function() return obj:IsA("Model") and obj:GetBoundingBox() or nil end)
+                if okB and typeof(cf) == "CFrame" then
+                    return cf.Position, obj.Name
+                end
+            end
+        end
+        return nil, nil
+    end
+
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.22)
+            task.wait(0.16)
             local busyOtherMode = hubState.autoFish
                 or (currentMode == "off" and (hubState.autoLevel or hubState.autoKillSelectedMob or hubState.autoDungeon or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat))
-            if (hubState.autoFightMaster or hubState.autoFightIslandBoss) and not busyOtherMode and genv._YokaHubToken == myToken then
+            local bossFightActive = (currentMode ~= "off") or hubState.autoFightMaster or hubState.autoFightIslandBoss
+            if bossFightActive and not busyOtherMode and genv._YokaHubToken == myToken then
                 pcall(function()
                     local char = player.Character
                     if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then return end
@@ -945,19 +992,27 @@
                     if hum.Health <= 0 then return end
                     if os.clock() < dodgeUntilClock then return end
 
-                    -- 1. Quét tìm rương báu Boss trước nếu có (Bay lơ lửng tới nhặt, không rơi xuống biển)
-                    if hubState.autoCollectChest then
+                    -- 1. Quét tìm rương báu Boss / Sea Event không giới hạn tầm (Streaming-safe, bay lơ lửng tới nhặt không rơi xuống biển)
+                    if hubState.autoCollectChest ~= false then
                         local isl = workspace:FindFirstChild("Island")
                         if isl then
                             for _, c in ipairs(isl:GetChildren()) do
-                                for _, d in ipairs(c:GetDescendants()) do
-                                    if d:IsA("Model") and string.find(string.lower(d.Name), "chest") and not string.find(string.lower(d.Name), "spawner") then
-                                        local pp = d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
-                                        if pp and (pp.Position - hrp.Position).Magnitude < 2500 then
-                                            local chestPos = pp.Position + Vector3.new(0, 4, 0)
-                                            setFlightTarget(chestPos, pp.Position, (pp.Position - hrp.Position).Magnitude > 1400, 60)
-                                            task.wait(0.35)
-                                            return
+                                local cn = string.lower(c.Name)
+                                local isEventIsl = string.find(cn, "hydra", 1, true) or string.find(cn, "legacy", 1, true) or string.find(cn, "sea", 1, true) or string.find(cn, "ghost", 1, true) or string.find(cn, "event", 1, true) or string.find(cn, "depth", 1, true)
+                                if isEventIsl or currentMode == "off" then
+                                    for _, d in ipairs(c:GetDescendants()) do
+                                        if d:IsA("Model") and string.find(string.lower(d.Name), "chest", 1, true) and not string.find(string.lower(d.Name), "spawner", 1, true) then
+                                            local pp = d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
+                                            if pp then
+                                                local chestPos = pp.Position + Vector3.new(0, 4, 0)
+                                                setFlightTarget(chestPos, pp.Position, (pp.Position - hrp.Position).Magnitude > 1400, 60)
+                                                -- Tự kích hoạt ProximityPrompt trên rương nếu có
+                                                local prompt = d:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                                if prompt and (pp.Position - hrp.Position).Magnitude <= 20 and typeof(fireproximityprompt) == "function" then
+                                                    pcall(fireproximityprompt, prompt)
+                                                end
+                                                return
+                                            end
                                         end
                                     end
                                 end
@@ -965,10 +1020,12 @@
                         end
                     end
 
-                    -- 2. Quét Boss Đảo nếu bật autoFightIslandBoss, hoặc Boss Biển nếu bật autoFightMaster
+                    -- 2. Quét Boss Đảo nếu bật autoFightIslandBoss, hoặc Boss Biển / Sea Event nếu bật autoFightMaster hoặc đang ở chế độ Hop Boss
                     local islandKeyword = ""
+                    local islandExact = ""
                     if hubState.autoFightIslandBoss and hubState.islandBossTarget then
-                        local rawIsl = string.match(hubState.islandBossTarget, "^([^(]+)") or hubState.islandBossTarget
+                        islandExact = hubState.islandBossTarget
+                        local rawIsl = string.match(hubState.islandBossTarget, "^([^(%[]+)") or hubState.islandBossTarget
                         rawIsl = string.gsub(rawIsl, "%s+[Bb]oss%s*$", "")
                         islandKeyword = string.lower(string.gsub(rawIsl, "%s+$", ""))
                         -- Tự nhận đúng Quest Boss Đảo chuẩn King Legacy nếu bật Auto Take Boss Quest
@@ -985,7 +1042,7 @@
                                             for qName, qInfo in pairs(qTbl) do
                                                 if typeof(qName) == "string" and typeof(qInfo) == "table" and not qInfo.DailyQuest then
                                                     local mobLow = string.lower(tostring(qInfo.Mob or ""))
-                                                    if string.find(mobLow, islandKeyword, 1, true) or string.find(string.lower(qName), islandKeyword, 1, true) then
+                                                    if tostring(qInfo.Mob or "") == islandExact or string.find(mobLow, islandKeyword, 1, true) or string.find(string.lower(qName), islandKeyword, 1, true) then
                                                         qRem:InvokeServer("take", qName)
                                                         break
                                                     end
@@ -998,24 +1055,42 @@
                         end
                     end
 
+                    local soloKeyActive = (currentMode == "solo") and getSoloKey(currentSoloTarget) or ""
                     local function isBossWanted(rawName: string, folderName: string?): boolean
                         local n = string.lower(rawName)
-                        if hubState.autoFightIslandBoss and islandKeyword ~= "" and string.find(n, islandKeyword) ~= nil then
+                        if hubState.autoFightIslandBoss and (rawName == islandExact or (islandKeyword ~= "" and string.find(n, islandKeyword, 1, true) ~= nil)) then
                             return true
+                        end
+                        -- Nếu đang ở chế độ Săn Riêng / Sea 2 / Sea 3: luôn đánh đúng Boss của chế độ đó!
+                        if currentMode == "solo" then
+                            if soloKeyActive == "depth_king" then return string.find(n, "depth", 1, true) ~= nil and string.find(n, "abyssal", 1, true) == nil end
+                            if soloKeyActive == "abyssal_tyrant" then return string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "tyrant", 1, true) ~= nil end
+                            if soloKeyActive == "dragon" then return string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "dragon", 1, true) ~= nil end
+                            if soloKeyActive == "kraken" then return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil end
+                            if soloKeyActive == "crab" then return string.find(n, "crab", 1, true) ~= nil end
+                            if soloKeyActive == "hydra" then return string.find(n, "hydra", 1, true) ~= nil end
+                            if soloKeyActive == "sea_king" then return string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil end
+                            if soloKeyActive == "ghost_ship" then return string.find(n, "ghost", 1, true) ~= nil end
+                            if soloKeyActive == "serpent" then return string.find(n, "serpent", 1, true) ~= nil end
+                            if soloKeyActive == "sea3_events" then return folderName == "SeaMonster" or string.find(n, "sea", 1, true) ~= nil or string.find(n, "dragon", 1, true) ~= nil or string.find(n, "kraken", 1, true) ~= nil end
+                        elseif currentMode == "sea2" then
+                            return folderName == "SeaMonster" or folderName == "GhostMonster" or string.find(n, "hydra", 1, true) ~= nil or string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil or string.find(n, "ghost", 1, true) ~= nil or string.find(n, "serpent", 1, true) ~= nil
+                        elseif currentMode == "sea3" then
+                            return folderName == "SeaMonster" or string.find(n, "depth", 1, true) ~= nil or string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "dragon", 1, true) ~= nil or string.find(n, "kraken", 1, true) ~= nil or string.find(n, "crab", 1, true) ~= nil or string.find(n, "serpent", 1, true) ~= nil
                         end
                         if not hubState.autoFightMaster then
                             return false
                         end
-                        if string.find(n, "depth") and string.find(n, "abyssal") == nil then return hubState.fightSea3DepthKing ~= false end
-                        if string.find(n, "drakenfyr") or string.find(n, "inferno king") or (string.find(n, "dragon") and not string.find(n, "fruit")) then return hubState.fightSea3Dragon ~= false end
-                        if string.find(n, "abyssal") or string.find(n, "tyrant") then return hubState.fightSea3Abyssal ~= false end
-                        if string.find(n, "kraken") or string.find(n, "tentacle") then return hubState.fightSea3Kraken ~= false end
-                        if string.find(n, "crab") then return hubState.fightSea3Crab ~= false end
-                        if string.find(n, "hydra") then return hubState.fightSea2Hydra ~= false end
-                        if string.find(n, "sea king") or string.find(n, "seaking") then return hubState.fightSea2SeaKing ~= false end
-                        if string.find(n, "ghost") then return hubState.fightSea2GhostShip ~= false end
-                        if string.find(n, "serpent") then return hubState.fightSea2Serpent ~= false end
-                        if folderName == "SeaMonster" or string.find(n, "sea beast") or string.find(n, "seabeast") then
+                        if string.find(n, "depth", 1, true) and string.find(n, "abyssal", 1, true) == nil then return hubState.fightSea3DepthKing ~= false end
+                        if string.find(n, "drakenfyr", 1, true) or string.find(n, "inferno king", 1, true) or (string.find(n, "dragon", 1, true) and not string.find(n, "fruit", 1, true)) then return hubState.fightSea3Dragon ~= false end
+                        if string.find(n, "abyssal", 1, true) or string.find(n, "tyrant", 1, true) then return hubState.fightSea3Abyssal ~= false end
+                        if string.find(n, "kraken", 1, true) or string.find(n, "tentacle", 1, true) then return hubState.fightSea3Kraken ~= false end
+                        if string.find(n, "crab", 1, true) then return hubState.fightSea3Crab ~= false end
+                        if string.find(n, "hydra", 1, true) then return hubState.fightSea2Hydra ~= false end
+                        if string.find(n, "sea king", 1, true) or string.find(n, "seaking", 1, true) then return hubState.fightSea2SeaKing ~= false end
+                        if string.find(n, "ghost", 1, true) then return hubState.fightSea2GhostShip ~= false end
+                        if string.find(n, "serpent", 1, true) then return hubState.fightSea2Serpent ~= false end
+                        if folderName == "SeaMonster" or string.find(n, "sea beast", 1, true) or string.find(n, "seabeast", 1, true) then
                             return hubState.fightSea3Events ~= false
                         end
                         return false
@@ -1050,12 +1125,19 @@
                             local aimPos = getAimPoint(targetBoss, bRoot)
                             local hoverPos = bRoot.Position + Vector3.new(0, sHeight, 0)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 55)
-                            if (hrp.Position - hoverPos).Magnitude <= 45 then
+                            if (hrp.Position - hoverPos).Magnitude <= 50 then
                                 castConfiguredSkills(char, hum, targetBoss)
                             end
                             pcall(function()
                                 genv.autoskillsea = true
                             end)
+                        end
+                    elseif currentMode ~= "off" or hubState.autoFightMaster then
+                        -- StreamingEnabled fix: Nếu SeaMonster chưa load do ở quá xa -> bay tới thẳng Đảo Sự Kiện (Hydra / Sea Island / Legacy / Ghost Ship) để nạp Boss!
+                        local evPos, _ = findSeaEventIslandPos()
+                        if evPos and (evPos - hrp.Position).Magnitude > 120 then
+                            local flyPos = evPos + Vector3.new(0, 65, 0)
+                            setFlightTarget(flyPos, evPos, (flyPos - hrp.Position).Magnitude > 1400, 54)
                         end
                     end
                 end)
