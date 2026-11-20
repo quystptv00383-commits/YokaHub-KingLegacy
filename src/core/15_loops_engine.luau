@@ -1,4 +1,6 @@
 
+    -- Cô lập phạm vi thanh ghi cục bộ cho Engine (tránh vượt giới hạn 200 local registers của Luau)
+    ;(function()
     -- ========================================================
     -- [KIỂM TRA ĐỊNH KỲ 19 PHÚT & CHỐNG KICK AFK 20 PHÚT]
     -- ========================================================
@@ -3370,4 +3372,5 @@ end)
             pcall(function() bb:Destroy() end)
         end
     end)
+    end)()
 end)
