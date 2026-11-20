@@ -264,7 +264,10 @@
         webhookUrl: string?,
         whFruit: boolean?,
         whDrop: boolean?,
-        -- Advanced Auto Skills
+        -- Advanced Auto Skills & Auto M1
+        autoM1Fruit: boolean?,
+        autoM1Sword: boolean?,
+        autoM1Melee: boolean?,
         skillFruit: boolean?,
         skillFruitKeys: string?,
         skillSword: boolean?,
@@ -358,6 +361,9 @@
             webhookUrl = "",
             whFruit = false,
             whDrop = false,
+            autoM1Fruit = false,
+            autoM1Sword = true,
+            autoM1Melee = false,
             skillFruit = true,
             skillFruitKeys = "Z + X",
             skillSword = true,
@@ -454,6 +460,9 @@
             if typeof(d.webhookUrl) == "string" then st.webhookUrl = d.webhookUrl end
             if typeof(d.whFruit) == "boolean" then st.whFruit = d.whFruit end
             if typeof(d.whDrop) == "boolean" then st.whDrop = d.whDrop end
+            if typeof(d.autoM1Fruit) == "boolean" then st.autoM1Fruit = d.autoM1Fruit end
+            if typeof(d.autoM1Sword) == "boolean" then st.autoM1Sword = d.autoM1Sword end
+            if typeof(d.autoM1Melee) == "boolean" then st.autoM1Melee = d.autoM1Melee end
             if typeof(d.skillFruit) == "boolean" then st.skillFruit = d.skillFruit end
             if typeof(d.skillFruitKeys) == "string" then st.skillFruitKeys = d.skillFruitKeys end
             if typeof(d.skillSword) == "boolean" then st.skillSword = d.skillSword end

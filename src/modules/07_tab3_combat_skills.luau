@@ -25,6 +25,55 @@
             end,
         }, "AutoSkillsToggle")
 
+        local AutoM1Section = SkillTab:CreateSection("🖱️ Tự Động Đánh Thường M1 (Tích Chọn Vũ Khí Muốn Dùng)")
+        AutoM1Section:CreateToggle({
+            Name = "🍎 Auto M1 Trái Ác Quỷ (Fruit M1)",
+            Description = "Tích chọn để tự cầm Trái Ác Quỷ và đánh thường M1 liên tục",
+            CurrentValue = hubState.autoM1Fruit == true,
+            Callback = function(Value: boolean)
+                hubState.autoM1Fruit = Value
+                saveState(hubState)
+                pcall(function()
+                    genv.AutoM1Fruit = Value
+                end)
+                if Value then
+                    safeNotify("Auto M1", "Đã bật Auto M1 cho Trái Ác Quỷ!", "spa")
+                end
+            end,
+        }, "AutoM1FruitToggle")
+
+        AutoM1Section:CreateToggle({
+            Name = "🗡️ Auto M1 Kiếm (Sword M1)",
+            Description = "Tích chọn để tự cầm Kiếm và chém thường M1 liên tục",
+            CurrentValue = hubState.autoM1Sword ~= false,
+            Callback = function(Value: boolean)
+                hubState.autoM1Sword = Value
+                saveState(hubState)
+                pcall(function()
+                    genv.AutoM1Sword = Value
+                end)
+                if Value then
+                    safeNotify("Auto M1", "Đã bật Auto M1 cho Kiếm (Sword)!", "flash_on")
+                end
+            end,
+        }, "AutoM1SwordToggle")
+
+        AutoM1Section:CreateToggle({
+            Name = "👊 Auto M1 Võ / Melee (Melee M1)",
+            Description = "Tích chọn để tự cầm Võ / Melee và đấm thường M1 liên tục",
+            CurrentValue = hubState.autoM1Melee == true,
+            Callback = function(Value: boolean)
+                hubState.autoM1Melee = Value
+                saveState(hubState)
+                pcall(function()
+                    genv.AutoM1Melee = Value
+                end)
+                if Value then
+                    safeNotify("Auto M1", "Đã bật Auto M1 cho Võ / Melee!", "fitness_center")
+                end
+            end,
+        }, "AutoM1MeleeToggle")
+
         local FruitSkillSection = SkillTab:CreateSection("🍎 Kỹ Năng Trái Ác Quỷ (Fruit Skills)")
         FruitSkillSection:CreateToggle({
             Name = "🍎 Xả Skill Trái Ác Quỷ",

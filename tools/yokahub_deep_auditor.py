@@ -197,6 +197,7 @@ def run_deep_audit():
         ("Boss Fight Worker", "autoFightMaster"),
         ("Chest Collector Worker", "autoCollectChest"),
         ("Sea Hop Worker", "currentMode"),
+        ("Auto M1 Worker (Fruit/Sword/Melee)", "[NATIVE AUTO M1 WORKER (FRUIT / SWORD / MELEE)]"),
         ("Auto Farm Level Worker", "[NATIVE AUTO FARM LEVEL & SELECT MOB WORKER]"),
         ("Auto Material Worker", "[NATIVE AUTO MATERIAL FARM WORKER]"),
         ("Auto Dungeon Worker", "[NATIVE AUTO DUNGEON WORKER]"),

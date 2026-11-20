@@ -73,6 +73,195 @@
         return list
     end
 
+    local function classifyKingLegacyTool(t: Tool): string?
+        if not t or not t:IsA("Tool") then return nil end
+        local tip = t.ToolTip
+        if tip == "Fruit Power" then return "fruit"
+        elseif tip == "Sword" then return "sword"
+        elseif tip == "Combat" then return "melee"
+        end
+        if t:GetAttribute("IsWeapon") == true then return "sword" end
+        if t:GetAttribute("CustomAnim") == "CombatStyle" then return "melee" end
+
+        local ps = player:FindFirstChild("PlayerStats")
+        if ps then
+            local dfObj = ps:FindFirstChild("DFName")
+            if dfObj and tostring(dfObj.Value) == t.Name then return "fruit" end
+            local swObj = ps:FindFirstChild("SwordName")
+            if swObj and tostring(swObj.Value) == t.Name then return "sword" end
+            local fsObj = ps:FindFirstChild("FightingStyle")
+            if fsObj and tostring(fsObj.Value) == t.Name then return "melee" end
+        end
+
+        local pScripts = player:FindFirstChild("PlayerScripts")
+        local svcs = pScripts and pScripts:FindFirstChild("Services")
+        local csh = svcs and svcs:FindFirstChild("ClientSkillHandler")
+        if csh then
+            if csh:FindFirstChild("FruitSkills") and csh.FruitSkills:FindFirstChild(t.Name .. "_Client") then return "fruit" end
+            if csh:FindFirstChild("SwordSkills") and csh.SwordSkills:FindFirstChild(t.Name .. "_Client") then return "sword" end
+            if csh:FindFirstChild("FightingStyleSkills") and csh.FightingStyleSkills:FindFirstChild(t.Name .. "_Client") then return "melee" end
+        end
+        return nil
+    end
+
+    local function findToolByCategory(cat: string): Tool?
+        local char = player.Character
+        if char then
+            for _, t in ipairs(char:GetChildren()) do
+                if t:IsA("Tool") and classifyKingLegacyTool(t) == cat then
+                    return t
+                end
+            end
+        end
+        local bp = player:FindFirstChild("Backpack")
+        if bp then
+            for _, t in ipairs(bp:GetChildren()) do
+                if t:IsA("Tool") and classifyKingLegacyTool(t) == cat then
+                    return t
+                end
+            end
+        end
+        return nil
+    end
+
+    local function getActiveM1Categories(): { string }
+        local cats = {}
+        if hubState.autoM1Fruit or genv.AutoM1Fruit then table.insert(cats, "fruit") end
+        if hubState.autoM1Sword or genv.AutoM1Sword then table.insert(cats, "sword") end
+        if hubState.autoM1Melee or genv.AutoM1Melee then table.insert(cats, "melee") end
+        return cats
+    end
+
+    local function triggerKingLegacyM1(tool: Tool, cat: string)
+        if not tool then return end
+        pcall(function()
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                -- Cập nhật _G.MouseHit về mục tiêu gần nhất để M1 và Skill đánh chuẩn hướng
+                local closestRoot: BasePart? = nil
+                local closestDist = 350
+                for _, fld in ipairs(getAliveMobFolders(true, true, true)) do
+                    for _, m in ipairs(fld:GetChildren()) do
+                        if m:IsA("Model") then
+                            local mHum = m:FindFirstChildOfClass("Humanoid")
+                            local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                            if mHum and mHum.Health > 0 and mRoot then
+                                local d = (mRoot.Position - hrp.Position).Magnitude
+                                if d < closestDist then
+                                    closestDist = d
+                                    closestRoot = mRoot
+                                end
+                            end
+                        end
+                    end
+                end
+                if closestRoot then
+                    _G.MouseHit = closestRoot.CFrame
+                end
+            end
+
+            -- 1. Gọi trực tiếp hàm M1 chuẩn trong ClientSkillHandler của King Legacy
+            local firedViaModule = false
+            local pScripts = player:FindFirstChild("PlayerScripts")
+            local svcs = pScripts and pScripts:FindFirstChild("Services")
+            local csh = svcs and svcs:FindFirstChild("ClientSkillHandler")
+            if csh then
+                local folderName = (cat == "fruit" and "FruitSkills") or (cat == "sword" and "SwordSkills") or "FightingStyleSkills"
+                local skillFolder = csh:FindFirstChild(folderName)
+                local modInst = skillFolder and skillFolder:FindFirstChild(tool.Name .. "_Client")
+                if modInst and modInst:IsA("ModuleScript") then
+                    local okReq, modTbl = pcall(require, modInst)
+                    if okReq and typeof(modTbl) == "table" and typeof(modTbl.M1) == "function" then
+                        pcall(modTbl.M1)
+                        firedViaModule = true
+                    end
+                end
+            end
+
+            -- 2. Gọi trực tiếp Remote SkillAction M1 nếu Module chưa kích hoạt hoặc bổ trợ
+            if not firedViaModule then
+                local rs = game:GetService("ReplicatedStorage")
+                local chest = rs:FindFirstChild("Chest")
+                local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                local skillAction = remFuncs and remFuncs:FindFirstChild("SkillAction")
+                if skillAction then
+                    local prefix = (cat == "fruit" and "DF_") or (cat == "sword" and "SW_") or "FS_"
+                    pcall(function()
+                        skillAction:InvokeServer(prefix .. tool.Name .. "_M1")
+                    end)
+                end
+            end
+
+            -- 3. Kích hoạt Tool chuẩn Roblox
+            pcall(function() tool:Activate() end)
+        end)
+    end
+
+    local m1CycleIndex = 1
+    local lastM1CycleClock = 0
+
+    local function equipAndFireSelectedM1(char: Model, hum: Humanoid): Tool?
+        local cats = getActiveM1Categories()
+        if #cats > 0 then
+            if #cats > 1 and (os.clock() - lastM1CycleClock) >= 1.2 then
+                lastM1CycleClock = os.clock()
+                m1CycleIndex = (m1CycleIndex % #cats) + 1
+            elseif m1CycleIndex > #cats then
+                m1CycleIndex = 1
+            end
+            local chosenCat = cats[m1CycleIndex]
+            local targetTool = findToolByCategory(chosenCat)
+            if not targetTool then
+                for _, fallbackCat in ipairs(cats) do
+                    targetTool = findToolByCategory(fallbackCat)
+                    if targetTool then
+                        chosenCat = fallbackCat
+                        break
+                    end
+                end
+            end
+            if targetTool then
+                if targetTool.Parent == player.Backpack then
+                    hum:EquipTool(targetTool)
+                end
+                triggerKingLegacyM1(targetTool, chosenCat)
+                return targetTool
+            end
+        end
+
+        -- Nếu người dùng không tích M1 nào nhưng đang bật Auto Farm / Boss, cầm vũ khí theo tab Skill đang bật
+        local fallbackCat = (hubState.skillSword and "sword") or (hubState.skillMelee and "melee") or (hubState.skillFruit and "fruit") or "sword"
+        local tool = char:FindFirstChildOfClass("Tool") or findToolByCategory(fallbackCat) or player.Backpack:FindFirstChildOfClass("Tool")
+        if tool then
+            if tool.Parent == player.Backpack then
+                hum:EquipTool(tool)
+            else
+                tool:Activate()
+            end
+        end
+        return tool
+    end
+
+    -- ========================================================
+    -- [NATIVE AUTO M1 WORKER (FRUIT / SWORD / MELEE)]
+    -- ========================================================
+    task.spawn(function()
+        while genv._YokaHubToken == myToken do
+            task.wait(0.18)
+            local cats = getActiveM1Categories()
+            if #cats > 0 and not hubState.autoFish then
+                pcall(function()
+                    local char = player.Character
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    if not (char and hum and hrp and hum.Health > 0) then return end
+                    equipAndFireSelectedM1(char, hum)
+                end)
+            end
+        end
+    end)
+
     local function castConfiguredSkills(char: Model, hum: Humanoid)
         -- 1. Tự bật Haki Vũ Trang & Quan Sát
         if hubState.autoHaki or genv.haki then
@@ -89,14 +278,8 @@
             pcall(function() genv.hakiquansatv2 = true end)
         end
 
-        -- 2. Tự trang bị vũ khí đánh thường
-        local tool = char:FindFirstChildOfClass("Tool")
-        if not tool then
-            local bpTool = player.Backpack:FindFirstChildOfClass("Tool")
-            if bpTool then hum:EquipTool(bpTool) end
-        else
-            tool:Activate()
-        end
+        -- 2. Tự trang bị và đánh M1 theo đúng vũ khí người dùng tích chọn (Fruit / Sword / Melee)
+        equipAndFireSelectedM1(char, hum)
 
         -- 3. Xả chiêu thông minh (Z, X, C, V, E)
         if hubState.autoSkills or genv.opeskill then
