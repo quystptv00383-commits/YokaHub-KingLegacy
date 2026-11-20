@@ -2,14 +2,17 @@
     local session = loadSession()
     local currentMode: string = hubState.mode
 
-    -- Tu dong dong bo cai dat Wukong Engine khi khoi dong
+    -- Tu dong dong bo cai dat YokaHub khi khoi dong (khong danh nhau voi loop Farm cu cua Wukong)
     pcall(function()
-        if hubState.autoLevel then genv.Famlevel = true; genv.start = true end
+        if hubState.autoLevel or hubState.autoKillSelectedMob then
+            genv.Famlevel = false
+            genv.Autokillmob = false
+            genv.start = false
+        end
         genv.chonmod = hubState.selectedMob or "Elite Skeleton [Lv. 3100]"
-        if hubState.autoKillSelectedMob then genv.Autokillmob = true; genv.start = true end
         genv.autocat = (hubState.fastMobBring ~= false)
         genv.MobBringRange = hubState.mobBringRange or 800
-        if hubState.autoSkills then genv.opeskill = true; genv.autoskillsea = true end
+        if hubState.autoSkills then genv.autoskillsea = true end
         if hubState.autoHaki then genv.haki = true; genv.hakivutrangv2 = true end
         genv.hakiquansatv2 = (hubState.autoKenHaki ~= false)
         genv.bienhinh = (hubState.autoTransform ~= false)

@@ -18,7 +18,6 @@
                 hubState.autoSkills = Value
                 saveState(hubState)
                 pcall(function()
-                    genv.opeskill = Value
                     genv.autoskillsea = Value
                 end)
                 if Value then safeNotify("YokaHub Skills", "Đã kích hoạt tự động xả chiêu!", "flash_on") end

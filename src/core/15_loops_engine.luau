@@ -214,7 +214,7 @@
             if not (char and hrp and hum and hum.Health > 0) then return end
 
             local now = os.clock()
-            local flightAlive = activeFlightTarget.pos ~= nil and (now - activeFlightTarget.updatedAt) <= 1.65
+            local flightAlive = activeFlightTarget.pos ~= nil and (now - activeFlightTarget.updatedAt) <= 2.6
 
             -- 1. Realtime Auto Aim (_G.MouseHit cập nhật từng khung hình cho Quái, Boss & Sea Event)
             local aimPos: Vector3? = nil
@@ -233,19 +233,20 @@
                 end
             end
 
-            -- 2. Flight + Hover Lock (Bay mượt trên không & khóa độ cao chống rơi rớt)
+            -- 2. Flight + Hover Lock (Bay mượt trên không & khóa độ cao chống rơi rớt kể cả khi chiêu xóa BodyVelocity)
             if flightAlive and activeFlightTarget.pos then
+                if hum.Sit then hum.Sit = false end
                 local bv = hrp:FindFirstChild("YokaHoverBV")
                 if not bv or not bv:IsA("BodyVelocity") then
                     bv = Instance.new("BodyVelocity")
                     bv.Name = "YokaHoverBV"
-                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-                    bv.P = 12500
+                    bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+                    bv.P = 20000
                     bv.Velocity = Vector3.zero
                     bv.Parent = hrp
                 else
                     bv.Velocity = Vector3.zero
-                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                    bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
                 end
 
                 pcall(function()
@@ -290,9 +291,14 @@
             local char = player.Character
             if not char then return end
             local now = os.clock()
-            local shouldNoclip = activeFlightTarget.pos ~= nil and (now - activeFlightTarget.updatedAt) <= 1.65 and hubState.safeDistance ~= false
-            if shouldNoclip then
+            local isFlying = activeFlightTarget.pos ~= nil and (now - activeFlightTarget.updatedAt) <= 2.6
+            if isFlying then
                 noclipWasActive = true
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp and hrp:IsA("BasePart") then
+                    hrp.AssemblyLinearVelocity = Vector3.zero
+                    hrp.AssemblyAngularVelocity = Vector3.zero
+                end
                 for _, part in ipairs(char:GetDescendants()) do
                     if part:IsA("BasePart") and part.CanCollide then
                         part.CanCollide = false
@@ -308,6 +314,36 @@
                 end
             end
         end))
+
+        -- Chống spam thông báo "Skill locked!" liên hoàn (chỉ cho phép hiện 1 lần duy nhất mỗi 60 giây)
+        local seenLockedAlerts: { [string]: number } = {}
+        local pgui = player:FindFirstChild("PlayerGui")
+        local notifGui = pgui and pgui:FindFirstChild("NotificationGui")
+        local notifHolder = notifGui and notifGui:FindFirstChild("NotificationHolder")
+        if notifHolder then
+            trackConn(notifHolder.ChildAdded:Connect(function(child: Instance)
+                if genv._YokaHubToken ~= myToken then return end
+                task.defer(function()
+                    if not child or not child.Parent then return end
+                    local txt = ""
+                    if child:IsA("TextLabel") then
+                        txt = child.Text or ""
+                    else
+                        local lbl = child:FindFirstChildWhichIsA("TextLabel", true)
+                        if lbl then txt = lbl.Text or "" end
+                    end
+                    if string.find(string.lower(txt), "skill locked", 1, true) or string.find(string.lower(txt), "required", 1, true) then
+                        local now = os.clock()
+                        local lastSeen = seenLockedAlerts[txt] or 0
+                        if (now - lastSeen) < 60.0 then
+                            pcall(function() child:Destroy() end)
+                        else
+                            seenLockedAlerts[txt] = now
+                        end
+                    end
+                end)
+            end))
+        end
     end)
 
     local function classifyKingLegacyTool(t: Tool): string?
@@ -363,9 +399,9 @@
 
     getActiveM1Categories = function(): { string }
         local cats = {}
-        if hubState.autoM1Fruit or genv.AutoM1Fruit then table.insert(cats, "fruit") end
-        if hubState.autoM1Sword or genv.AutoM1Sword then table.insert(cats, "sword") end
-        if hubState.autoM1Melee or genv.AutoM1Melee then table.insert(cats, "melee") end
+        if hubState.autoM1Fruit then table.insert(cats, "fruit") end
+        if hubState.autoM1Sword then table.insert(cats, "sword") end
+        if hubState.autoM1Melee then table.insert(cats, "melee") end
         return cats
     end
 
@@ -546,22 +582,60 @@
         else return "FS" end
     end
 
-    local function isSkillReadyToCast(cat: string, key: string): boolean
+    local function getPlayerStatForCategory(cat: string): number
+        local ps = player:FindFirstChild("PlayerStats")
+        if not ps then return 0 end
+        if cat == "fruit" then
+            local o = ps:FindFirstChild("DF") or ps:FindFirstChild("Fruit")
+            return o and tonumber(o.Value) or 0
+        elseif cat == "sword" then
+            local o = ps:FindFirstChild("sword") or ps:FindFirstChild("Sword")
+            return o and tonumber(o.Value) or 0
+        else
+            local o = ps:FindFirstChild("Melee") or ps:FindFirstChild("melee")
+            return o and tonumber(o.Value) or 0
+        end
+    end
+
+    local function isSkillReadyToCast(cat: string, key: string, tool: Tool?): boolean
         local prefix = getSkillPrefix(cat)
+        local myStat = getPlayerStatForCategory(cat)
+
+        -- 1. Kiểm tra thẳng chỉ số mở khóa từ SkillData (ZRequire, XRequire, CRequire, VRequire, ERequire)
+        if tool then
+            local sData = getSkillDataTable(tool.Name, cat)
+            if typeof(sData) == "table" then
+                local req = tonumber(sData[key .. "Require"])
+                if req and myStat < req then
+                    return false
+                end
+            end
+        end
+
+        -- 2. Kiểm tra hồi chiêu trong _G.Cooldowns
         if typeof(_G.Cooldowns) == "table" then
             local cdVal = _G.Cooldowns[prefix .. key]
             if cdVal == true or (typeof(cdVal) == "number" and cdVal > 0) then
                 return false
             end
         end
+
+        -- 3. Kiểm tra giao diện SkillCooldown (Locked & SkillsRequire [số])
         local pgui = player:FindFirstChild("PlayerGui")
         local scGui = pgui and pgui:FindFirstChild("SkillCooldown")
         local frame = scGui and scGui:FindFirstChild(prefix .. "Frame")
         local slot = frame and frame:FindFirstChild(key)
         if slot then
-            local locked = slot:FindFirstChild("Locked")
+            local locked = slot:FindFirstChild("Locked", true)
             if locked and locked:IsA("GuiObject") and locked.Visible then
                 return false
+            end
+            local reqLbl = slot:FindFirstChild("SkillsRequire", true)
+            if reqLbl and reqLbl:IsA("TextLabel") then
+                local reqNum = tonumber(string.match(reqLbl.Text or "", "%d+"))
+                if reqNum and reqNum > 0 and myStat < reqNum then
+                    return false
+                end
             end
             local cdObj = slot:FindFirstChild("Cooldown") or slot:FindFirstChild("CD")
             if cdObj and cdObj:IsA("GuiObject") and cdObj.Visible then
@@ -684,7 +758,7 @@
     end
 
     local lastHakiClock = 0
-    local skillCatCursor = 0
+    local isCastingSkills = false
 
     local function castConfiguredSkills(char: Model, hum: Humanoid, targetModel: Model?)
         if os.clock() < dodgeUntilClock then return end
@@ -693,7 +767,7 @@
         end
 
         -- 1. Tự bật Haki Vũ Trang (Armament) & Quan Sát (Ken) chuẩn King Legacy
-        if (hubState.autoHaki or genv.haki) and (os.clock() - lastHakiClock) >= 6.0 then
+        if hubState.autoHaki and (os.clock() - lastHakiClock) >= 6.0 then
             lastHakiClock = os.clock()
             pcall(function()
                 genv.haki = true
@@ -708,7 +782,7 @@
                         evts.Armament:FireServer()
                     end
                 end
-                if (hubState.autoKenHaki ~= false or genv.hakiquansatv2) and funcs and funcs:FindFirstChild("KenEvent") then
+                if (hubState.autoKenHaki ~= false) and funcs and funcs:FindFirstChild("KenEvent") then
                     genv.hakiquansatv2 = true
                     local kenOn = (char:GetAttribute("Ken") == true) or (player:GetAttribute("Ken") == true)
                     if not kenOn then
@@ -723,8 +797,8 @@
             equipAndFireSelectedM1(char, hum)
         end
 
-        -- 3. Xả chiêu thông minh + Tự động nhận diện đè skill tối ưu (ưu tiên vũ khí chính trước, không đổi tay gây đứt combo!)
-        if not (hubState.autoSkills or genv.opeskill) then return end
+        -- 3. Xả chiêu thông minh BẤT ĐỒNG BỘ (không làm khựng vòng bay Hover Lock, chỉ dùng đúng nút người dùng bật!)
+        if not hubState.autoSkills or isCastingSkills then return end
 
         local m1Cats = getActiveM1Categories()
         local curHeldTool = char:FindFirstChildOfClass("Tool")
@@ -739,76 +813,81 @@
         if hubState.skillFruit then addPlan("fruit", hubState.skillFruitKeys, genv.CombatSkillFruit, { "Z", "X", "C", "V" }) end
         if hubState.skillSword then addPlan("sword", hubState.skillSwordKeys, genv.CombatSkillSword, { "Z", "X" }) end
         if hubState.skillMelee then addPlan("melee", hubState.skillMeleeKeys, genv.CombatSkillMelee, { "Z", "X", "C", "V" }) end
-        if #catPlan == 0 then
-            table.insert(catPlan, { cat = primaryCat, keys = { "Z", "X", "C" }, prio = 2 })
-        end
+        if #catPlan == 0 then return end
         table.sort(catPlan, function(a, b) return a.prio > b.prio end)
 
-        local castsDone = 0
-        local maxCastsPerTick = 2
-        local switchedAway = false
+        isCastingSkills = true
+        task.spawn(function()
+            local okCast, _ = pcall(function()
+                local castsDone = 0
+                local maxCastsPerTick = 2
+                local switchedAway = false
 
-        for _, plan in ipairs(catPlan) do
-            if castsDone >= maxCastsPerTick or os.clock() < dodgeUntilClock then break end
-            if targetModel and not isModelAlive(targetModel) then break end
-            local tool = findToolByCategory(plan.cat)
-            if tool then
-                for _, k in ipairs(plan.keys) do
+                for _, plan in ipairs(catPlan) do
                     if castsDone >= maxCastsPerTick or os.clock() < dodgeUntilClock then break end
                     if targetModel and not isModelAlive(targetModel) then break end
-                    if isSkillReadyToCast(plan.cat, k) then
-                        local keyEnum = (Enum.KeyCode :: any)[k]
-                        if keyEnum and sharedVim then
-                            if tool.Parent == player.Backpack then
-                                hum:EquipTool(tool)
-                                if plan.cat ~= primaryCat then switchedAway = true end
-                                task.wait(0.04)
-                            end
-                            local tModel, tRoot = targetModel, getModelRoot(targetModel)
-                            if not (tModel and tRoot) then
-                                tModel, tRoot = getBestCombatTarget(450)
-                            end
-                            if tModel and tRoot then
-                                _G.MouseHit = CFrame.new(getAimPoint(tModel, tRoot))
-                            end
-
-                            local holdDur = getOptimalSkillHoldTime(tool, plan.cat, k)
-                            pcall(function()
-                                sharedVim:SendKeyEvent(true, keyEnum, false, game)
-                                if holdDur > 0.12 then
-                                    isHoldingSkill = true
-                                    local held = 0
-                                    while held < holdDur and genv._YokaHubToken == myToken and os.clock() >= dodgeUntilClock do
-                                        if hum.Health <= 0 then break end
-                                        if targetModel and not isModelAlive(targetModel) then break end
-                                        if tModel and tRoot and tRoot.Parent then
-                                            _G.MouseHit = CFrame.new(getAimPoint(tModel, tRoot))
-                                        end
-                                        local slice = math.min(0.04, holdDur - held)
-                                        task.wait(slice)
-                                        held += slice
+                    local tool = findToolByCategory(plan.cat)
+                    if tool then
+                        for _, k in ipairs(plan.keys) do
+                            if castsDone >= maxCastsPerTick or os.clock() < dodgeUntilClock then break end
+                            if targetModel and not isModelAlive(targetModel) then break end
+                            if isSkillReadyToCast(plan.cat, k, tool) then
+                                local keyEnum = (Enum.KeyCode :: any)[k]
+                                if keyEnum and sharedVim then
+                                    if tool.Parent == player.Backpack then
+                                        hum:EquipTool(tool)
+                                        if plan.cat ~= primaryCat then switchedAway = true end
+                                        task.wait(0.04)
                                     end
-                                    isHoldingSkill = false
-                                else
-                                    task.wait(holdDur)
+                                    local tModel, tRoot = targetModel, getModelRoot(targetModel)
+                                    if not (tModel and tRoot) then
+                                        tModel, tRoot = getBestCombatTarget(450)
+                                    end
+                                    if tModel and tRoot then
+                                        _G.MouseHit = CFrame.new(getAimPoint(tModel, tRoot))
+                                    end
+
+                                    local holdDur = getOptimalSkillHoldTime(tool, plan.cat, k)
+                                    pcall(function()
+                                        sharedVim:SendKeyEvent(true, keyEnum, false, game)
+                                        if holdDur > 0.12 then
+                                            isHoldingSkill = true
+                                            local held = 0
+                                            while held < holdDur and genv._YokaHubToken == myToken and os.clock() >= dodgeUntilClock do
+                                                if hum.Health <= 0 then break end
+                                                if targetModel and not isModelAlive(targetModel) then break end
+                                                if tModel and tRoot and tRoot.Parent then
+                                                    _G.MouseHit = CFrame.new(getAimPoint(tModel, tRoot))
+                                                end
+                                                local slice = math.min(0.04, holdDur - held)
+                                                task.wait(slice)
+                                                held += slice
+                                            end
+                                            isHoldingSkill = false
+                                        else
+                                            task.wait(holdDur)
+                                        end
+                                        sharedVim:SendKeyEvent(false, keyEnum, false, game)
+                                    end)
+                                    castsDone += 1
+                                    task.wait(0.04)
                                 end
-                                sharedVim:SendKeyEvent(false, keyEnum, false, game)
-                            end)
-                            castsDone += 1
-                            task.wait(0.04)
+                            end
                         end
                     end
                 end
-            end
-        end
 
-        -- Trả lại ngay vũ khí chính để M1 đánh liên hoàn không gián đoạn
-        if switchedAway and #m1Cats == 1 then
-            local mainTool = findToolByCategory(primaryCat)
-            if mainTool and mainTool.Parent == player.Backpack then
-                pcall(function() hum:EquipTool(mainTool) end)
-            end
-        end
+                -- Trả lại ngay vũ khí chính để M1 đánh liên hoàn không gián đoạn
+                if switchedAway and #m1Cats == 1 then
+                    local mainTool = findToolByCategory(primaryCat)
+                    if mainTool and mainTool.Parent == player.Backpack then
+                        pcall(function() hum:EquipTool(mainTool) end)
+                    end
+                end
+            end)
+            isHoldingSkill = false
+            isCastingSkills = false
+        end)
     end
 
     -- ========================================================
@@ -1799,7 +1878,7 @@ end)
     task.spawn(function()
         while genv._YokaHubToken == myToken do
             task.wait(0.08)
-            if (hubState.fastMobBring ~= false or genv.autocat) and not hubState.autoFish and os.clock() >= dodgeUntilClock then
+            if hubState.fastMobBring ~= false and not hubState.autoFish and os.clock() >= dodgeUntilClock then
                 pcall(function()
                     local char = player.Character
                     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -1807,9 +1886,9 @@ end)
                     if not (char and hrp and hum and hum.Health > 0) then return end
 
                     local isBossMode = (currentMode ~= "off") or hubState.autoFightMaster or hubState.autoFightIslandBoss
-                    local isFarmMode = hubState.autoLevel or hubState.autoKillSelectedMob or genv.Autokillmob or genv.Famlevel
+                    local isFarmMode = hubState.autoLevel or hubState.autoKillSelectedMob
                         or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat
-                        or hubState.autoDungeon or genv.autodungeon
+                        or hubState.autoDungeon
 
                     if isBossMode and not isFarmMode then
                         return
@@ -2046,8 +2125,8 @@ end)
 
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.12)
-            if (hubState.autoLevel or hubState.autoKillSelectedMob or genv.Autokillmob or genv.Famlevel) and currentMode == "off" then
+            task.wait(0.08)
+            if (hubState.autoLevel or hubState.autoKillSelectedMob) and currentMode == "off" then
                 pcall(function()
                     handleQuestRepeatPopup()
                     local char = player.Character
@@ -2063,7 +2142,7 @@ end)
 
                     -- Quét ĐẦY ĐỦ cả Monster.Mon lẫn Monster.Boss (để đánh được cả Boss nhiệm vụ như Rumble Man [Lv. 950], Leader [Lv. 1100]...)
                     local mobFolders = getAliveMobFolders(true, false, false)
-                    local isSelectMode = (hubState.autoKillSelectedMob or genv.Autokillmob) == true
+                    local isSelectMode = (hubState.autoKillSelectedMob == true)
                     local selectedMobName = hubState.selectedMob or genv.chonmod or ""
                     local rawSelLower = ""
                     if isSelectMode and selectedMobName ~= "" then
@@ -2617,7 +2696,7 @@ end)
     task.spawn(function()
         while genv._YokaHubToken == myToken do
             task.wait(0.75)
-            if hubState.autoTakeLevelQuest and (hubState.autoLevel or genv.Famlevel) and currentMode == "off" then
+            if hubState.autoTakeLevelQuest and hubState.autoLevel and currentMode == "off" then
                 pcall(function()
                     handleQuestRepeatPopup()
                     local char = player.Character
@@ -2853,23 +2932,30 @@ end)
                 local now = os.clock()
                 local myPos = hrp.Position
 
-                -- 1. Auto Transform
-                if (hubState.autoTransform ~= false or genv.bienhinh) and (now - lastTransformTick) > 12.0 then
+                -- 1. Auto Transform (Chỉ bấm phím V khi chiêu V của Trái đã MỞ KHÓA đủ chỉ số DF, tuyệt đối không spam Skill locked!)
+                if hubState.autoTransform and (now - lastTransformTick) > 12.0 then
                     local isFighting = (currentMode ~= "off") or (hubState.autoLevel) or (hubState.autoKillSelectedMob) or (hubState.autoFightMaster) or (hubState.autoFightIslandBoss) or (hubState.autoDungeon)
                     if isFighting and now >= dodgeUntilClock and not isHoldingSkill then
-                        lastTransformTick = now
-                        pcall(function()
-                            vim:SendKeyEvent(true, Enum.KeyCode.V, false, game)
-                            task.wait(0.05)
-                            vim:SendKeyEvent(false, Enum.KeyCode.V, false, game)
-                        end)
-                        pcall(function()
-                            local chest = sharedRS:FindFirstChild("Chest")
-                            local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
-                            if remFuncs and remFuncs:FindFirstChild("SkillAction") then
-                                remFuncs.SkillAction:InvokeServer("Transform")
-                            end
-                        end)
+                        local fruitTool = findToolByCategory("fruit")
+                        if fruitTool and isSkillReadyToCast("fruit", "V", fruitTool) then
+                            lastTransformTick = now
+                            pcall(function()
+                                if fruitTool.Parent == player.Backpack then
+                                    hum:EquipTool(fruitTool)
+                                    task.wait(0.05)
+                                end
+                                vim:SendKeyEvent(true, Enum.KeyCode.V, false, game)
+                                task.wait(0.05)
+                                vim:SendKeyEvent(false, Enum.KeyCode.V, false, game)
+                            end)
+                            pcall(function()
+                                local chest = sharedRS:FindFirstChild("Chest")
+                                local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                                if remFuncs and remFuncs:FindFirstChild("SkillAction") then
+                                    remFuncs.SkillAction:InvokeServer("Transform")
+                                end
+                            end)
+                        end
                     end
                 end
 

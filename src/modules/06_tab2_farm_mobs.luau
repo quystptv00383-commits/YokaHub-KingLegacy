@@ -22,13 +22,13 @@
                 end
                 saveState(hubState)
                 pcall(function()
-                    genv.Famlevel = Value
-                    genv.start = Value
+                    -- Tắt luồng farm trùng của Wukong để YokaHub toàn quyền bay mượt & gom quái không bị giật
+                    genv.Famlevel = false
+                    genv.Autokillmob = false
+                    genv.start = false
                     if Value then
-                        genv.autocat = true
-                        genv.haki = true
-                        genv.opeskill = true
-                        genv.nequaikill = true
+                        genv.autocat = hubState.fastMobBring ~= false
+                        genv.haki = hubState.autoHaki ~= false
                     end
                 end)
                 if Value then
@@ -170,8 +170,9 @@
                 end
                 saveState(hubState)
                 pcall(function()
-                    genv.Autokillmob = Value
-                    genv.start = Value
+                    genv.Famlevel = false
+                    genv.Autokillmob = false
+                    genv.start = false
                     if Value then
                         genv.chonmod = hubState.selectedMob or defaultSelectedMob
                         genv.autocat = hubState.fastMobBring ~= false
