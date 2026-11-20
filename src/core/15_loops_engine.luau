@@ -1742,6 +1742,83 @@ end)
 
 
     -- ========================================================
+    -- [HELPER GOM QUÁI VỀ VỊ TRÍ NHÂN VẬT (FAST MOB BRING)]
+    -- ========================================================
+    local function getBringRangeStuds(): number
+        return math.clamp(tonumber(hubState.mobBringRange or genv.MobBringRange) or 260, 70, 400)
+    end
+
+    local function bringMobsToPosition(anchorPos: Vector3, maxRange: number, maxCount: number, filterName: string?, includeDungeon: boolean?)
+        local mobFolders = getAliveMobFolders(false, false, includeDungeon == true)
+        local brought = 0
+        local targetCf = CFrame.new(anchorPos)
+        for _, fld in ipairs(mobFolders) do
+            for _, otherMob in ipairs(fld:GetChildren()) do
+                if brought >= maxCount then break end
+                if otherMob:IsA("Model") and (not filterName or otherMob.Name == filterName) then
+                    local oRoot = getModelRoot(otherMob)
+                    local oHum = otherMob:FindFirstChildOfClass("Humanoid")
+                    if oRoot and oHum and oHum.Health > 0 then
+                        local dist = (oRoot.Position - anchorPos).Magnitude
+                        if dist <= maxRange then
+                            pcall(function()
+                                oRoot.CanCollide = false
+                                oRoot.AssemblyLinearVelocity = Vector3.zero
+                                oRoot.AssemblyAngularVelocity = Vector3.zero
+                                oRoot.CFrame = targetCf
+                            end)
+                            brought += 1
+                        end
+                    end
+                end
+            end
+            if brought >= maxCount then break end
+        end
+    end
+
+    -- Luồng độc lập giữ quái gom chặt tại vị trí nhân vật (chạy cả khi đứng đánh tay lẫn Auto Farm)
+    task.spawn(function()
+        while genv._YokaHubToken == myToken do
+            task.wait(0.10)
+            if (hubState.fastMobBring ~= false or genv.autocat) and not hubState.autoFish and os.clock() >= dodgeUntilClock then
+                pcall(function()
+                    local char = player.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if not (char and hrp and hum and hum.Health > 0) then return end
+
+                    local isBossMode = (currentMode ~= "off") or hubState.autoFightMaster or hubState.autoFightIslandBoss
+                    local isFarmMode = hubState.autoLevel or hubState.autoKillSelectedMob or genv.Autokillmob or genv.Famlevel
+                        or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat
+                        or hubState.autoDungeon or genv.autodungeon
+
+                    if isBossMode and not isFarmMode then
+                        return
+                    end
+
+                    local rangeStuds = getBringRangeStuds()
+                    if isFarmMode then
+                        if currentCombatTarget and isModelAlive(currentCombatTarget) then
+                            local tRoot = getModelRoot(currentCombatTarget)
+                            if tRoot and (tRoot.Position - hrp.Position).Magnitude <= 45 then
+                                local anchor = Vector3.new(hrp.Position.X, tRoot.Position.Y, hrp.Position.Z)
+                                bringMobsToPosition(anchor, rangeStuds, 15, currentCombatTarget.Name, hubState.autoDungeon == true)
+                            end
+                        end
+                    else
+                        -- Đứng đánh tay / Auto M1 tự do: hút toàn bộ quái thường trong tầm về ngay trước mặt nhân vật
+                        local look = hrp.CFrame.LookVector
+                        local flatLook = Vector3.new(look.X, 0, look.Z)
+                        if flatLook.Magnitude < 0.1 then flatLook = Vector3.new(0, 0, -1) else flatLook = flatLook.Unit end
+                        local frontAnchor = hrp.Position + flatLook * 8
+                        bringMobsToPosition(frontAnchor, rangeStuds, 15, nil, false)
+                    end
+                end)
+            end
+        end
+    end)
+
+    -- ========================================================
     -- [NATIVE AUTO FARM LEVEL & SELECT MOB WORKER]
     -- ========================================================
     local function getActiveQuestMobHint(): string?
@@ -1882,28 +1959,12 @@ end)
                             local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 45)
 
-                            -- Gom quái xung quanh (tối đa 6 con cùng loại trong 185 studs) vào 1 điểm để xả AOE
+                            -- Gom quái xung quanh về thẳng vị trí nhân vật (tối đa 15 con trong phạm vi Bring Range)
                             if hubState.fastMobBring ~= false or genv.autocat then
-                                local brought = 0
-                                local anchorCf = mRoot.CFrame
-                                for _, fld in ipairs(mobFolders) do
-                                    for _, otherMob in ipairs(fld:GetChildren()) do
-                                        if brought >= 6 then break end
-                                        if otherMob:IsA("Model") and otherMob.Name == targetMob.Name and otherMob ~= targetMob then
-                                            local oRoot = getModelRoot(otherMob)
-                                            local oHum = otherMob:FindFirstChildOfClass("Humanoid")
-                                            if oRoot and oHum and oHum.Health > 0 and (oRoot.Position - anchorCf.Position).Magnitude < 185 then
-                                                pcall(function()
-                                                    oRoot.CanCollide = false
-                                                    oRoot.AssemblyLinearVelocity = Vector3.zero
-                                                    oRoot.CFrame = anchorCf
-                                                end)
-                                                brought += 1
-                                            end
-                                        end
-                                    end
-                                    if brought >= 6 then break end
-                                end
+                                local bringAnchor = ((hrp.Position - hoverPos).Magnitude <= 35)
+                                    and Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
+                                    or mRoot.Position
+                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 15, targetMob.Name, false)
                             end
 
                             if (hrp.Position - hoverPos).Magnitude <= 30 then
@@ -1994,6 +2055,10 @@ end)
                             local aimPos = getAimPoint(targetMob, mRoot)
                             local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 44)
+                            if (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 35 then
+                                local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
+                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 15, targetMob.Name, false)
+                            end
                             if (hrp.Position - hoverPos).Magnitude <= 32 then
                                 castConfiguredSkills(char, hum, targetMob)
                             end
@@ -2059,6 +2124,10 @@ end)
                             local aimPos = getAimPoint(targetMob, mRoot)
                             local hoverPos = mRoot.Position + Vector3.new(0, sDist, 0)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 48)
+                            if (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 38 then
+                                local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
+                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 15, nil, true)
+                            end
                             if hubState.dungeonCameraLock ~= false then
                                 pcall(function()
                                     workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, aimPos)

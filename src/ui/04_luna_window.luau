@@ -8,13 +8,14 @@
         genv.chonmod = hubState.selectedMob or "Elite Skeleton [Lv. 3100]"
         if hubState.autoKillSelectedMob then genv.Autokillmob = true; genv.start = true end
         genv.autocat = (hubState.fastMobBring ~= false)
+        genv.MobBringRange = hubState.mobBringRange or 260
         if hubState.autoSkills then genv.opeskill = true; genv.autoskillsea = true end
         if hubState.autoHaki then genv.haki = true; genv.hakivutrangv2 = true end
         genv.hakiquansatv2 = (hubState.autoKenHaki ~= false)
         genv.bienhinh = (hubState.autoTransform ~= false)
         genv.PlayerAimbotEnabled = (hubState.skillAimbot ~= false)
         genv.PlayerAimMode = "Skill Direction"
-        genv.PlayerAimRange = 350
+        genv.PlayerAimRange = 450
         genv.autoDodgeEnabled = (hubState.autoDodge ~= false)
         if hubState.safeDistance then genv.nequaikill = true; genv.tamxanekillquai = 250; genv.docaokillquai = 18 end
         if hubState.farmSea3Mat then genv.farmMaterialsea3 = true end

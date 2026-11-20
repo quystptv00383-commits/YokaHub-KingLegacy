@@ -182,8 +182,8 @@
         }, "AutoKillSelectedMobToggle")
 
         MobSection:CreateToggle({
-            Name = "⚡ Gom Quái Nhanh (Fast Mob Bring)",
-            Description = "Hút quái vật xung quanh tụ lại 1 điểm để chém lan dọn nhanh",
+            Name = "⚡ Gom Quái Nhanh Về Vị Trí Mình (Fast Mob Bring)",
+            Description = "Hút quái xung quanh tụ gọn ngay vị trí nhân vật (chạy cả khi Auto Farm, Nguyên Liệu, Dungeon & đánh tay)",
             CurrentValue = hubState.fastMobBring ~= false,
             Callback = function(Value: boolean)
                 hubState.fastMobBring = Value
@@ -193,6 +193,21 @@
                 end)
             end,
         }, "FastMobBringToggle")
+
+        MobSection:CreateSlider({
+            Name = "🧲 Phạm Vi Hút Quái Về Vị Trí Mình (Bring Range)",
+            Range = { 70, 400 },
+            Increment = 10,
+            Suffix = " studs",
+            CurrentValue = hubState.mobBringRange or 260,
+            Callback = function(Value: number)
+                hubState.mobBringRange = math.clamp(math.floor(Value), 70, 400)
+                saveState(hubState)
+                pcall(function()
+                    genv.MobBringRange = hubState.mobBringRange
+                end)
+            end,
+        }, "MobBringRangeSlider")
 
         local QuestSection = FarmTab:CreateSection("📋 Nhiệm Vụ Hàng Ngày & Tộc (Daily Quests & Race)")
         QuestSection:CreateToggle({
