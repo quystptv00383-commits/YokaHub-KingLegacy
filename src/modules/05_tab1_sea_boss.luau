@@ -140,6 +140,7 @@
     local Sea3Toggle: any = nil
     local Sea2Toggle: any = nil
     local MasterAutoFightToggle: any = nil
+    local AutoCollectChestToggle: any = nil
     local bossToggles: { [string]: any } = {}
 
     local function getActiveBossSummary(): (string, string)
@@ -208,6 +209,7 @@
         -- Khử xung đột: Khi chuyển sang Săn Boss, tự động bật Master Auto Fight và tắt các chế độ cày cục bộ
         if newMode ~= "off" then
             hubState.autoFightMaster = true
+            hubState.autoCollectChest = true
             local hadConflict = hubState.autoLevel or hubState.autoKillSelectedMob or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat or hubState.autoDungeon or hubState.autoFish or hubState.autoFightIslandBoss
             deactivateOtherLocalModes("none")
             if hadConflict then
@@ -228,6 +230,9 @@
 
         if MasterAutoFightToggle and typeof(MasterAutoFightToggle.Set) == "function" then
             pcall(function() MasterAutoFightToggle:Set({ CurrentValue = hubState.autoFightMaster }) end)
+        end
+        if AutoCollectChestToggle and typeof(AutoCollectChestToggle.Set) == "function" then
+            pcall(function() AutoCollectChestToggle:Set({ CurrentValue = hubState.autoCollectChest }) end)
         end
 
         if newMode == "sea3" then
@@ -497,7 +502,7 @@
         end,
     }, "MasterAutoFightToggle")
 
-    MasterFightSection:CreateToggle({
+    AutoCollectChestToggle = MasterFightSection:CreateToggle({
         Name = "🎁 Tự Động Nhặt Rương Báu Sau Khi Diệt Boss (Auto Collect Chests)",
         Description = "Tự động bay đến vị trí rương rơi ra mở rương nhận thưởng (Rương Vua Biển, Hydra, Depth King...)",
         CurrentValue = hubState.autoCollectChest,

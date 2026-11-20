@@ -61,9 +61,11 @@
                 local keys = pickMultiDropdownValue(opts)
                 hubState.swordSkillsList = keys
                 hubState.skillSwordKeys = table.concat(keys, " + ")
+                hubState.skillSword = (#keys > 0)
                 saveState(hubState)
                 pcall(function()
                     genv.CombatSkillSword = keys
+                    genv.skillSword = (#keys > 0)
                 end)
             end,
         }, "SkillSwordMultiDropdown")
@@ -78,9 +80,11 @@
                 local keys = pickMultiDropdownValue(opts)
                 hubState.meleeSkillsList = keys
                 hubState.skillMeleeKeys = table.concat(keys, " + ")
+                hubState.skillMelee = (#keys > 0)
                 saveState(hubState)
                 pcall(function()
                     genv.CombatSkillMelee = keys
+                    genv.skillMelee = (#keys > 0)
                 end)
             end,
         }, "SkillMeleeMultiDropdown")
@@ -95,24 +99,28 @@
                 local keys = pickMultiDropdownValue(opts)
                 hubState.fruitSkillsList = keys
                 hubState.skillFruitKeys = table.concat(keys, " + ")
+                hubState.skillFruit = (#keys > 0)
                 saveState(hubState)
                 pcall(function()
                     genv.CombatSkillFruit = keys
+                    genv.skillFruit = (#keys > 0)
                 end)
             end,
         }, "SkillFruitMultiDropdown")
 
-        -- TÍNH TOÁN LỰA CHỌN M1 HIỆN TẠI TỪ CONFIG
+        -- TÍNH TOÁN LỰA CHỌN M1 HIỆN TẠI TỪ CONFIG (ĐỒNG BỘ 100% TRÁNH LỆCH TOGGLE)
         local initialM1Selections = {}
         if typeof(hubState.m1SpamList) == "table" and #hubState.m1SpamList > 0 then
             for _, item in ipairs(hubState.m1SpamList) do
                 table.insert(initialM1Selections, item)
             end
         else
-            if hubState.autoM1Sword == true then table.insert(initialM1Selections, "Sword M1") end
-            if hubState.autoM1Melee == true then table.insert(initialM1Selections, "Melee M1") end
-            if hubState.autoM1Fruit == true then table.insert(initialM1Selections, "Fruit M1") end
+            initialM1Selections = { "Sword M1", "Melee M1", "Fruit M1" }
+            hubState.m1SpamList = initialM1Selections
         end
+        hubState.autoM1Sword = table.find(initialM1Selections, "Sword M1") ~= nil
+        hubState.autoM1Melee = table.find(initialM1Selections, "Melee M1") ~= nil
+        hubState.autoM1Fruit = table.find(initialM1Selections, "Fruit M1") ~= nil
 
         M1SpamDropdownObj = CombatSection:CreateDropdown({
             Name = "⚡ M1 Spam",
