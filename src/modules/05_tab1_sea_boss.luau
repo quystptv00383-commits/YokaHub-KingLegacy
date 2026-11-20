@@ -337,7 +337,7 @@
 
     Sea3Toggle = StatusSection:CreateToggle({
         Name = "🐉 Săn tổng hợp Sea 3 (Phím F8)",
-        Description = "Ưu tiên: Rồng Drakenfyr (Top 1) → Depth King → Abyssal → Kraken → Cua → Serpent",
+        Description = "Ưu tiên: Depth King (Top 1) → Rồng Drakenfyr (Top 2) → Abyssal (Top 3) → Kraken → Cua → Serpent",
         CurrentValue = (currentMode == "sea3"),
         Callback = function(Value: boolean)
             if syncingToggles then return end
@@ -659,7 +659,7 @@
         elseif target == "Abyssal Tyrant (Sea 3)" then
             return pid == SEA3_PLACE and (string.find(nm, "abyssal tyrant") ~= nil or (string.find(nm, "abyssal") ~= nil and string.find(nm, "swordsman") == nil) or string.find(nm, "tyrant") ~= nil) and string.find(nm, "dragon") == nil and string.find(nm, "depth") == nil
         elseif target == "Depth King (Sea 3)" then
-            return pid == SEA3_PLACE and (src == "depth_king" or string.find(nm, "depth king") ~= nil or (string.find(nm, "depth") ~= nil and string.find(nm, "abyssal") == nil and string.find(nm, "voyager") == nil and string.find(nm, "diver") == nil))
+            return pid == SEA3_PLACE and (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil and string.find(nm, "tyrant", 1, true) == nil
         elseif target == "Kraken (Sea 3)" then return pid == SEA3_PLACE and src == "sea_event" and string.find(nm, "kraken") ~= nil
         elseif target == "Rương Hydra (Sea 2)" then return pid == SEA2_PLACE and src == "sk_hd_chest" and string.find(nm, "hydra") ~= nil
         elseif target == "Hydra (Sea 2)" then return pid == SEA2_PLACE and src == "hydra"
@@ -716,6 +716,7 @@
                     if matchSnipe(e, snipeTarget) then
                         e._tier = getSlotTier(e)
                         e._hp = typeof(e.health) == "table" and (tonumber(e.health.percent) or 100) or 100
+                        e._pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
                         table.insert(list, e)
                     elseif e.alive == true then
                         local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 0) or 0
@@ -741,6 +742,9 @@
                 end
                 table.sort(list, function(a, b)
                     if a._tier ~= b._tier then return a._tier > b._tier end
+                    local aCur = a._pCur or 99
+                    local bCur = b._pCur or 99
+                    if aCur ~= bCur then return aCur < bCur end
                     return a._hp > b._hp
                 end)
                 local tries = math.min(#list, 4)
