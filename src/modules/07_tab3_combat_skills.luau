@@ -25,6 +25,22 @@
             end,
         }, "AutoSkillsToggle")
 
+        MasterSkillSection:CreateToggle({
+            Name = "🧠 Tự Nhận Diện Đè Skill Tối Ưu (Smart Skill Hold)",
+            Description = "Tự phân biệt chiêu cần giữ đè để tích sát thương và chiêu bấm nhanh không cần đè, tự bỏ qua chiêu đang hồi",
+            CurrentValue = hubState.smartSkillHold ~= false,
+            Callback = function(Value: boolean)
+                hubState.smartSkillHold = Value
+                saveState(hubState)
+                pcall(function()
+                    genv.SmartSkillHold = Value
+                end)
+                if Value then
+                    safeNotify("Smart Skill Hold", "Đã bật tự động phân biệt chiêu đè & chiêu bấm nhanh!", "auto_awesome")
+                end
+            end,
+        }, "SmartSkillHoldToggle")
+
         local AutoM1Section = SkillTab:CreateSection("🖱️ Tự Động Đánh Thường M1 (Tích Chọn Vũ Khí Muốn Dùng)")
         AutoM1Section:CreateToggle({
             Name = "🍎 Auto M1 Trái Ác Quỷ (Fruit M1)",
@@ -236,10 +252,10 @@
             end,
         }, "AutoTransformToggle")
 
-        local AimSection = SkillTab:CreateSection("🎯 Hỗ Trợ Tác Chiến & Né Đòn (Aimbot & Dodge)")
+        local AimSection = SkillTab:CreateSection("🎯 Auto Aim & Tự Né Chiêu Boss Bằng Teleport")
         AimSection:CreateToggle({
-            Name = "🎯 Khóa Chiêu Vào Mục Tiêu (Skill Direction Aimbot)",
-            Description = "Tự động xoay người và hướng chiêu thẳng vào tim boss hoặc quái",
+            Name = "🎯 Auto Aim Khóa Mục Tiêu (Quái / Boss / Sea Event)",
+            Description = "Tự động khóa tâm chiêu & hướng đánh chính xác vào Quái, Boss Đảo và Sea Event đang giao tranh",
             CurrentValue = hubState.skillAimbot ~= false,
             Callback = function(Value: boolean)
                 hubState.skillAimbot = Value
@@ -247,14 +263,14 @@
                 pcall(function()
                     genv.PlayerAimbotEnabled = Value
                     genv.PlayerAimMode = "Skill Direction"
-                    genv.PlayerAimRange = 350
+                    genv.PlayerAimRange = 450
                 end)
             end,
         }, "SkillAimbotToggle")
 
         AimSection:CreateToggle({
-            Name = "💨 Tự Động Lướt Né Chiêu (Auto Dodge)",
-            Description = "Tự động lướt né khi quái vật hoặc boss vận chiêu diện rộng",
+            Name = "⚡ Tự Né Chiêu Boss Bằng Teleport (Dự Đoán Tầm AOE)",
+            Description = "Dự đoán tầm chiêu & hiệu ứng AOE của Boss/Sea Event rồi tự Teleport né ra ngoài tầm an toàn thay vì dash",
             CurrentValue = hubState.autoDodge ~= false,
             Callback = function(Value: boolean)
                 hubState.autoDodge = Value
@@ -264,4 +280,19 @@
                 end)
             end,
         }, "AutoDodgeToggle")
+
+        AimSection:CreateSlider({
+            Name = "📏 Tầm Tele Né Chiêu Boss An Toàn (Dodge Range)",
+            Range = { 40, 180 },
+            Increment = 5,
+            Suffix = " studs",
+            CurrentValue = hubState.dodgeSafeDistance or 95,
+            Callback = function(Value: number)
+                hubState.dodgeSafeDistance = math.clamp(math.floor(Value), 40, 180)
+                saveState(hubState)
+                pcall(function()
+                    genv.DodgeSafeDistance = hubState.dodgeSafeDistance
+                end)
+            end,
+        }, "DodgeSafeDistanceSlider")
     end

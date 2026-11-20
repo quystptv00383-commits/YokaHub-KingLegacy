@@ -38,9 +38,72 @@
     end)
 
     -- ========================================================
-    -- [SHARED HELPERS: QUÉT QUÁI / BOSS & XẢ CHIÊU THÔNG MINH]
+    -- [SHARED HELPERS: QUÉT QUÁI / BOSS, BAY HOVER LOCK, AUTO AIM & SMART SKILL HOLD]
     -- ========================================================
     local sharedVim = game:GetService("VirtualInputManager")
+    local sharedRunService = game:GetService("RunService")
+    local sharedRS = game:GetService("ReplicatedStorage")
+
+    local currentCombatTarget: Model? = nil
+    local currentCombatTargetAt = 0
+    local dodgeUntilClock = 0
+    local isHoldingSkill = false
+    local getActiveM1Categories: () -> { string }
+
+    local activeFlightTarget = {
+        pos = nil :: Vector3?,
+        lookAt = nil :: Vector3?,
+        instant = false,
+        priority = 0,
+        updatedAt = 0,
+    }
+
+    local function setFlightTarget(pos: Vector3, lookAt: Vector3?, instant: boolean?, priority: number?)
+        local prio = priority or 40
+        local now = os.clock()
+        if activeFlightTarget.pos ~= nil and prio < activeFlightTarget.priority and (now - activeFlightTarget.updatedAt) < 0.9 then
+            return
+        end
+        if now < dodgeUntilClock and prio < 90 then
+            return
+        end
+        activeFlightTarget.pos = pos
+        activeFlightTarget.lookAt = lookAt
+        activeFlightTarget.instant = (instant == true)
+        activeFlightTarget.priority = prio
+        activeFlightTarget.updatedAt = now
+    end
+
+    local function clearFlightTarget(minPriority: number?)
+        if (minPriority or 999) >= activeFlightTarget.priority then
+            activeFlightTarget.pos = nil
+            activeFlightTarget.lookAt = nil
+            activeFlightTarget.instant = false
+            activeFlightTarget.priority = 0
+            activeFlightTarget.updatedAt = 0
+        end
+    end
+
+    local function getModelRoot(m: Model?): BasePart?
+        if not m or not m.Parent then return nil end
+        return (m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Torso") or m:FindFirstChild("UpperTorso") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")) :: BasePart?
+    end
+
+    local function isModelAlive(m: Model?): boolean
+        if not m or not m.Parent then return false end
+        local h = m:FindFirstChildOfClass("Humanoid")
+        if h and h.Health > 0 then
+            return getModelRoot(m) ~= nil
+        end
+        return false
+    end
+
+    local function setCurrentCombatTarget(m: Model?)
+        if isModelAlive(m) then
+            currentCombatTarget = m
+            currentCombatTargetAt = os.clock()
+        end
+    end
 
     local function getAliveMobFolders(includeBosses: boolean, includeSeaMonsters: boolean?, includeDungeon: boolean?): { Instance }
         local list: { Instance } = {}
@@ -72,6 +135,180 @@
         end
         return list
     end
+
+    local function getAimPoint(targetModel: Model, targetRoot: BasePart): Vector3
+        local vel = Vector3.zero
+        pcall(function()
+            vel = targetRoot.AssemblyLinearVelocity
+        end)
+        local lead = Vector3.new(math.clamp(vel.X, -80, 80), math.clamp(vel.Y, -30, 30), math.clamp(vel.Z, -80, 80)) * 0.08
+        return targetRoot.Position + lead
+    end
+
+    local function getBestCombatTarget(maxRange: number): (Model?, BasePart?)
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return nil, nil end
+        local myPos = hrp.Position
+
+        if currentCombatTarget and (os.clock() - currentCombatTargetAt) < 4.0 and isModelAlive(currentCombatTarget) then
+            local cRoot = getModelRoot(currentCombatTarget)
+            if cRoot and (cRoot.Position - myPos).Magnitude <= (maxRange + 220) then
+                return currentCombatTarget, cRoot
+            end
+        end
+
+        local bestModel: Model? = nil
+        local bestRoot: BasePart? = nil
+        local bestTier = -1
+        local bestDist = maxRange
+
+        local function scanFolder(fld: Instance?, tier: number)
+            if not fld then return end
+            for _, m in ipairs(fld:GetChildren()) do
+                if m:IsA("Model") then
+                    local mHum = m:FindFirstChildOfClass("Humanoid")
+                    local mRoot = getModelRoot(m)
+                    if mHum and mHum.Health > 0 and mRoot then
+                        local d = (mRoot.Position - myPos).Magnitude
+                        if d <= maxRange then
+                            if tier > bestTier or (tier == bestTier and d < bestDist) then
+                                bestTier = tier
+                                bestDist = d
+                                bestModel = m
+                                bestRoot = mRoot
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Ưu tiên Sea Event / Boss Biển -> Island Boss -> Quái thường / Dungeon
+        scanFolder(workspace:FindFirstChild("SeaMonster"), 3)
+        scanFolder(workspace:FindFirstChild("GhostMonster"), 3)
+        local mon = workspace:FindFirstChild("Monster")
+        if mon then
+            scanFolder(mon:FindFirstChild("Boss"), 2)
+            scanFolder(mon:FindFirstChild("Mon"), 1)
+            scanFolder(mon, 1)
+        end
+        scanFolder(workspace:FindFirstChild("Dungeon"), 1)
+        scanFolder(workspace:FindFirstChild("RaidMonster"), 1)
+        scanFolder(workspace:FindFirstChild("Enemy"), 1)
+        scanFolder(workspace:FindFirstChild("Monsters"), 1)
+
+        return bestModel, bestRoot
+    end
+
+    -- ========================================================
+    -- [UNIFIED FLIGHT + HOVER LOCK + NOCLIP + REALTIME AUTO AIM]
+    -- ========================================================
+    local noclipWasActive = false
+    pcall(function()
+        trackConn(sharedRunService.Heartbeat:Connect(function(dt: number)
+            if genv._YokaHubToken ~= myToken then return end
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not (char and hrp and hum and hum.Health > 0) then return end
+
+            local now = os.clock()
+            local flightAlive = activeFlightTarget.pos ~= nil and (now - activeFlightTarget.updatedAt) <= 1.65
+
+            -- 1. Realtime Auto Aim (_G.MouseHit cập nhật từng khung hình cho Quái, Boss & Sea Event)
+            local aimPos: Vector3? = nil
+            if hubState.skillAimbot ~= false and genv.PlayerAimbotEnabled ~= false then
+                local aimRange = tonumber(genv.PlayerAimRange) or 450
+                local tModel, tRoot = getBestCombatTarget(aimRange)
+                if tModel and tRoot then
+                    aimPos = getAimPoint(tModel, tRoot)
+                    _G.MouseHit = CFrame.new(aimPos)
+                    if not flightAlive and (aimPos - hrp.Position).Magnitude <= 200 and (isHoldingSkill or #getActiveM1Categories() > 0) then
+                        local flatLook = Vector3.new(aimPos.X, hrp.Position.Y, aimPos.Z)
+                        if (flatLook - hrp.Position).Magnitude > 0.5 then
+                            hrp.CFrame = CFrame.lookAt(hrp.Position, flatLook)
+                        end
+                    end
+                end
+            end
+
+            -- 2. Flight + Hover Lock (Bay mượt trên không & khóa độ cao chống rơi rớt)
+            if flightAlive and activeFlightTarget.pos then
+                local bv = hrp:FindFirstChild("YokaHoverBV")
+                if not bv or not bv:IsA("BodyVelocity") then
+                    bv = Instance.new("BodyVelocity")
+                    bv.Name = "YokaHoverBV"
+                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                    bv.P = 12500
+                    bv.Velocity = Vector3.zero
+                    bv.Parent = hrp
+                else
+                    bv.Velocity = Vector3.zero
+                    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                end
+
+                pcall(function()
+                    hrp.AssemblyLinearVelocity = Vector3.zero
+                    hrp.AssemblyAngularVelocity = Vector3.zero
+                end)
+
+                local targetPos = activeFlightTarget.pos
+                local lookTarget = activeFlightTarget.lookAt or aimPos
+                local function orientAt(p: Vector3): CFrame
+                    if lookTarget and (lookTarget - p).Magnitude > 0.5 then
+                        return CFrame.lookAt(p, lookTarget)
+                    end
+                    return CFrame.new(p)
+                end
+
+                local curPos = hrp.Position
+                local delta = targetPos - curPos
+                local dist = delta.Magnitude
+
+                if activeFlightTarget.instant or dist > 1800 then
+                    hrp.CFrame = orientAt(targetPos)
+                    activeFlightTarget.instant = false
+                elseif dist > 14 then
+                    local speed = math.clamp(tonumber(hubState.flySpeed or genv.YokaFlySpeed) or 420, 200, 650)
+                    local step = math.min(dist, speed * math.clamp(dt, 0.005, 0.08))
+                    local nextPos = curPos + (delta.Unit * step)
+                    hrp.CFrame = orientAt(nextPos)
+                else
+                    hrp.CFrame = orientAt(targetPos)
+                end
+            else
+                local bv = hrp:FindFirstChild("YokaHoverBV")
+                if bv then
+                    pcall(function() bv:Destroy() end)
+                end
+            end
+        end))
+
+        trackConn(sharedRunService.Stepped:Connect(function()
+            if genv._YokaHubToken ~= myToken then return end
+            local char = player.Character
+            if not char then return end
+            local now = os.clock()
+            local shouldNoclip = activeFlightTarget.pos ~= nil and (now - activeFlightTarget.updatedAt) <= 1.65 and hubState.safeDistance ~= false
+            if shouldNoclip then
+                noclipWasActive = true
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            elseif noclipWasActive then
+                noclipWasActive = false
+                for _, partName in ipairs({ "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Head" }) do
+                    local p = char:FindFirstChild(partName)
+                    if p and p:IsA("BasePart") then
+                        p.CanCollide = true
+                    end
+                end
+            end
+        end))
+    end)
 
     local function classifyKingLegacyTool(t: Tool): string?
         if not t or not t:IsA("Tool") then return nil end
@@ -124,7 +361,7 @@
         return nil
     end
 
-    local function getActiveM1Categories(): { string }
+    getActiveM1Categories = function(): { string }
         local cats = {}
         if hubState.autoM1Fruit or genv.AutoM1Fruit then table.insert(cats, "fruit") end
         if hubState.autoM1Sword or genv.AutoM1Sword then table.insert(cats, "sword") end
@@ -132,63 +369,72 @@
         return cats
     end
 
+    local clientModuleCache: { [string]: any } = {}
+    local function getClientSkillModule(toolName: string, cat: string): any
+        local folderName = (cat == "fruit" and "FruitSkills") or (cat == "sword" and "SwordSkills") or "FightingStyleSkills"
+        local cacheKey = folderName .. ":" .. toolName
+        if clientModuleCache[cacheKey] ~= nil then
+            return clientModuleCache[cacheKey] ~= false and clientModuleCache[cacheKey] or nil
+        end
+        local pScripts = player:FindFirstChild("PlayerScripts")
+        local svcs = pScripts and pScripts:FindFirstChild("Services")
+        local csh = svcs and svcs:FindFirstChild("ClientSkillHandler")
+        local skillFolder = csh and csh:FindFirstChild(folderName)
+        local modInst = skillFolder and skillFolder:FindFirstChild(toolName .. "_Client")
+        if modInst and modInst:IsA("ModuleScript") then
+            local okReq, modTbl = pcall(require, modInst)
+            if okReq and typeof(modTbl) == "table" then
+                clientModuleCache[cacheKey] = modTbl
+                return modTbl
+            end
+        end
+        clientModuleCache[cacheKey] = false
+        return nil
+    end
+
+    local cachedSkillAction: RemoteFunction? = nil
+    local function getSkillActionRemote(): RemoteFunction?
+        if cachedSkillAction and cachedSkillAction.Parent then
+            return cachedSkillAction
+        end
+        local chest = sharedRS:FindFirstChild("Chest")
+        local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+        local sa = remFuncs and remFuncs:FindFirstChild("SkillAction")
+        if sa and sa:IsA("RemoteFunction") then
+            cachedSkillAction = sa
+            return sa
+        end
+        return nil
+    end
+
     local function triggerKingLegacyM1(tool: Tool, cat: string)
         if not tool then return end
         pcall(function()
-            local char = player.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                -- Cập nhật _G.MouseHit về mục tiêu gần nhất để M1 và Skill đánh chuẩn hướng
-                local closestRoot: BasePart? = nil
-                local closestDist = 350
-                for _, fld in ipairs(getAliveMobFolders(true, true, true)) do
-                    for _, m in ipairs(fld:GetChildren()) do
-                        if m:IsA("Model") then
-                            local mHum = m:FindFirstChildOfClass("Humanoid")
-                            local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
-                            if mHum and mHum.Health > 0 and mRoot then
-                                local d = (mRoot.Position - hrp.Position).Magnitude
-                                if d < closestDist then
-                                    closestDist = d
-                                    closestRoot = mRoot
-                                end
-                            end
-                        end
-                    end
-                end
-                if closestRoot then
-                    _G.MouseHit = closestRoot.CFrame
-                end
+            local tModel, tRoot = getBestCombatTarget(420)
+            if tModel and tRoot then
+                _G.MouseHit = CFrame.new(getAimPoint(tModel, tRoot))
             end
 
-            -- 1. Gọi trực tiếp hàm M1 chuẩn trong ClientSkillHandler của King Legacy
+            -- 1. Gọi bất đồng bộ tốc độ cao chuẩn Wukong qua ClientSkillHandler
             local firedViaModule = false
-            local pScripts = player:FindFirstChild("PlayerScripts")
-            local svcs = pScripts and pScripts:FindFirstChild("Services")
-            local csh = svcs and svcs:FindFirstChild("ClientSkillHandler")
-            if csh then
-                local folderName = (cat == "fruit" and "FruitSkills") or (cat == "sword" and "SwordSkills") or "FightingStyleSkills"
-                local skillFolder = csh:FindFirstChild(folderName)
-                local modInst = skillFolder and skillFolder:FindFirstChild(tool.Name .. "_Client")
-                if modInst and modInst:IsA("ModuleScript") then
-                    local okReq, modTbl = pcall(require, modInst)
-                    if okReq and typeof(modTbl) == "table" and typeof(modTbl.M1) == "function" then
-                        pcall(modTbl.M1)
-                        firedViaModule = true
-                    end
-                end
+            local modTbl = getClientSkillModule(tool.Name, cat)
+            if modTbl and typeof(modTbl.M1) == "function" then
+                firedViaModule = true
+                task.spawn(function()
+                    pcall(modTbl.M1)
+                end)
             end
 
-            -- 2. Gọi trực tiếp Remote SkillAction M1 nếu Module chưa kích hoạt hoặc bổ trợ
+            -- 2. Gọi bổ trợ bất đồng bộ qua SkillAction Remote nếu module không có hàm M1
             if not firedViaModule then
-                local rs = game:GetService("ReplicatedStorage")
-                local chest = rs:FindFirstChild("Chest")
-                local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
-                local skillAction = remFuncs and remFuncs:FindFirstChild("SkillAction")
-                if skillAction then
+                local sa = getSkillActionRemote()
+                if sa then
                     local prefix = (cat == "fruit" and "DF_") or (cat == "sword" and "SW_") or "FS_"
-                    pcall(function()
-                        skillAction:InvokeServer(prefix .. tool.Name .. "_M1")
+                    local actionName = prefix .. tool.Name .. "_M1"
+                    task.spawn(function()
+                        pcall(function()
+                            sa:InvokeServer(actionName)
+                        end)
                     end)
                 end
             end
@@ -204,7 +450,7 @@
     local function equipAndFireSelectedM1(char: Model, hum: Humanoid): Tool?
         local cats = getActiveM1Categories()
         if #cats > 0 then
-            if #cats > 1 and (os.clock() - lastM1CycleClock) >= 1.2 then
+            if #cats > 1 and (os.clock() - lastM1CycleClock) >= 1.1 then
                 lastM1CycleClock = os.clock()
                 m1CycleIndex = (m1CycleIndex % #cats) + 1
             elseif m1CycleIndex > #cats then
@@ -234,11 +480,11 @@
         local fallbackCat = (hubState.skillSword and "sword") or (hubState.skillMelee and "melee") or (hubState.skillFruit and "fruit") or "sword"
         local tool = char:FindFirstChildOfClass("Tool") or findToolByCategory(fallbackCat) or player.Backpack:FindFirstChildOfClass("Tool")
         if tool then
+            local tCat = classifyKingLegacyTool(tool) or fallbackCat
             if tool.Parent == player.Backpack then
                 hum:EquipTool(tool)
-            else
-                tool:Activate()
             end
+            triggerKingLegacyM1(tool, tCat)
         end
         return tool
     end
@@ -248,9 +494,9 @@
     -- ========================================================
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.18)
+            task.wait(0.11)
             local cats = getActiveM1Categories()
-            if #cats > 0 and not hubState.autoFish then
+            if #cats > 0 and not hubState.autoFish and not isHoldingSkill and os.clock() >= dodgeUntilClock then
                 pcall(function()
                     local char = player.Character
                     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -262,13 +508,191 @@
         end
     end)
 
-    local function castConfiguredSkills(char: Model, hum: Humanoid)
-        -- 1. Tự bật Haki Vũ Trang & Quan Sát
-        if hubState.autoHaki or genv.haki then
+    -- ========================================================
+    -- [SMART SKILL HOLD ANALYZER & COOLDOWN CHECKER]
+    -- ========================================================
+    local skillDataCache: { [string]: any } = {}
+    local function getSkillDataTable(toolName: string, cat: string): any
+        local subFolder = (cat == "fruit" and "Fruits") or (cat == "sword" and "Swords") or "Styles"
+        local cacheKey = subFolder .. ":" .. toolName
+        if skillDataCache[cacheKey] ~= nil then
+            return skillDataCache[cacheKey] ~= false and skillDataCache[cacheKey] or nil
+        end
+        local chest = sharedRS:FindFirstChild("Chest")
+        local mods = chest and chest:FindFirstChild("Modules")
+        local sdRoot = mods and mods:FindFirstChild("SkillData")
+        local catFolder = sdRoot and sdRoot:FindFirstChild(subFolder)
+        local dataMod = catFolder and (catFolder:FindFirstChild(toolName .. "_Data") or catFolder:FindFirstChild(toolName))
+        if dataMod and dataMod:IsA("ModuleScript") then
+            local okReq, tbl = pcall(require, dataMod)
+            if okReq and typeof(tbl) == "table" then
+                skillDataCache[cacheKey] = tbl
+                return tbl
+            end
+        end
+        skillDataCache[cacheKey] = false
+        return nil
+    end
+
+    local function getSkillPrefix(cat: string): string
+        if cat == "fruit" then return "DF"
+        elseif cat == "sword" then return "SW"
+        else return "FS" end
+    end
+
+    local function isSkillReadyToCast(cat: string, key: string): boolean
+        local prefix = getSkillPrefix(cat)
+        if typeof(_G.Cooldowns) == "table" then
+            local cdVal = _G.Cooldowns[prefix .. key]
+            if cdVal == true or (typeof(cdVal) == "number" and cdVal > 0) then
+                return false
+            end
+        end
+        local pgui = player:FindFirstChild("PlayerGui")
+        local scGui = pgui and pgui:FindFirstChild("SkillCooldown")
+        local frame = scGui and scGui:FindFirstChild(prefix .. "Frame")
+        local slot = frame and frame:FindFirstChild(key)
+        if slot then
+            local locked = slot:FindFirstChild("Locked")
+            if locked and locked:IsA("GuiObject") and locked.Visible then
+                return false
+            end
+            local cdObj = slot:FindFirstChild("Cooldown") or slot:FindFirstChild("CD")
+            if cdObj and cdObj:IsA("GuiObject") and cdObj.Visible then
+                if cdObj:IsA("TextLabel") then
+                    local num = tonumber(string.match(cdObj.Text, "%d+"))
+                    if num and num > 0 then return false end
+                elseif cdObj.Size.Y.Scale > 0.08 or cdObj.Size.X.Scale > 0.08 then
+                    return false
+                end
+            end
+        end
+        return true
+    end
+
+    local INSTANT_TAP_KEYWORDS = {
+        "fly", "flight", "dash", "teleport", "tele", "portal", "blink", "flash", "step",
+        "buff", "heal", "shield", "barrier", "counter", "transform", "awaken", "gear",
+        "mode", "form", "room", "domain", "summon", "clone", "mirror", "coat", "aura",
+    }
+    local HOLD_SKILL_KEYWORDS = {
+        "beam", "laser", "ray", "barrage", "gatling", "flurry", "storm", "rain", "hail",
+        "cannon", "breath", "roar", "blast", "meteor", "tsunami", "tempest", "vortex",
+        "hurricane", "tornado", "charge", "hold", "eruption", "supernova", "nova",
+        "comet", "black hole", "quake", "inferno", "flamethrower", "wave", "overload",
+    }
+
+    local function getOptimalSkillHoldTime(tool: Tool, cat: string, key: string): number
+        if hubState.smartSkillHold == false or genv.SmartSkillHold == false then
+            return 0.04
+        end
+        -- Phím E thường là chiêu di chuyển / bay / buff -> luôn nhấn nhả nhanh
+        if key == "E" then
+            return 0.04
+        end
+
+        local prefix = getSkillPrefix(cat)
+        local skillDisplayName = ""
+        pcall(function()
+            local pgui = player:FindFirstChild("PlayerGui")
+            local scGui = pgui and pgui:FindFirstChild("SkillCooldown")
+            local frame = scGui and scGui:FindFirstChild(prefix .. "Frame")
+            local slot = frame and frame:FindFirstChild(key)
+            local nameLbl = slot and (slot:FindFirstChild("SkillsNames") or slot:FindFirstChild("SkillName"))
+            if nameLbl and nameLbl:IsA("TextLabel") then
+                skillDisplayName = string.lower(nameLbl.Text or "")
+            end
+        end)
+
+        -- 1. Kiểm tra từ khóa nhấn nhanh (di chuyển, buff, biến hình)
+        if skillDisplayName ~= "" then
+            for _, kw in ipairs(INSTANT_TAP_KEYWORDS) do
+                if string.find(skillDisplayName, kw, 1, true) then
+                    return 0.04
+                end
+            end
+            -- 2. Kiểm tra từ khóa chiêu đè / tụ lực / tia laser / xả đạn liên hoàn
+            for _, kw in ipairs(HOLD_SKILL_KEYWORDS) do
+                if string.find(skillDisplayName, kw, 1, true) then
+                    return (key == "C" or key == "V") and 0.92 or 0.72
+                end
+            end
+        end
+
+        -- 3. Đọc trực tiếp bảng SkillData của King Legacy
+        local sData = getSkillDataTable(tool.Name, cat)
+        if typeof(sData) == "table" then
+            local entry = sData[key] or sData[prefix .. key]
+            if typeof(entry) == "table" then
+                if entry.Instant == true or entry.Tap == true or entry.IsFlight == true then
+                    return 0.04
+                end
+                local maxH = tonumber(entry.MaxHold or entry.HoldTime or entry.ChargeTime or entry.ChannelTime)
+                if maxH and maxH > 0.15 then
+                    return math.clamp(maxH * 0.75, 0.45, 1.05)
+                end
+                if entry.Hold == true or entry.CanHold == true or entry.Channel == true or entry.Charge == true then
+                    return 0.80
+                end
+            end
+        end
+
+        -- 4. Kiểm tra hook Deactive() trong ClientSkillHandler (cơ chế đè chiêu chuẩn King Legacy)
+        local modTbl = getClientSkillModule(tool.Name, cat)
+        if modTbl and typeof(modTbl.Deactive) == "function" then
+            if key == "C" or key == "V" then
+                return 0.78
+            elseif key == "Z" or key == "X" then
+                return 0.52
+            end
+        end
+
+        return 0.04
+    end
+
+    local function parseKeysFromOption(opt: string?, fallbackList: { string }?): { string }
+        local res = {}
+        local function addUnique(k: string)
+            for _, ek in ipairs(res) do
+                if ek == k then return end
+            end
+            table.insert(res, k)
+        end
+        if typeof(opt) == "string" and opt ~= "" then
+            if opt == "Chỉ Phím Z" then addUnique("Z")
+            elseif opt == "Chỉ Phím X" then addUnique("X")
+            else
+                if string.find(opt, "Z") then addUnique("Z") end
+                if string.find(opt, "X") then addUnique("X") end
+                if string.find(opt, "C") then addUnique("C") end
+                if string.find(opt, "V") then addUnique("V") end
+                if string.find(opt, "E") then addUnique("E") end
+            end
+        end
+        if typeof(fallbackList) == "table" then
+            for _, k in ipairs(fallbackList) do
+                addUnique(k)
+            end
+        end
+        return res
+    end
+
+    local lastHakiClock = 0
+    local skillCatCursor = 0
+
+    local function castConfiguredSkills(char: Model, hum: Humanoid, targetModel: Model?)
+        if os.clock() < dodgeUntilClock then return end
+        if targetModel then
+            setCurrentCombatTarget(targetModel)
+        end
+
+        -- 1. Tự bật Haki Vũ Trang & Quan Sát (chống spam remote liên tục)
+        if (hubState.autoHaki or genv.haki) and (os.clock() - lastHakiClock) >= 4.0 then
+            lastHakiClock = os.clock()
             pcall(function()
                 genv.haki = true
                 genv.hakivutrangv2 = true
-                local net = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                local net = sharedRS:FindFirstChild("Remotes")
                 if net and net:FindFirstChild("Functions") and net.Functions:FindFirstChild("Skill") then
                     net.Functions.Skill:InvokeServer("Buso")
                 end
@@ -278,64 +702,92 @@
             pcall(function() genv.hakiquansatv2 = true end)
         end
 
-        -- 2. Tự trang bị và đánh M1 theo đúng vũ khí người dùng tích chọn (Fruit / Sword / Melee)
-        equipAndFireSelectedM1(char, hum)
+        -- 2. Đánh M1 nhanh theo đúng vũ khí người dùng tích chọn (Fruit / Sword / Melee)
+        if not isHoldingSkill then
+            equipAndFireSelectedM1(char, hum)
+        end
 
-        -- 3. Xả chiêu thông minh (Z, X, C, V, E)
-        if hubState.autoSkills or genv.opeskill then
-            local activeSkillKeys = {}
-            local function pushKey(k: string)
-                for _, ek in ipairs(activeSkillKeys) do
-                    if ek == k then return end
-                end
-                table.insert(activeSkillKeys, k)
-            end
+        -- 3. Xả chiêu thông minh + Tự động nhận diện đè skill tối ưu (Smart Skill Hold)
+        if not (hubState.autoSkills or genv.opeskill) then return end
 
-            if hubState.skillSword and hubState.skillSwordKeys then
-                if hubState.skillSwordKeys == "Chỉ Phím Z" then pushKey("Z")
-                elseif hubState.skillSwordKeys == "Chỉ Phím X" then pushKey("X")
-                else pushKey("Z"); pushKey("X") end
-            end
-            if hubState.skillFruit and hubState.skillFruitKeys then
-                if string.find(hubState.skillFruitKeys, "Z") then pushKey("Z") end
-                if string.find(hubState.skillFruitKeys, "X") then pushKey("X") end
-                if string.find(hubState.skillFruitKeys, "C") then pushKey("C") end
-                if string.find(hubState.skillFruitKeys, "V") then pushKey("V") end
-                if string.find(hubState.skillFruitKeys, "E") then pushKey("E") end
-            end
-            if hubState.skillMelee and hubState.skillMeleeKeys then
-                if string.find(hubState.skillMeleeKeys, "Z") then pushKey("Z") end
-                if string.find(hubState.skillMeleeKeys, "X") then pushKey("X") end
-                if string.find(hubState.skillMeleeKeys, "C") then pushKey("C") end
-                if string.find(hubState.skillMeleeKeys, "V") then pushKey("V") end
-                if string.find(hubState.skillMeleeKeys, "E") then pushKey("E") end
-            end
+        local catPlan: { { cat: string, keys: { string } } } = {}
+        if hubState.skillFruit then
+            local kList = parseKeysFromOption(hubState.skillFruitKeys, genv.CombatSkillFruit)
+            if #kList == 0 then kList = { "Z", "X", "C", "V" } end
+            table.insert(catPlan, { cat = "fruit", keys = kList })
+        end
+        if hubState.skillSword then
+            local kList = parseKeysFromOption(hubState.skillSwordKeys, genv.CombatSkillSword)
+            if #kList == 0 then kList = { "Z", "X" } end
+            table.insert(catPlan, { cat = "sword", keys = kList })
+        end
+        if hubState.skillMelee then
+            local kList = parseKeysFromOption(hubState.skillMeleeKeys, genv.CombatSkillMelee)
+            if #kList == 0 then kList = { "Z", "X", "C", "V" } end
+            table.insert(catPlan, { cat = "melee", keys = kList })
+        end
+        if #catPlan == 0 then
+            local curTool = char:FindFirstChildOfClass("Tool")
+            local curCat = (curTool and classifyKingLegacyTool(curTool)) or "sword"
+            table.insert(catPlan, { cat = curCat, keys = { "Z", "X" } })
+        end
 
-            if type(genv.CombatSkillFruit) == "table" and #genv.CombatSkillFruit > 0 then
-                for _, k in ipairs(genv.CombatSkillFruit) do pushKey(k) end
-            end
-            if type(genv.CombatSkillSword) == "table" and #genv.CombatSkillSword > 0 then
-                for _, k in ipairs(genv.CombatSkillSword) do pushKey(k) end
-            end
-            if type(genv.CombatSkillMelee) == "table" and #genv.CombatSkillMelee > 0 then
-                for _, k in ipairs(genv.CombatSkillMelee) do pushKey(k) end
-            end
+        local castsDone = 0
+        local maxCastsPerTick = 2
+        local planCount = #catPlan
 
-            if #activeSkillKeys == 0 then
-                activeSkillKeys = { "Z", "X" }
-            end
-
-            for _, k in ipairs(activeSkillKeys) do
-                pcall(function()
-                    if sharedVim then
+        for stepIdx = 1, planCount do
+            if castsDone >= maxCastsPerTick or os.clock() < dodgeUntilClock then break end
+            if targetModel and not isModelAlive(targetModel) then break end
+            skillCatCursor = (skillCatCursor % planCount) + 1
+            local plan = catPlan[skillCatCursor]
+            local tool = findToolByCategory(plan.cat)
+            if tool then
+                for _, k in ipairs(plan.keys) do
+                    if castsDone >= maxCastsPerTick or os.clock() < dodgeUntilClock then break end
+                    if targetModel and not isModelAlive(targetModel) then break end
+                    if isSkillReadyToCast(plan.cat, k) then
                         local keyEnum = (Enum.KeyCode :: any)[k]
-                        if keyEnum then
-                            sharedVim:SendKeyEvent(true, keyEnum, false, game)
-                            task.wait(0.03)
-                            sharedVim:SendKeyEvent(false, keyEnum, false, game)
+                        if keyEnum and sharedVim then
+                            if tool.Parent == player.Backpack then
+                                hum:EquipTool(tool)
+                                task.wait(0.05)
+                            end
+                            local tModel, tRoot = targetModel, getModelRoot(targetModel)
+                            if not (tModel and tRoot) then
+                                tModel, tRoot = getBestCombatTarget(450)
+                            end
+                            if tModel and tRoot then
+                                _G.MouseHit = CFrame.new(getAimPoint(tModel, tRoot))
+                            end
+
+                            local holdDur = getOptimalSkillHoldTime(tool, plan.cat, k)
+                            pcall(function()
+                                sharedVim:SendKeyEvent(true, keyEnum, false, game)
+                                if holdDur > 0.12 then
+                                    isHoldingSkill = true
+                                    local held = 0
+                                    while held < holdDur and genv._YokaHubToken == myToken and os.clock() >= dodgeUntilClock do
+                                        if hum.Health <= 0 then break end
+                                        if targetModel and not isModelAlive(targetModel) then break end
+                                        if tModel and tRoot and tRoot.Parent then
+                                            _G.MouseHit = CFrame.new(getAimPoint(tModel, tRoot))
+                                        end
+                                        local slice = math.min(0.05, holdDur - held)
+                                        task.wait(slice)
+                                        held += slice
+                                    end
+                                    isHoldingSkill = false
+                                else
+                                    task.wait(holdDur)
+                                end
+                                sharedVim:SendKeyEvent(false, keyEnum, false, game)
+                            end)
+                            castsDone += 1
+                            task.wait(0.06)
                         end
                     end
-                end)
+                end
             end
         end
     end
@@ -345,7 +797,7 @@
     -- ========================================================
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(1.0)
+            task.wait(0.22)
             if (hubState.autoFightMaster or hubState.autoFightIslandBoss) and genv._YokaHubToken == myToken then
                 pcall(function()
                     local char = player.Character
@@ -353,8 +805,9 @@
                     local hrp = char.HumanoidRootPart
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
+                    if os.clock() < dodgeUntilClock then return end
 
-                    -- 1. Quét tìm rương báu Boss trước nếu có
+                    -- 1. Quét tìm rương báu Boss trước nếu có (Bay lơ lửng tới nhặt, không rơi xuống biển)
                     if hubState.autoCollectChest then
                         local isl = workspace:FindFirstChild("Island")
                         if isl then
@@ -362,10 +815,10 @@
                                 for _, d in ipairs(c:GetDescendants()) do
                                     if d:IsA("Model") and string.find(string.lower(d.Name), "chest") and not string.find(string.lower(d.Name), "spawner") then
                                         local pp = d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
-                                        if pp and (pp.Position - hrp.Position).Magnitude < 1500 then
-                                            hrp.Velocity = Vector3.new(0, 0, 0)
-                                            hrp.CFrame = CFrame.new(pp.Position + Vector3.new(0, 3, 0))
-                                            task.wait(0.5)
+                                        if pp and (pp.Position - hrp.Position).Magnitude < 2500 then
+                                            local chestPos = pp.Position + Vector3.new(0, 4, 0)
+                                            setFlightTarget(chestPos, pp.Position, (pp.Position - hrp.Position).Magnitude > 1400, 60)
+                                            task.wait(0.35)
                                             return
                                         end
                                     end
@@ -407,28 +860,36 @@
 
                     -- Quét trong SeaMonster, GhostMonster, Monster & Monster.Boss
                     local targetBoss: Model? = nil
+                    local bestBossDist = 1e9
                     local folders = getAliveMobFolders(true, true, false)
                     for _, fld in ipairs(folders) do
                         for _, m in ipairs(fld:GetChildren()) do
                             if m:IsA("Model") and isBossWanted(m.Name, fld.Name) then
                                 local bHum = m:FindFirstChildOfClass("Humanoid")
-                                if bHum and bHum.Health > 0 then
-                                    targetBoss = m
-                                    break
+                                local bRoot = getModelRoot(m)
+                                if bHum and bHum.Health > 0 and bRoot then
+                                    local d = (bRoot.Position - hrp.Position).Magnitude
+                                    if d < bestBossDist then
+                                        bestBossDist = d
+                                        targetBoss = m
+                                    end
                                 end
                             end
                         end
-                        if targetBoss then break end
                     end
 
-                    -- Nếu tìm thấy Boss hợp lệ: Bay đến trên đầu và xả chiêu
+                    -- Nếu tìm thấy Boss hợp lệ: Bay + Hover Lock trên đầu Boss, Auto Aim & Xả chiêu thông minh
                     if targetBoss then
-                        local bRoot = targetBoss:FindFirstChild("HumanoidRootPart") or targetBoss:FindFirstChild("Torso") or targetBoss.PrimaryPart or targetBoss:FindFirstChildWhichIsA("BasePart")
+                        local bRoot = getModelRoot(targetBoss)
                         if bRoot then
-                            local sHeight = hubState.bossSafeHeight or 18
-                            hrp.Velocity = Vector3.new(0, 0, 0)
-                            hrp.CFrame = CFrame.new(bRoot.Position + Vector3.new(0, sHeight, 0), bRoot.Position)
-                            castConfiguredSkills(char, hum)
+                            setCurrentCombatTarget(targetBoss)
+                            local sHeight = math.clamp(tonumber(hubState.bossSafeHeight) or 18, 8, 50)
+                            local aimPos = getAimPoint(targetBoss, bRoot)
+                            local hoverPos = bRoot.Position + Vector3.new(0, sHeight, 0)
+                            setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 55)
+                            if (hrp.Position - hoverPos).Magnitude <= 45 then
+                                castConfiguredSkills(char, hum, targetBoss)
+                            end
                             pcall(function()
                                 genv.opeskill = true
                                 genv.autoskillsea = true
@@ -1283,9 +1744,60 @@ end)
     -- ========================================================
     -- [NATIVE AUTO FARM LEVEL & SELECT MOB WORKER]
     -- ========================================================
+    local function getActiveQuestMobHint(): string?
+        local hint: string? = nil
+        pcall(function()
+            local pgui = player:FindFirstChild("PlayerGui")
+            local mainGui = pgui and pgui:FindFirstChild("MainGui")
+            local qFrame = mainGui and mainGui:FindFirstChild("QuestFrame")
+            local qBoard = qFrame and qFrame:FindFirstChild("QuestBoard")
+            if qBoard and qBoard:IsA("GuiObject") and qBoard.Visible then
+                -- Tự bấm nút Repeat Yes nếu bảng lặp lại nhiệm vụ xuất hiện
+                local rep = qBoard:FindFirstChild("RepeatFrame")
+                if hubState.autoTakeLevelQuest and rep and rep:IsA("GuiObject") and rep.Visible then
+                    local yesBtn = rep:FindFirstChild("Yes")
+                    if yesBtn and yesBtn:IsA("GuiButton") then
+                        local getConns = (getconnections :: any)
+                        if typeof(getConns) == "function" then
+                            for _, conn in ipairs(getConns(yesBtn.MouseButton1Click)) do
+                                pcall(function() conn:Fire() end)
+                            end
+                        end
+                    end
+                end
+                local tFrame = qBoard:FindFirstChild("TextFrame")
+                local qLbl = (tFrame and (tFrame:FindFirstChild("QuestName") or tFrame:FindFirstChildWhichIsA("TextLabel")))
+                    or qBoard:FindFirstChild("QuestName", true)
+                if qLbl and qLbl:IsA("TextLabel") and qLbl.Text ~= "" then
+                    local txt = string.lower(qLbl.Text)
+                    local parsed = string.match(txt, "defeat%s+%d+%s+([%a%s']+)")
+                        or string.match(txt, "kill%s+%d+%s+([%a%s']+)")
+                        or string.match(txt, "defeat%s+([%a%s']+)")
+                    if parsed then
+                        parsed = string.gsub(parsed, "%s+lv.*$", "")
+                        parsed = string.gsub(parsed, "%s+$", "")
+                        if #parsed >= 3 then hint = parsed end
+                    end
+                end
+            end
+            if not hint then
+                local curQ = player:FindFirstChild("CurrentQuest")
+                if curQ and typeof(curQ.Value) == "string" and curQ.Value ~= "" and curQ.Value ~= "None" then
+                    hint = string.lower(curQ.Value)
+                end
+            end
+        end)
+        return hint
+    end
+
+    local function parseMobLevel(mobName: string): number?
+        local lv = string.match(mobName, "[Ll][Vv]%.?%s*(%d+)")
+        return lv and tonumber(lv) or nil
+    end
+
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.3)
+            task.wait(0.16)
             if (hubState.autoLevel or hubState.autoKillSelectedMob or genv.Autokillmob or genv.Famlevel) and currentMode == "off" then
                 pcall(function()
                     local char = player.Character
@@ -1293,65 +1805,110 @@ end)
                     local hrp = char.HumanoidRootPart
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
+                    if os.clock() < dodgeUntilClock then return end
 
-                    -- 1. Tìm quái mục tiêu (Quét đầy đủ cả thư mục con Monster.Mon)
+                    local ps = player:FindFirstChild("PlayerStats")
+                    local lvlObj = ps and ps:FindFirstChild("lvl")
+                    local myLvl = lvlObj and tonumber(lvlObj.Value) or 1
+
+                    -- 1. Tìm quái mục tiêu thông minh: Ưu tiên Select Mob -> Quest Mob -> Quái đúng cấp -> Gần nhất
                     local targetMob: Model? = nil
+                    local bestScore = -1e9
                     local mobFolders = getAliveMobFolders(false, false, false)
                     local isSelectMode = (hubState.autoKillSelectedMob or genv.Autokillmob) == true
                     local selectedMobName = hubState.selectedMob or genv.chonmod or ""
+                    local rawSelLower = ""
+                    if isSelectMode and selectedMobName ~= "" then
+                        local rawSel = string.match(selectedMobName, "^([%w%s%']+)") or selectedMobName
+                        rawSelLower = string.lower(string.gsub(rawSel, "%s+$", ""))
+                    end
+                    local questHint = (not isSelectMode) and getActiveQuestMobHint() or nil
 
                     for _, fld in ipairs(mobFolders) do
                         for _, m in ipairs(fld:GetChildren()) do
                             if m:IsA("Model") then
                                 local mHum = m:FindFirstChildOfClass("Humanoid")
-                                local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                                local mRoot = getModelRoot(m)
                                 if mHum and mHum.Health > 0 and mRoot then
-                                    if isSelectMode and selectedMobName ~= "" then
-                                        local rawSel = string.match(selectedMobName, "^([%w%s%']+)") or selectedMobName
-                                        rawSel = string.gsub(rawSel, "%s+$", "")
-                                        if string.find(string.lower(m.Name), string.lower(rawSel)) then
-                                            targetMob = m
-                                            break
+                                    local mnLower = string.lower(m.Name)
+                                    local dist = (mRoot.Position - hrp.Position).Magnitude
+                                    if isSelectMode and rawSelLower ~= "" then
+                                        if string.find(mnLower, rawSelLower, 1, true) then
+                                            local score = 100000 - dist
+                                            if score > bestScore then
+                                                bestScore = score
+                                                targetMob = m
+                                            end
                                         end
                                     else
-                                        -- Auto level: chọn quái gần nhất
-                                        local targetRoot = targetMob and (targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart"))
-                                        local targetDist = targetRoot and (targetRoot.Position - hrp.Position).Magnitude or 99999
-                                        if not targetMob or (mRoot.Position - hrp.Position).Magnitude < targetDist then
+                                        local score = -dist * 0.25
+                                        -- Khớp quái của nhiệm vụ đang nhận -> ưu tiên tuyệt đối
+                                        if questHint and (string.find(mnLower, questHint, 1, true) or string.find(questHint, string.gsub(mnLower, "%s*%[.-%]", ""), 1, true)) then
+                                            score += 50000
+                                        else
+                                            local mLv = parseMobLevel(m.Name)
+                                            if mLv then
+                                                if mLv <= myLvl + 25 then
+                                                    -- Ưu tiên quái sát cấp nhân vật nhất
+                                                    score += 10000 - math.abs(myLvl - mLv) * 4
+                                                else
+                                                    -- Tránh quái vượt cấp quá xa
+                                                    score -= (mLv - myLvl) * 8
+                                                end
+                                            end
+                                        end
+                                        -- Ưu tiên giữ mục tiêu đang đánh dở để kết liễu dứt điểm
+                                        if m == currentCombatTarget then
+                                            score += 1200
+                                        end
+                                        if score > bestScore then
+                                            bestScore = score
                                             targetMob = m
                                         end
                                     end
                                 end
                             end
                         end
-                        if targetMob and isSelectMode then break end
                     end
 
                     if targetMob then
-                        local mRoot = targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")
+                        local mRoot = getModelRoot(targetMob)
                         local mHum = targetMob:FindFirstChildOfClass("Humanoid")
                         if mRoot and mHum and mHum.Health > 0 then
-                            local sHeight = hubState.safeDistance and 18 or 10
-                            hrp.Velocity = Vector3.new(0, 0, 0)
-                            hrp.CFrame = CFrame.new(mRoot.Position + Vector3.new(0, sHeight, 0), mRoot.Position)
+                            setCurrentCombatTarget(targetMob)
+                            -- Độ cao bay tối ưu cho quái thường: 10.5 studs (an toàn + M1 Kiếm/Melee/Fruit đánh trúng 100%)
+                            local sHeight = (hubState.safeDistance ~= false) and 10.5 or 7.5
+                            local aimPos = getAimPoint(targetMob, mRoot)
+                            local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
+                            setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 45)
 
-                            -- Gom quái xung quanh nếu bật Fast Mob Bring
+                            -- Gom quái xung quanh (tối đa 6 con cùng loại trong 185 studs) vào 1 điểm để xả AOE
                             if hubState.fastMobBring ~= false or genv.autocat then
+                                local brought = 0
+                                local anchorCf = mRoot.CFrame
                                 for _, fld in ipairs(mobFolders) do
                                     for _, otherMob in ipairs(fld:GetChildren()) do
+                                        if brought >= 6 then break end
                                         if otherMob:IsA("Model") and otherMob.Name == targetMob.Name and otherMob ~= targetMob then
-                                            local oRoot = otherMob:FindFirstChild("HumanoidRootPart") or otherMob.PrimaryPart or otherMob:FindFirstChildWhichIsA("BasePart")
+                                            local oRoot = getModelRoot(otherMob)
                                             local oHum = otherMob:FindFirstChildOfClass("Humanoid")
-                                            if oRoot and oHum and oHum.Health > 0 and (oRoot.Position - mRoot.Position).Magnitude < 160 then
-                                                oRoot.CFrame = mRoot.CFrame
-                                                oRoot.Velocity = Vector3.new(0, 0, 0)
+                                            if oRoot and oHum and oHum.Health > 0 and (oRoot.Position - anchorCf.Position).Magnitude < 185 then
+                                                pcall(function()
+                                                    oRoot.CanCollide = false
+                                                    oRoot.AssemblyLinearVelocity = Vector3.zero
+                                                    oRoot.CFrame = anchorCf
+                                                end)
+                                                brought += 1
                                             end
                                         end
                                     end
+                                    if brought >= 6 then break end
                                 end
                             end
 
-                            castConfiguredSkills(char, hum)
+                            if (hrp.Position - hoverPos).Magnitude <= 30 then
+                                castConfiguredSkills(char, hum, targetMob)
+                            end
                         end
                     end
                 end)
@@ -1364,7 +1921,7 @@ end)
     -- ========================================================
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.5)
+            task.wait(0.22)
             if (hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat or genv.farmMaterialsea3 or genv.farmMaterialsea2 or genv.farmMaterialsea1) and currentMode == "off" then
                 pcall(function()
                     local char = player.Character
@@ -1372,6 +1929,7 @@ end)
                     local hrp = char.HumanoidRootPart
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
+                    if os.clock() < dodgeUntilClock then return end
 
                     -- Xác định nguyên liệu đang chọn
                     local targetMat = hubState.nguyenlieuSea3 or "Coral"
@@ -1398,40 +1956,47 @@ end)
                     }
                     local keywords = MAT_MOB_MAP[rawMat] or { rawMat }
 
-                    -- Tìm quái rơi nguyên liệu (Quét cả Monster.Mon và SeaMonster nếu săn máu Hải Vương)
+                    -- Tìm quái rơi nguyên liệu gần nhất (Quét cả Monster.Mon và SeaMonster nếu săn máu Hải Vương)
                     local targetMob: Model? = nil
+                    local bestDist = 1e9
                     local mobFolders = getAliveMobFolders(true, rawMat == "sea king's blood", false)
                     for _, fld in ipairs(mobFolders) do
                         for _, m in ipairs(fld:GetChildren()) do
                             if m:IsA("Model") then
                                 local mHum = m:FindFirstChildOfClass("Humanoid")
-                                local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                                local mRoot = getModelRoot(m)
                                 if mHum and mHum.Health > 0 and mRoot then
                                     local mn = string.lower(m.Name)
                                     local matched = false
                                     for _, kw in ipairs(keywords) do
-                                        if string.find(mn, kw) or string.find(kw, mn) then
+                                        if string.find(mn, kw, 1, true) or string.find(kw, mn, 1, true) then
                                             matched = true
                                             break
                                         end
                                     end
                                     if matched then
-                                        targetMob = m
-                                        break
+                                        local d = (mRoot.Position - hrp.Position).Magnitude
+                                        if d < bestDist then
+                                            bestDist = d
+                                            targetMob = m
+                                        end
                                     end
                                 end
                             end
                         end
-                        if targetMob then break end
                     end
 
                     if targetMob then
-                        local mRoot = targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")
+                        local mRoot = getModelRoot(targetMob)
                         if mRoot then
-                            local sHeight = hubState.safeDistance and 18 or 10
-                            hrp.Velocity = Vector3.new(0, 0, 0)
-                            hrp.CFrame = CFrame.new(mRoot.Position + Vector3.new(0, sHeight, 0), mRoot.Position)
-                            castConfiguredSkills(char, hum)
+                            setCurrentCombatTarget(targetMob)
+                            local sHeight = (hubState.safeDistance ~= false) and 11 or 8
+                            local aimPos = getAimPoint(targetMob, mRoot)
+                            local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
+                            setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 44)
+                            if (hrp.Position - hoverPos).Magnitude <= 32 then
+                                castConfiguredSkills(char, hum, targetMob)
+                            end
                         end
                     end
                 end)
@@ -1444,7 +2009,7 @@ end)
     -- ========================================================
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.5)
+            task.wait(0.22)
             if (hubState.autoDungeon or genv.autodungeon) and currentMode == "off" then
                 pcall(function()
                     local char = player.Character
@@ -1452,6 +2017,7 @@ end)
                     local hrp = char.HumanoidRootPart
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
+                    if os.clock() < dodgeUntilClock then return end
                     local dMode = hubState.dungeonMode or genv.dungeonmode or "Easy"
 
                     -- Tự hồi máu bằng gậy nếu bật và máu < 85%
@@ -1464,36 +2030,43 @@ end)
                         end
                     end
 
-                    -- Quét quái Dungeon (bao gồm cả Monster.Mon và Monster.Boss)
+                    -- Quét quái Dungeon gần nhất (bao gồm cả Monster.Mon và Monster.Boss)
                     local dungeonFolders = getAliveMobFolders(true, false, true)
                     local targetMob: Model? = nil
+                    local bestDist = 1e9
                     for _, fld in ipairs(dungeonFolders) do
                         for _, m in ipairs(fld:GetChildren()) do
                             if m:IsA("Model") then
                                 local mHum = m:FindFirstChildOfClass("Humanoid")
-                                local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                                local mRoot = getModelRoot(m)
                                 if mHum and mHum.Health > 0 and mRoot then
-                                    targetMob = m
-                                    break
+                                    local d = (mRoot.Position - hrp.Position).Magnitude
+                                    if d < bestDist then
+                                        bestDist = d
+                                        targetMob = m
+                                    end
                                 end
                             end
                         end
-                        if targetMob then break end
                     end
 
                     if targetMob then
-                        local mRoot = targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")
+                        local mRoot = getModelRoot(targetMob)
                         if mRoot then
+                            setCurrentCombatTarget(targetMob)
                             local tactics = hubState.dungeonTactics or "Safe"
-                            local sDist = string.find(tactics, "Fast") and 7 or (string.find(tactics, "Safe") and 22 or 15)
-                            hrp.Velocity = Vector3.new(0, 0, 0)
-                            hrp.CFrame = CFrame.new(mRoot.Position + Vector3.new(0, sDist, 0), mRoot.Position)
+                            local sDist = string.find(tactics, "Fast") and 8 or (string.find(tactics, "Safe") and 18 or 12)
+                            local aimPos = getAimPoint(targetMob, mRoot)
+                            local hoverPos = mRoot.Position + Vector3.new(0, sDist, 0)
+                            setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 48)
                             if hubState.dungeonCameraLock ~= false then
                                 pcall(function()
-                                    workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, mRoot.Position)
+                                    workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, aimPos)
                                 end)
                             end
-                            castConfiguredSkills(char, hum)
+                            if (hrp.Position - hoverPos).Magnitude <= 35 then
+                                castConfiguredSkills(char, hum, targetMob)
+                            end
                         end
                     end
                 end)
@@ -1512,15 +2085,15 @@ end)
                 local char = player.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
 
-                -- 1. Tự Hút / Nhặt Trái Rơi Tự Do
-                if (hubState.bringFruits or genv.BringDroppedFruit) and hrp then
+                -- 1. Tự Hút / Nhặt Trái Rơi Tự Do (Bay lơ lửng tới nhặt, không rơi xuống biển)
+                if (hubState.bringFruits or genv.BringDroppedFruit) and hrp and os.clock() >= dodgeUntilClock then
                     for _, item in ipairs(workspace:GetChildren()) do
                         if item:IsA("Tool") or (item:IsA("Model") and string.find(string.lower(item.Name), "fruit")) then
                             local handle = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart")
                             if handle and (handle.Position - hrp.Position).Magnitude < 4000 then
-                                hrp.Velocity = Vector3.new(0, 0, 0)
-                                hrp.CFrame = handle.CFrame + Vector3.new(0, 2, 0)
-                                task.wait(0.3)
+                                local dest = handle.Position + Vector3.new(0, 2.5, 0)
+                                setFlightTarget(dest, handle.Position, (dest - hrp.Position).Magnitude > 1400, 62)
+                                task.wait(0.35)
                             end
                         end
                     end
@@ -1857,8 +2430,9 @@ end)
             local char = player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
-                safeNotify("Dịch Chuyển Đảo", "Đang dịch chuyển đến " .. chosen .. "...", "near_me")
-                hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 15, 0))
+                safeNotify("Dịch Chuyển Đảo", "Đang bay / dịch chuyển đến " .. chosen .. "...", "near_me")
+                local dest = targetPos + Vector3.new(0, 18, 0)
+                setFlightTarget(dest, nil, (dest - hrp.Position).Magnitude > 1400, 70)
             end
         end)
     end
@@ -1896,33 +2470,106 @@ end)
     end)
 
     -- ========================================================
-    -- [NATIVE COMBAT AIMBOT, DODGE & AUTO TRANSFORM WORKER]
+    -- [NATIVE COMBAT AIMBOT, PREDICTIVE TELEPORT DODGE & AUTO TRANSFORM WORKER]
     -- ========================================================
+    local HAZARD_NAME_KEYWORDS = {
+        "aoe", "beam", "laser", "meteor", "explosion", "explode", "slash", "tsunami",
+        "thunder", "lightning", "tornado", "fireball", "dragon", "kraken", "tentacle",
+        "acid", "poison", "quake", "blast", "wave", "breath", "shockwave", "slam",
+        "warning", "indicator", "hitbox", "danger", "ring", "circle", "vortex", "nova",
+        "flame", "magma", "ice", "spike", "roar", "stomp", "whirlpool", "typhoon",
+    }
+
+    local function isLikelyHazardName(nameLower: string): boolean
+        for _, kw in ipairs(HAZARD_NAME_KEYWORDS) do
+            if string.find(nameLower, kw, 1, true) then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function isMegaSeaBossName(nameLower: string): boolean
+        return string.find(nameLower, "depth", 1, true) ~= nil
+            or string.find(nameLower, "abyssal", 1, true) ~= nil
+            or string.find(nameLower, "tyrant", 1, true) ~= nil
+            or string.find(nameLower, "drakenfyr", 1, true) ~= nil
+            or string.find(nameLower, "dragon", 1, true) ~= nil
+            or string.find(nameLower, "hydra", 1, true) ~= nil
+            or string.find(nameLower, "sea king", 1, true) ~= nil
+            or string.find(nameLower, "seaking", 1, true) ~= nil
+            or string.find(nameLower, "kraken", 1, true) ~= nil
+            or string.find(nameLower, "serpent", 1, true) ~= nil
+            or string.find(nameLower, "ghost", 1, true) ~= nil
+            or string.find(nameLower, "crab", 1, true) ~= nil
+            or string.find(nameLower, "sea beast", 1, true) ~= nil
+    end
+
+    local function isBossWindingUp(bossModel: Model, bossHum: Humanoid): boolean
+        -- 1. Kiểm tra các Attribute trạng thái ra chiêu của King Legacy
+        for _, attrName in ipairs({ "Doing", "TotalDoing", "Attacking", "Skill", "Casting", "Busy", "UsingSkill" }) do
+            local v = bossModel:GetAttribute(attrName)
+            if v == true or (typeof(v) == "number" and v > 0) or (typeof(v) == "string" and v ~= "" and v ~= "None") then
+                return true
+            end
+        end
+        -- 2. Kiểm tra Animation Track đang chạy (bỏ qua idle / walk / run / swim)
+        local animator = bossHum:FindFirstChildOfClass("Animator")
+        if animator then
+            local okTracks, tracks = pcall(function()
+                return animator:GetPlayingAnimationTracks()
+            end)
+            if okTracks and typeof(tracks) == "table" then
+                for _, tr in ipairs(tracks) do
+                    local tn = string.lower(tostring(tr.Name or ""))
+                    local prio = tr.Priority
+                    local isIdleMove = string.find(tn, "idle", 1, true) ~= nil
+                        or string.find(tn, "walk", 1, true) ~= nil
+                        or string.find(tn, "run", 1, true) ~= nil
+                        or string.find(tn, "swim", 1, true) ~= nil
+                        or string.find(tn, "fall", 1, true) ~= nil
+                    if not isIdleMove and (prio == Enum.AnimationPriority.Action or prio == Enum.AnimationPriority.Action2 or prio == Enum.AnimationPriority.Action3 or prio == Enum.AnimationPriority.Action4 or tr.Speed > 0.1) then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
     task.spawn(function()
         local lastTransformTick = 0
         local lastDodgeTick = 0
+        local lastHpSample = -1
+        local lastHpClock = 0
         local vim = game:GetService("VirtualInputManager")
 
         while genv._YokaHubToken == myToken do
-            task.wait(0.1)
+            task.wait(0.08)
             pcall(function()
                 local char = player.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if not (hrp and hum and hum.Health > 0) then return end
+                if not (hrp and hum and hum.Health > 0) then
+                    lastHpSample = -1
+                    return
+                end
+
+                local now = os.clock()
+                local myPos = hrp.Position
 
                 -- 1. Auto Transform
-                if (hubState.autoTransform ~= false or genv.bienhinh) and (os.clock() - lastTransformTick) > 12.0 then
+                if (hubState.autoTransform ~= false or genv.bienhinh) and (now - lastTransformTick) > 12.0 then
                     local isFighting = (currentMode ~= "off") or (hubState.autoLevel) or (hubState.autoKillSelectedMob) or (hubState.autoFightMaster) or (hubState.autoFightIslandBoss) or (hubState.autoDungeon)
-                    if isFighting then
-                        lastTransformTick = os.clock()
+                    if isFighting and now >= dodgeUntilClock and not isHoldingSkill then
+                        lastTransformTick = now
                         pcall(function()
                             vim:SendKeyEvent(true, Enum.KeyCode.V, false, game)
                             task.wait(0.05)
                             vim:SendKeyEvent(false, Enum.KeyCode.V, false, game)
                         end)
                         pcall(function()
-                            local chest = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
+                            local chest = sharedRS:FindFirstChild("Chest")
                             local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
                             if remFuncs and remFuncs:FindFirstChild("SkillAction") then
                                 remFuncs.SkillAction:InvokeServer("Transform")
@@ -1931,60 +2578,197 @@ end)
                     end
                 end
 
-                -- 2. Skill Direction Aimbot
-                if hubState.skillAimbot ~= false and genv.PlayerAimbotEnabled then
-                    local aimRange = tonumber(genv.PlayerAimRange) or 350
-                    local myPos = hrp.Position
-                    local closestTarget: Instance? = nil
-                    local closestDist = aimRange
+                -- 2. Skill Direction Aimbot (Bổ sung đồng bộ trạng thái & hướng mục tiêu Boss/Quái/Sea Event)
+                if hubState.skillAimbot ~= false and genv.PlayerAimbotEnabled ~= false then
+                    local aimRange = tonumber(genv.PlayerAimRange) or 450
+                    local tModel, tRoot = getBestCombatTarget(aimRange)
+                    if tModel and tRoot then
+                        local aimPos = getAimPoint(tModel, tRoot)
+                        _G.MouseHit = CFrame.new(aimPos)
+                    end
+                end
 
-                    local folders = getAliveMobFolders(true, true, true)
-                    for _, fld in ipairs(folders) do
-                        for _, m in ipairs(fld:GetChildren()) do
-                            if m:IsA("Model") and m:FindFirstChild("HumanoidRootPart") and m:FindFirstChildOfClass("Humanoid") then
-                                local mHum = m:FindFirstChildOfClass("Humanoid")
-                                if mHum and mHum.Health > 0 then
-                                    local mHrp = m.HumanoidRootPart
-                                    local dist = (mHrp.Position - myPos).Magnitude
-                                    if dist < closestDist then
-                                        closestDist = dist
-                                        closestTarget = mHrp
+                -- 3. Predictive Boss AOE Teleport Dodge (Né bằng Teleport + Hover Lock, dự đoán tầm chiêu Boss, KHÔNG dùng Q Dash)
+                local maxHp = math.max(1, hum.MaxHealth)
+                local curHp = hum.Health
+                local suddenDrop = false
+                if lastHpSample > 0 and (now - lastHpClock) <= 0.45 then
+                    if (lastHpSample - curHp) >= (maxHp * 0.10) then
+                        suddenDrop = true
+                    end
+                end
+                if (now - lastHpClock) >= 0.35 or lastHpSample < 0 then
+                    lastHpSample = curHp
+                    lastHpClock = now
+                end
+
+                if hubState.autoDodge ~= false and genv.autoDodgeEnabled ~= false and (now - lastDodgeTick) >= 0.85 then
+                    local safeRange = math.clamp(tonumber(hubState.dodgeSafeDistance or genv.DodgeSafeDistance) or 95, 40, 180)
+                    local activeHazards: { { pos: Vector3, radius: number } } = {}
+                    local triggerThreatPos: Vector3? = nil
+                    local triggerThreatLook: Vector3? = nil
+                    local triggerDangerRadius = 0
+                    local triggerHoldSec = 1.15
+
+                    -- Lớp 1: Quét vùng chiêu / hiệu ứng AOE thực tế trong workspace.Effects
+                    local fxFolder = workspace:FindFirstChild("Effects")
+                    if fxFolder then
+                        for _, fx in ipairs(fxFolder:GetChildren()) do
+                            local fxPos: Vector3? = nil
+                            local fxRadius = 0
+                            if fx:IsA("BasePart") then
+                                fxPos = fx.Position
+                                fxRadius = math.max(fx.Size.X, fx.Size.Y, fx.Size.Z) * 0.5
+                            elseif fx:IsA("Model") then
+                                local okBb, cf, sz = pcall(function() return fx:GetBoundingBox() end)
+                                if okBb and cf and sz then
+                                    fxPos = cf.Position
+                                    fxRadius = math.max(sz.X, sz.Y, sz.Z) * 0.5
+                                end
+                            end
+                            if fxPos then
+                                local distToFx = (fxPos - myPos).Magnitude
+                                if distToFx <= 240 then
+                                    local nameLow = string.lower(fx.Name)
+                                    local isDangerFx = (fxRadius >= 11) or (fxRadius >= 5 and isLikelyHazardName(nameLow))
+                                    if isDangerFx then
+                                        local dangerRad = math.clamp(fxRadius + 26, 42, safeRange + 35)
+                                        table.insert(activeHazards, { pos = fxPos, radius = dangerRad })
+                                        if distToFx <= dangerRad and dangerRad > triggerDangerRadius then
+                                            triggerThreatPos = fxPos
+                                            triggerDangerRadius = dangerRad
+                                            triggerHoldSec = 1.2
+                                        end
                                     end
                                 end
                             end
                         end
                     end
 
-                    if closestTarget and closestTarget:IsA("BasePart") then
-                        local tPos = closestTarget.Position
-                        hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(tPos.X, hrp.Position.Y, tPos.Z))
+                    -- Lớp 2: Dự đoán tầm chiêu của Boss / Sea Event khi Boss gồng chiêu hoặc nhắm thẳng vào người chơi
+                    local bossFolders: { Instance } = {}
+                    for _, fn in ipairs({ "SeaMonster", "GhostMonster" }) do
+                        local f = workspace:FindFirstChild(fn)
+                        if f then table.insert(bossFolders, f) end
                     end
-                end
+                    local monF = workspace:FindFirstChild("Monster")
+                    if monF and monF:FindFirstChild("Boss") then
+                        table.insert(bossFolders, monF.Boss)
+                    end
 
-                -- 3. Auto Dodge
-                if hubState.autoDodge ~= false and genv.autoDodgeEnabled and (os.clock() - lastDodgeTick) > 2.0 then
-                    local isLowHp = (hum.Health / math.max(1, hum.MaxHealth)) < 0.45
-                    local mobClose = false
-                    local folders = getAliveMobFolders(true, true, true)
-                    for _, fld in ipairs(folders) do
-                        for _, m in ipairs(fld:GetChildren()) do
-                            if m:IsA("Model") and m:FindFirstChild("HumanoidRootPart") then
-                                if (m.HumanoidRootPart.Position - hrp.Position).Magnitude < 22 then
-                                    mobClose = true
-                                    break
+                    local nearestBossPos: Vector3? = nil
+                    local nearestBossLook: Vector3? = nil
+                    local nearestBossDist = 1e9
+
+                    for _, bf in ipairs(bossFolders) do
+                        for _, boss in ipairs(bf:GetChildren()) do
+                            if boss:IsA("Model") then
+                                local bHum = boss:FindFirstChildOfClass("Humanoid")
+                                local bRoot = getModelRoot(boss)
+                                if bHum and bHum.Health > 0 and bRoot then
+                                    local toMe = myPos - bRoot.Position
+                                    local dist = toMe.Magnitude
+                                    if dist < nearestBossDist then
+                                        nearestBossDist = dist
+                                        nearestBossPos = bRoot.Position
+                                        nearestBossLook = bRoot.CFrame.LookVector
+                                    end
+                                    if dist <= (safeRange + 65) then
+                                        local isMega = (bf.Name == "SeaMonster" or bf.Name == "GhostMonster") or isMegaSeaBossName(string.lower(boss.Name))
+                                        local predRadius = isMega and safeRange or math.max(54, safeRange * 0.72)
+                                        local inFrontCone = false
+                                        if dist > 2 then
+                                            local flatToMe = Vector3.new(toMe.X, 0, toMe.Z)
+                                            local flatLook = Vector3.new(bRoot.CFrame.LookVector.X, 0, bRoot.CFrame.LookVector.Z)
+                                            if flatToMe.Magnitude > 0.5 and flatLook.Magnitude > 0.5 then
+                                                inFrontCone = flatLook.Unit:Dot(flatToMe.Unit) > 0.68 and dist <= (predRadius * 1.4)
+                                            end
+                                        end
+                                        local windingUp = isBossWindingUp(boss, bHum)
+                                        if (windingUp and (dist <= predRadius or inFrontCone)) or (isMega and dist <= math.min(48, predRadius * 0.55)) then
+                                            local neededRad = inFrontCone and (predRadius * 1.35) or predRadius
+                                            if neededRad > triggerDangerRadius then
+                                                triggerThreatPos = bRoot.Position
+                                                triggerThreatLook = bRoot.CFrame.LookVector
+                                                triggerDangerRadius = neededRad
+                                                triggerHoldSec = isMega and 1.45 or 1.15
+                                            end
+                                        end
+                                    end
                                 end
                             end
                         end
-                        if mobClose then break end
                     end
 
-                    if isLowHp or mobClose then
-                        lastDodgeTick = os.clock()
-                        pcall(function()
-                            vim:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
-                            task.wait(0.04)
-                            vim:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
-                        end)
+                    -- Lớp 3: Phản xạ khẩn cấp khi tụt máu đột ngột (>10% trong 0.45s) hoặc HP < 35% gần Boss/Quái
+                    local isLowHp = (curHp / maxHp) < 0.35
+                    if not triggerThreatPos and (suddenDrop or (isLowHp and nearestBossDist <= 75)) then
+                        if nearestBossPos and nearestBossDist <= 180 then
+                            triggerThreatPos = nearestBossPos
+                            triggerThreatLook = nearestBossLook
+                            triggerDangerRadius = safeRange
+                            triggerHoldSec = 1.55
+                        else
+                            local tM, tR = getBestCombatTarget(85)
+                            if tM and tR then
+                                triggerThreatPos = tR.Position
+                                triggerDangerRadius = math.max(60, safeRange * 0.75)
+                                triggerHoldSec = 1.25
+                            end
+                        end
+                    end
+
+                    -- Thực thi Teleport né ra ngoài tầm chiêu dự đoán + Hover Lock trên không
+                    if triggerThreatPos then
+                        lastDodgeTick = now
+                        isHoldingSkill = false
+                        dodgeUntilClock = now + triggerHoldSec
+
+                        local escapeDist = math.max(triggerDangerRadius + 28, safeRange + 16)
+                        local baseDir: Vector3
+                        if triggerThreatLook then
+                            -- Ưu tiên nhảy lệch vuông góc / ra sau lưng Boss để tránh tia Beam thẳng mặt
+                            local back = Vector3.new(-triggerThreatLook.X, 0, -triggerThreatLook.Z)
+                            local side = Vector3.new(-triggerThreatLook.Z, 0, triggerThreatLook.X)
+                            local mixed = back * 0.7 + side * 0.7
+                            baseDir = mixed.Magnitude > 0.1 and mixed.Unit or Vector3.new(1, 0, 0)
+                        else
+                            local away = Vector3.new(myPos.X - triggerThreatPos.X, 0, myPos.Z - triggerThreatPos.Z)
+                            baseDir = away.Magnitude > 0.5 and away.Unit or Vector3.new(1, 0, 0)
+                        end
+
+                        local safeY = math.max(triggerThreatPos.Y + 42, myPos.Y + 22, 58)
+                        local chosenEscape = Vector3.new(
+                            triggerThreatPos.X + baseDir.X * escapeDist,
+                            safeY,
+                            triggerThreatPos.Z + baseDir.Z * escapeDist
+                        )
+
+                        -- Kiểm tra 5 góc thoát (0°, +60°, -60°, +120°, -120°) để không tele trúng vùng AOE khác
+                        local candidateAngles = { 0, 60, -60, 120, -120 }
+                        for _, deg in ipairs(candidateAngles) do
+                            local rad = math.rad(deg)
+                            local c, s = math.cos(rad), math.sin(rad)
+                            local dir = Vector3.new(baseDir.X * c - baseDir.Z * s, 0, baseDir.X * s + baseDir.Z * c)
+                            local candPos = Vector3.new(
+                                triggerThreatPos.X + dir.X * escapeDist,
+                                safeY,
+                                triggerThreatPos.Z + dir.Z * escapeDist
+                            )
+                            local insideOtherHazard = false
+                            for _, hz in ipairs(activeHazards) do
+                                if (candPos - hz.pos).Magnitude < (hz.radius + 14) then
+                                    insideOtherHazard = true
+                                    break
+                                end
+                            end
+                            if not insideOtherHazard then
+                                chosenEscape = candPos
+                                break
+                            end
+                        end
+
+                        setFlightTarget(chosenEscape, triggerThreatPos, true, 100)
                     end
                 end
             end)

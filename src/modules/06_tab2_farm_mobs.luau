@@ -40,8 +40,8 @@
         }, "AutoLevelToggle")
 
         LevelSection:CreateToggle({
-            Name = "🕊️ Giữ Khoảng Cách An Toàn Trên Không",
-            Description = "Giữ vị trí lơ lửng trên đầu quái vật để không bị đánh trúng",
+            Name = "🕊️ Bay Lơ Lửng An Toàn Trên Không (Hover Lock + NoClip)",
+            Description = "Bay mượt & giữ lơ lửng cố định trên đầu quái/boss không bị rơi xuống đất",
             CurrentValue = hubState.safeDistance,
             Callback = function(Value: boolean)
                 hubState.safeDistance = Value
@@ -49,10 +49,25 @@
                 pcall(function()
                     genv.nequaikill = Value
                     genv.tamxanekillquai = 250
-                    genv.docaokillquai = 18
+                    genv.docaokillquai = 12
                 end)
             end,
         }, "SafeDistanceToggle")
+
+        LevelSection:CreateSlider({
+            Name = "🚀 Tốc Độ Bay Khi Farm & Đánh Boss (Fly Speed)",
+            Range = { 200, 650 },
+            Increment = 10,
+            Suffix = " studs/s",
+            CurrentValue = hubState.flySpeed or 420,
+            Callback = function(Value: number)
+                hubState.flySpeed = math.clamp(math.floor(Value), 200, 650)
+                saveState(hubState)
+                pcall(function()
+                    genv.YokaFlySpeed = hubState.flySpeed
+                end)
+            end,
+        }, "FlySpeedSlider")
 
         LevelSection:CreateToggle({
             Name = "📜 Tự Nhận Nhiệm Vụ Theo Cấp (Auto Level Quest)",

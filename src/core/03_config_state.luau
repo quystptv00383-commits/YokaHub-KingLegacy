@@ -268,6 +268,9 @@
         autoM1Fruit: boolean?,
         autoM1Sword: boolean?,
         autoM1Melee: boolean?,
+        smartSkillHold: boolean?,
+        dodgeSafeDistance: number?,
+        flySpeed: number?,
         skillFruit: boolean?,
         skillFruitKeys: string?,
         skillSword: boolean?,
@@ -364,6 +367,9 @@
             autoM1Fruit = false,
             autoM1Sword = true,
             autoM1Melee = false,
+            smartSkillHold = true,
+            dodgeSafeDistance = 95,
+            flySpeed = 420,
             skillFruit = true,
             skillFruitKeys = "Z + X",
             skillSword = true,
@@ -463,6 +469,9 @@
             if typeof(d.autoM1Fruit) == "boolean" then st.autoM1Fruit = d.autoM1Fruit end
             if typeof(d.autoM1Sword) == "boolean" then st.autoM1Sword = d.autoM1Sword end
             if typeof(d.autoM1Melee) == "boolean" then st.autoM1Melee = d.autoM1Melee end
+            if typeof(d.smartSkillHold) == "boolean" then st.smartSkillHold = d.smartSkillHold end
+            if typeof(d.dodgeSafeDistance) == "number" then st.dodgeSafeDistance = math.clamp(math.floor(d.dodgeSafeDistance), 40, 180) end
+            if typeof(d.flySpeed) == "number" then st.flySpeed = math.clamp(math.floor(d.flySpeed), 200, 650) end
             if typeof(d.skillFruit) == "boolean" then st.skillFruit = d.skillFruit end
             if typeof(d.skillFruitKeys) == "string" then st.skillFruitKeys = d.skillFruitKeys end
             if typeof(d.skillSword) == "boolean" then st.skillSword = d.skillSword end

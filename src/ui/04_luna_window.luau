@@ -41,10 +41,13 @@
         if hubState.webhookUrl and #hubState.webhookUrl > 10 then genv.Webhook_URL2 = hubState.webhookUrl end
         if hubState.whFruit then genv.whshowfruit = true end
         if hubState.whDrop then genv.whitemdrop = true end
-        -- Sync Auto M1
+        -- Sync Auto M1 & Smart Combat
         genv.AutoM1Fruit = (hubState.autoM1Fruit == true)
         genv.AutoM1Sword = (hubState.autoM1Sword ~= false)
         genv.AutoM1Melee = (hubState.autoM1Melee == true)
+        genv.SmartSkillHold = (hubState.smartSkillHold ~= false)
+        genv.DodgeSafeDistance = hubState.dodgeSafeDistance or 95
+        genv.YokaFlySpeed = hubState.flySpeed or 420
         -- Sync Auto Skills & Keys
         if hubState.skillFruit then
             if hubState.skillFruitKeys == "Z + X" then genv.CombatSkillFruit = {"Z", "X"}
