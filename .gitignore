@@ -7,6 +7,7 @@ __pycache__/
 
 # Private keys, tokens & secrets (Tuyệt đối không đẩy lên GitHub)
 private_token.txt
+audit_live.log
 private_keys.json
 private_salt.txt
 sepay_token.txt
