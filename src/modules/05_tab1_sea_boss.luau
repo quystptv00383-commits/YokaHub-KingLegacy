@@ -50,10 +50,10 @@
         local isAbyssalMatch = (src == "abyssal" or src == "tyrant" or string.find(src, "abyssal", 1, true) ~= nil or string.find(src, "tyrant", 1, true) ~= nil)
             or string.find(nm, "abyssal", 1, true) ~= nil
             or string.find(nm, "tyrant", 1, true) ~= nil
-        local notAbyssalOther = string.find(nm, "depth", 1, true) == nil
-            and string.find(nm, "swordsman", 1, true) == nil
+        local notAbyssalOther = string.find(nm, "swordsman", 1, true) == nil
             and string.find(nm, "dragon", 1, true) == nil
-            and string.find(src, "depth", 1, true) == nil
+            and string.find(nm, "drakenfyr", 1, true) == nil
+            and (string.find(nm, "king", 1, true) == nil or string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil)
         if isAbyssalMatch and notAbyssalOther then
             if hubState.fightSea3Abyssal == false then return 0 end
             return 6
@@ -531,7 +531,7 @@
     bossToggles.Sea3DepthKing = Sea3FightSection:CreateToggle({
         Name = "👑 Auto Hop & Săn Depth King (Sea 3)",
         Description = "Tự động tìm phòng có Vua Vực Thẳm Depth King qua API, bay tới diệt và mở rương (Top 1)",
-        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3DepthKing == true),
+        CurrentValue = (hubState.fightSea3DepthKing == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
             hubState.fightSea3DepthKing = Value
@@ -543,7 +543,7 @@
     bossToggles.Sea3Dragon = Sea3FightSection:CreateToggle({
         Name = "🐲 Auto Hop & Săn Drakenfyr / Dragon (Sea 3)",
         Description = "Tự động tìm phòng có Rồng Lửa Drakenfyr / Sea Dragon qua API và tiêu diệt (Top 2)",
-        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3Dragon == true),
+        CurrentValue = (hubState.fightSea3Dragon == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
             hubState.fightSea3Dragon = Value
@@ -555,7 +555,7 @@
     bossToggles.Sea3Abyssal = Sea3FightSection:CreateToggle({
         Name = "👑 Auto Hop & Săn Abyssal Tyrant (Sea 3)",
         Description = "Tự động tìm phòng có Bạo Chúa Abyssal Tyrant qua API và tiêu diệt (Top 3)",
-        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3Abyssal == true),
+        CurrentValue = (hubState.fightSea3Abyssal == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
             hubState.fightSea3Abyssal = Value
@@ -567,7 +567,7 @@
     bossToggles.Sea3Kraken = Sea3FightSection:CreateToggle({
         Name = "🐙 Auto Hop & Săn Kraken & Xúc Tu (Sea 3)",
         Description = "Tự động tìm phòng có Kraken qua API, chặt xúc tu và diệt thân quái (Top 4)",
-        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3Kraken == true),
+        CurrentValue = (hubState.fightSea3Kraken == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
             hubState.fightSea3Kraken = Value
@@ -579,7 +579,7 @@
     bossToggles.Sea3Crab = Sea3FightSection:CreateToggle({
         Name = "🦀 Auto Hop & Săn Cua Biển Khổng Lồ (Sea 3)",
         Description = "Tự động tìm phòng có Cua Biển khổng lồ Sea 3 qua API và tiêu diệt (Top 5)",
-        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3Crab == true),
+        CurrentValue = (hubState.fightSea3Crab == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
             hubState.fightSea3Crab = Value
@@ -591,7 +591,7 @@
     bossToggles.Sea3Events = Sea3FightSection:CreateToggle({
         Name = "🌊 Auto Hop & Săn Sea Event Thường (Sea 3)",
         Description = "Tự động tìm phòng có sự kiện biển vừa và nhỏ (Galleon, Sea Beast...)",
-        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3Events == true),
+        CurrentValue = (hubState.fightSea3Events == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
             hubState.fightSea3Events = Value
@@ -607,7 +607,7 @@
     bossToggles.Sea2Hydra = Sea2FightSection:CreateToggle({
         Name = "🐍 Auto Hop & Săn Hydra & Rương Hydra (Sea 2)",
         Description = "Tự động tìm phòng có Rắn 3 đầu Hydra / Rương Hydra qua API và mở rương (Top 1)",
-        CurrentValue = (hubState.mode == "sea2" and hubState.fightSea2Hydra == true),
+        CurrentValue = (hubState.fightSea2Hydra == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
             hubState.fightSea2Hydra = Value
@@ -619,7 +619,7 @@
     bossToggles.Sea2SeaKing = Sea2FightSection:CreateToggle({
         Name = "🐋 Auto Hop & Săn Sea King & Rương Vua Biển (Sea 2)",
         Description = "Tự động tìm phòng có Vua Biển Sea King / Rương Vua Biển qua API và mở rương (Top 2)",
-        CurrentValue = (hubState.mode == "sea2" and hubState.fightSea2SeaKing == true),
+        CurrentValue = (hubState.fightSea2SeaKing == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
             hubState.fightSea2SeaKing = Value
@@ -631,7 +631,7 @@
     bossToggles.Sea2GhostShip = Sea2FightSection:CreateToggle({
         Name = "👻 Auto Hop & Săn Thuyền Ma & Rương Thuyền Ma (Sea 2)",
         Description = "Tự động tìm phòng có Tàu Ma Ghost Ship qua API, bắn phá và nhặt rương rơi",
-        CurrentValue = (hubState.mode == "sea2" and hubState.fightSea2GhostShip == true),
+        CurrentValue = (hubState.fightSea2GhostShip == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
             hubState.fightSea2GhostShip = Value
@@ -643,7 +643,7 @@
     bossToggles.Sea2Serpent = Sea2FightSection:CreateToggle({
         Name = "🐍 Auto Hop & Săn Rắn Biển / Sea Serpent (Sea 2 & 3)",
         Description = "Tự động tìm phòng có Rắn Biển Serpent qua API và tiêu diệt",
-        CurrentValue = ((hubState.mode == "sea2" or hubState.mode == "sea3") and hubState.fightSea2Serpent == true),
+        CurrentValue = (hubState.fightSea2Serpent == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
             hubState.fightSea2Serpent = Value
@@ -816,10 +816,10 @@
             local isAbyssalMatch = (src == "abyssal" or src == "tyrant" or string.find(src, "abyssal", 1, true) ~= nil or string.find(src, "tyrant", 1, true) ~= nil)
                 or string.find(nm, "abyssal", 1, true) ~= nil
                 or string.find(nm, "tyrant", 1, true) ~= nil
-            local notAbyssalOther = string.find(nm, "depth", 1, true) == nil
-                and string.find(nm, "swordsman", 1, true) == nil
+            local notAbyssalOther = string.find(nm, "swordsman", 1, true) == nil
                 and string.find(nm, "dragon", 1, true) == nil
-                and string.find(src, "depth", 1, true) == nil
+                and string.find(nm, "drakenfyr", 1, true) == nil
+                and (string.find(nm, "king", 1, true) == nil or string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil)
             return pid == SEA3_PLACE and isAbyssalMatch and notAbyssalOther
         elseif target == "Depth King (Sea 3)" then
             return pid == SEA3_PLACE and (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil and string.find(nm, "tyrant", 1, true) == nil

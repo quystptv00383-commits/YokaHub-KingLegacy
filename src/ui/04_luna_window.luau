@@ -724,13 +724,16 @@
             local lg = getLunaGui()
             if lg then
                 for _, desc in ipairs(lg:GetDescendants()) do
-                    if desc.Name == "Tabs" and desc:IsA("ScrollingFrame") then
-                        desc.Size = UDim2.new(1, -2, 1, -12)
-                        desc.ClipsDescendants = true
+                    if desc:IsA("ScrollingFrame") then
                         desc.AutomaticCanvasSize = Enum.AutomaticSize.Y
                         desc.ScrollingDirection = Enum.ScrollingDirection.Y
-                        desc.ScrollBarThickness = 3
+                        desc.ScrollBarThickness = (desc.Name == "Tabs" and 3 or 4)
                         desc.CanvasSize = UDim2.new(0, 0, 0, 0)
+                        desc.ElasticBehavior = Enum.ElasticBehavior.Always
+                        if desc.Name == "Tabs" then
+                            desc.Size = UDim2.new(1, -2, 1, -12)
+                            desc.ClipsDescendants = true
+                        end
                     end
                 end
             end
@@ -1059,6 +1062,11 @@
                 ddBg.BackgroundTransparency = 0.04
             end
             if ddList and ddList:IsA("ScrollingFrame") then
+                ddList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                ddList.ScrollingDirection = Enum.ScrollingDirection.Y
+                ddList.ScrollBarThickness = 3
+                ddList.CanvasSize = UDim2.new(0, 0, 0, 0)
+                ddList.ElasticBehavior = Enum.ElasticBehavior.Always
                 for _, opt in ipairs(ddList:GetChildren()) do
                     if opt:IsA("TextLabel") and opt.Name ~= "Template" then
                         opt.Font = Enum.Font.GothamMedium
@@ -1301,8 +1309,24 @@
                 end
 
                 if inter then
+                    local function setupTabScrolling(page: ScrollingFrame)
+                        page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                        page.ScrollingDirection = Enum.ScrollingDirection.Y
+                        page.ScrollBarThickness = 4
+                        page.CanvasSize = UDim2.new(0, 0, 0, 0)
+                        page.ElasticBehavior = Enum.ElasticBehavior.Always
+                    end
+                    if not inter:GetAttribute("YokaInterHooked") then
+                        inter:SetAttribute("YokaInterHooked", true)
+                        trackConn(inter.ChildAdded:Connect(function(child)
+                            if child:IsA("ScrollingFrame") then
+                                setupTabScrolling(child)
+                            end
+                        end))
+                    end
                     for _, page in ipairs(inter:GetChildren()) do
                         if page:IsA("ScrollingFrame") then
+                            setupTabScrolling(page)
                             local pPad = page:FindFirstChildOfClass("UIPadding")
                             if pPad then
                                 pPad.PaddingTop = UDim.new(0, 14)
@@ -1565,7 +1589,7 @@
     end
 
     local function getResponsiveScaleFactor(vp: Vector2): number
-        return math.clamp(math.min(vp.X / 1050, vp.Y / 680), 0.72, 1.0)
+        return math.clamp(math.min(vp.X / 960, vp.Y / 600), 0.55, 1.25)
     end
 
     local function syncResponsiveScale(smartWin: GuiObject, shadow: GuiObject?, scaleFactor: number)
@@ -1595,9 +1619,9 @@
         local effVpY = math.floor((vp.Y - 16) / scaleFactor)
 
         -- Nguong an toan dong phu hop moi man hinh (Mobile / Tablet / PC nho / 4K)
-        local minW = math.clamp(math.floor(effVpX * 0.45), 480, 560)
+        local minW = math.clamp(math.floor(effVpX * 0.38), 380, 520)
         local maxW = math.max(minW, effVpX)
-        local minH = math.clamp(math.floor(effVpY * 0.45), 320, 360)
+        local minH = math.clamp(math.floor(effVpY * 0.38), 260, 340)
         local maxH = math.max(minH, effVpY)
 
         local finalW = math.clamp(math.floor(w + 0.5), minW, maxW)
@@ -1637,8 +1661,8 @@
         local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
         local scaleFactor = getResponsiveScaleFactor(vp)
         syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
-        local effMaxW = math.max(480, math.floor((vp.X - 16) / scaleFactor))
-        local effMaxH = math.max(320, math.floor((vp.Y - 16) / scaleFactor))
+        local effMaxW = math.max(380, math.floor((vp.X - 16) / scaleFactor))
+        local effMaxH = math.max(260, math.floor((vp.Y - 16) / scaleFactor))
 
         if not isFullscreen then
             isFullscreen = true

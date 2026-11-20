@@ -553,6 +553,15 @@
     end
 
     getActiveM1Categories = function(): { string }
+        local mode = hubState.toolMode or "Auto Mode"
+        if mode == "Sword" then
+            return { "sword" }
+        elseif mode == "Melee" then
+            return { "melee" }
+        elseif mode == "Fruit" then
+            return { "fruit" }
+        end
+
         local hasSword = (hubState.autoM1Sword == true) or (genv.AutoM1Sword == true)
         local hasMelee = (hubState.autoM1Melee == true) or (genv.AutoM1Melee == true)
         local hasFruit = (hubState.autoM1Fruit == true) or (genv.AutoM1Fruit == true)
@@ -565,17 +574,6 @@
             end
         end
 
-        local mode = hubState.toolMode or "Auto Mode"
-        if mode == "Sword" then
-            return (hasSword or not (hasMelee or hasFruit)) and { "sword" } or {}
-        elseif mode == "Melee" then
-            return (hasMelee or not (hasSword or hasFruit)) and { "melee" } or {}
-        elseif mode == "Fruit" then
-            return (hasFruit or not (hasSword or hasMelee)) and { "fruit" } or {}
-        end
-
-        -- Auto Mode: CHỈ dùng đúng các vũ khí đã được người dùng tích chọn
-        -- Nếu không tích chọn vũ khí nào -> trả về danh sách rỗng {} (tuyệt đối không tự lấy từ kho/bộ nhớ!)
         local cats = {}
         if hasSword then table.insert(cats, "sword") end
         if hasMelee then table.insert(cats, "melee") end
@@ -1076,15 +1074,20 @@
             if #kList == 0 then kList = defKeys end
             table.insert(catPlan, { cat = cat, keys = kList, prio = (cat == primaryCat and 2 or 1) })
         end
-        if hubState.skillFruit then
+
+        local allowFruit = (mode == "Fruit" or (mode == "Auto Mode" and hubState.skillFruit ~= false))
+        local allowSword = (mode == "Sword" or (mode == "Auto Mode" and hubState.skillSword ~= false))
+        local allowMelee = (mode == "Melee" or (mode == "Auto Mode" and hubState.skillMelee ~= false))
+
+        if allowFruit then
             local fOpt = (typeof(hubState.fruitSkillsList) == "table" and #hubState.fruitSkillsList > 0) and hubState.fruitSkillsList or hubState.skillFruitKeys
             addPlan("fruit", fOpt, genv.CombatSkillFruit, { "Z", "X", "C", "E" })
         end
-        if hubState.skillSword then
+        if allowSword then
             local sOpt = (typeof(hubState.swordSkillsList) == "table" and #hubState.swordSkillsList > 0) and hubState.swordSkillsList or hubState.skillSwordKeys
             addPlan("sword", sOpt, genv.CombatSkillSword, { "Z", "X" })
         end
-        if hubState.skillMelee then
+        if allowMelee then
             local mOpt = (typeof(hubState.meleeSkillsList) == "table" and #hubState.meleeSkillsList > 0) and hubState.meleeSkillsList or hubState.skillMeleeKeys
             addPlan("melee", mOpt, genv.CombatSkillMelee, { "Z", "X", "C", "V" })
         end
@@ -1118,11 +1121,19 @@
                                     if not (tModel and tRoot) then
                                         tModel, tRoot = getBestCombatTarget(450)
                                     end
+                                    local aimPos: Vector3? = nil
                                     if tModel and tRoot then
-                                        _G.MouseHit = CFrame.new(getAimPoint(tModel, tRoot))
+                                        aimPos = getAimPoint(tModel, tRoot)
+                                        _G.MouseHit = CFrame.new(aimPos)
+                                        local myHrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+                                        if myHrp and aimPos then
+                                            pcall(function()
+                                                myHrp.CFrame = CFrame.lookAt(myHrp.Position, Vector3.new(aimPos.X, myHrp.Position.Y, aimPos.Z))
+                                            end)
+                                        end
                                     end
 
-                                    local holdDur = getOptimalSkillHoldTime(tool, plan.cat, k)
+                                    local holdDur = (hubState.smartSkillHold ~= false) and getOptimalSkillHoldTime(tool, plan.cat, k) or 0.08
                                     lastPlayerSkillCastClock = os.clock()
                                     pcall(function()
                                         sharedVim:SendKeyEvent(true, keyEnum, false, game)
@@ -1133,7 +1144,14 @@
                                                 if hum.Health <= 0 then break end
                                                 if targetModel and not isModelAlive(targetModel) then break end
                                                 if tModel and tRoot and tRoot.Parent then
-                                                    _G.MouseHit = CFrame.new(getAimPoint(tModel, tRoot))
+                                                    local liveAim = getAimPoint(tModel, tRoot)
+                                                    _G.MouseHit = CFrame.new(liveAim)
+                                                    local myHrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+                                                    if myHrp and liveAim then
+                                                        pcall(function()
+                                                            myHrp.CFrame = CFrame.lookAt(myHrp.Position, Vector3.new(liveAim.X, myHrp.Position.Y, liveAim.Z))
+                                                        end)
+                                                    end
                                                 end
                                                 local slice = math.min(0.04, holdDur - held)
                                                 task.wait(slice)
@@ -1154,7 +1172,7 @@
                 end
 
                 -- Trả lại ngay vũ khí chính để M1 đánh liên hoàn không gián đoạn
-                if switchedAway and #m1Cats == 1 then
+                if switchedAway and (mode ~= "Auto Mode" or #m1Cats == 1) then
                     local mainTool = findToolByCategory(primaryCat)
                     if mainTool and mainTool.Parent == player.Backpack then
                         pcall(function() hum:EquipTool(mainTool) end)
@@ -1583,10 +1601,10 @@
         local isAbyssalMatch = (src == "abyssal" or src == "tyrant" or string.find(src, "abyssal", 1, true) ~= nil or string.find(src, "tyrant", 1, true) ~= nil)
             or string.find(nm, "abyssal", 1, true) ~= nil
             or string.find(nm, "tyrant", 1, true) ~= nil
-        local notAbyssalOther = string.find(nm, "depth", 1, true) == nil
-            and string.find(nm, "swordsman", 1, true) == nil
+        local notAbyssalOther = string.find(nm, "swordsman", 1, true) == nil
             and string.find(nm, "dragon", 1, true) == nil
-            and string.find(src, "depth", 1, true) == nil
+            and string.find(nm, "drakenfyr", 1, true) == nil
+            and (string.find(nm, "king", 1, true) == nil or string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil)
         if isAbyssalMatch and notAbyssalOther then
             if hubState.fightSea3Abyssal == false then return 0 end
             return 6
@@ -1677,8 +1695,8 @@
                     or string.find(nm, "tyrant", 1, true) ~= nil
                 local notOther = string.find(nm, "swordsman", 1, true) == nil
                     and string.find(nm, "dragon", 1, true) == nil
-                    and string.find(nm, "depth", 1, true) == nil
-                    and string.find(src, "depth", 1, true) == nil
+                    and string.find(nm, "drakenfyr", 1, true) == nil
+                    and (string.find(nm, "king", 1, true) == nil or string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil)
                 if isAbyssalMatch and notOther then
                     return 2
                 end
@@ -3874,11 +3892,12 @@ end)
                         local fxFolder = workspace:FindFirstChild("Effects")
                         if fxFolder then
                             for _, fx in ipairs(fxFolder:GetChildren()) do
-                                local ownerAttr = fx:GetAttribute("Owner") or fx:GetAttribute("User") or fx:GetAttribute("Player")
-                                if ownerAttr ~= player.Name then
+                                local ownerAttr = fx:GetAttribute("Owner") or fx:GetAttribute("User") or fx:GetAttribute("Player") or fx:GetAttribute("Creator")
+                                if ownerAttr ~= player.Name and not fx:IsDescendantOf(char) then
                                     local nameLow = string.lower(fx.Name)
                                     local isMyOwnSkillFx = (#myDfShort >= 3 and string.find(nameLow, myDfShort, 1, true) ~= nil)
                                         or (#mySwLow >= 3 and string.find(nameLow, mySwLow, 1, true) ~= nil)
+                                        or string.find(nameLow, string.lower(player.Name), 1, true) ~= nil
                                     if not isMyOwnSkillFx then
                                         local fxPos: Vector3? = nil
                                         local fxRadius = 0
@@ -3897,7 +3916,7 @@ end)
                                             local distFxToBoss = (fxPos - nearestBossPos).Magnitude
                                             if distToFx <= 220 and distFxToBoss <= 260 then
                                                 local isDangerFx = (fxRadius >= 14) or (fxRadius >= 7 and isLikelyHazardName(nameLow))
-                                                if isDangerFx and not ((now - lastPlayerSkillCastClock) < 0.45 and distToFx < 16) then
+                                                if isDangerFx and not ((now - lastPlayerSkillCastClock) < 0.85 and distToFx < 25) then
                                                     local dangerRad = math.clamp(fxRadius + 24, 42, safeRange + 35)
                                                     table.insert(activeHazards, { pos = fxPos, radius = dangerRad })
                                                     if distToFx <= dangerRad and dangerRad > triggerDangerRadius then
