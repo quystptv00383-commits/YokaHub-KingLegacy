@@ -117,12 +117,32 @@
             hubState.soloTarget = currentSoloTarget
             newMode = "solo"
         end
-        -- Khử xung đột: Khi chuyển sang Săn Boss, tự động tạm tắt cày quái thường
+        -- Khử xung đột: Khi chuyển sang Săn Boss, tự động tạm tắt các chế độ cày cục bộ
         if newMode ~= "off" then
-            if hubState.autoLevel then
+            local hadConflict = false
+            if hubState.autoLevel or hubState.autoKillSelectedMob or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat or hubState.autoDungeon or hubState.autoFish or hubState.autoFightIslandBoss then
+                hadConflict = true
                 hubState.autoLevel = false
-                pcall(function() genv.Famlevel = false; genv.start = false end)
-                safeNotify("YokaHub", "Đã ưu tiên Săn Boss (Tạm dừng cày quái thường).", "info")
+                hubState.autoKillSelectedMob = false
+                hubState.farmSea3Mat = false
+                hubState.farmSea2Mat = false
+                hubState.farmSea1Mat = false
+                hubState.autoDungeon = false
+                hubState.autoFish = false
+                hubState.autoFightIslandBoss = false
+                pcall(function()
+                    genv.Famlevel = false
+                    genv.Autokillmob = false
+                    genv.farmMaterialsea3 = false
+                    genv.farmMaterialsea2 = false
+                    genv.farmMaterialsea1 = false
+                    genv.autodungeon = false
+                    genv.AutoFish = false
+                    genv.start = false
+                end)
+            end
+            if hadConflict then
+                safeNotify("YokaHub", "Đã ưu tiên Săn Boss Biển (Tạm dừng các chế độ cày quái/câu cá/dungeon).", "info")
             end
         end
         currentMode = newMode

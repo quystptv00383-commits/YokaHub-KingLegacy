@@ -4,15 +4,15 @@
     -- ========================================================
     pcall(function()
         local vu = game:GetService("VirtualUser")
-        player.Idled:Connect(function()
-            if hubState.antiAfk19m ~= false then
+        trackConn(player.Idled:Connect(function()
+            if hubState.antiAfk19m ~= false and genv._YokaHubToken == myToken then
                 pcall(function()
                     vu:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera and workspace.CurrentCamera.CFrame or CFrame.new())
                     task.wait(1)
                     vu:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera and workspace.CurrentCamera.CFrame or CFrame.new())
                 end)
             end
-        end)
+        end))
     end)
 
     task.spawn(function()
@@ -37,13 +37,132 @@
         end
     end)
 
+    -- ========================================================
+    -- [SHARED HELPERS: QUÉT QUÁI / BOSS & XẢ CHIÊU THÔNG MINH]
+    -- ========================================================
+    local sharedVim = game:GetService("VirtualInputManager")
+
+    local function getAliveMobFolders(includeBosses: boolean, includeSeaMonsters: boolean?, includeDungeon: boolean?): { Instance }
+        local list: { Instance } = {}
+        local mon = workspace:FindFirstChild("Monster")
+        if mon then
+            table.insert(list, mon)
+            local mSub = mon:FindFirstChild("Mon")
+            if mSub then table.insert(list, mSub) end
+            if includeBosses then
+                local bSub = mon:FindFirstChild("Boss")
+                if bSub then table.insert(list, bSub) end
+            end
+        end
+        for _, fn in ipairs({ "Enemy", "Monsters" }) do
+            local f = workspace:FindFirstChild(fn)
+            if f then table.insert(list, f) end
+        end
+        if includeSeaMonsters then
+            for _, fn in ipairs({ "SeaMonster", "GhostMonster" }) do
+                local f = workspace:FindFirstChild(fn)
+                if f then table.insert(list, f) end
+            end
+        end
+        if includeDungeon then
+            for _, fn in ipairs({ "Dungeon", "RaidMonster" }) do
+                local f = workspace:FindFirstChild(fn)
+                if f then table.insert(list, f) end
+            end
+        end
+        return list
+    end
+
+    local function castConfiguredSkills(char: Model, hum: Humanoid)
+        -- 1. Tự bật Haki Vũ Trang & Quan Sát
+        if hubState.autoHaki or genv.haki then
+            pcall(function()
+                genv.haki = true
+                genv.hakivutrangv2 = true
+                local net = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                if net and net:FindFirstChild("Functions") and net.Functions:FindFirstChild("Skill") then
+                    net.Functions.Skill:InvokeServer("Buso")
+                end
+            end)
+        end
+        if hubState.autoKenHaki ~= false or genv.hakiquansatv2 then
+            pcall(function() genv.hakiquansatv2 = true end)
+        end
+
+        -- 2. Tự trang bị vũ khí đánh thường
+        local tool = char:FindFirstChildOfClass("Tool")
+        if not tool then
+            local bpTool = player.Backpack:FindFirstChildOfClass("Tool")
+            if bpTool then hum:EquipTool(bpTool) end
+        else
+            tool:Activate()
+        end
+
+        -- 3. Xả chiêu thông minh (Z, X, C, V, E)
+        if hubState.autoSkills or genv.opeskill then
+            local activeSkillKeys = {}
+            local function pushKey(k: string)
+                for _, ek in ipairs(activeSkillKeys) do
+                    if ek == k then return end
+                end
+                table.insert(activeSkillKeys, k)
+            end
+
+            if hubState.skillSword and hubState.skillSwordKeys then
+                if hubState.skillSwordKeys == "Chỉ Phím Z" then pushKey("Z")
+                elseif hubState.skillSwordKeys == "Chỉ Phím X" then pushKey("X")
+                else pushKey("Z"); pushKey("X") end
+            end
+            if hubState.skillFruit and hubState.skillFruitKeys then
+                if string.find(hubState.skillFruitKeys, "Z") then pushKey("Z") end
+                if string.find(hubState.skillFruitKeys, "X") then pushKey("X") end
+                if string.find(hubState.skillFruitKeys, "C") then pushKey("C") end
+                if string.find(hubState.skillFruitKeys, "V") then pushKey("V") end
+                if string.find(hubState.skillFruitKeys, "E") then pushKey("E") end
+            end
+            if hubState.skillMelee and hubState.skillMeleeKeys then
+                if string.find(hubState.skillMeleeKeys, "Z") then pushKey("Z") end
+                if string.find(hubState.skillMeleeKeys, "X") then pushKey("X") end
+                if string.find(hubState.skillMeleeKeys, "C") then pushKey("C") end
+                if string.find(hubState.skillMeleeKeys, "V") then pushKey("V") end
+                if string.find(hubState.skillMeleeKeys, "E") then pushKey("E") end
+            end
+
+            if type(genv.CombatSkillFruit) == "table" and #genv.CombatSkillFruit > 0 then
+                for _, k in ipairs(genv.CombatSkillFruit) do pushKey(k) end
+            end
+            if type(genv.CombatSkillSword) == "table" and #genv.CombatSkillSword > 0 then
+                for _, k in ipairs(genv.CombatSkillSword) do pushKey(k) end
+            end
+            if type(genv.CombatSkillMelee) == "table" and #genv.CombatSkillMelee > 0 then
+                for _, k in ipairs(genv.CombatSkillMelee) do pushKey(k) end
+            end
+
+            if #activeSkillKeys == 0 then
+                activeSkillKeys = { "Z", "X" }
+            end
+
+            for _, k in ipairs(activeSkillKeys) do
+                pcall(function()
+                    if sharedVim then
+                        local keyEnum = (Enum.KeyCode :: any)[k]
+                        if keyEnum then
+                            sharedVim:SendKeyEvent(true, keyEnum, false, game)
+                            task.wait(0.03)
+                            sharedVim:SendKeyEvent(false, keyEnum, false, game)
+                        end
+                    end
+                end)
+            end
+        end
+    end
 
     -- ========================================================
     -- [AUTO FIGHT BOSS WORKER] - LUỒNG CHIẾN ĐẤU VÀ NHẶT RƯƠNG BOSS
     -- ========================================================
     task.spawn(function()
-        while true do
-            task.wait(1.2)
+        while genv._YokaHubToken == myToken do
+            task.wait(1.0)
             if (hubState.autoFightMaster or hubState.autoFightIslandBoss) and genv._YokaHubToken == myToken then
                 pcall(function()
                     local char = player.Character
@@ -51,7 +170,6 @@
                     local hrp = char.HumanoidRootPart
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
-                    local dMode = hubState.dungeonMode or genv.dungeonmode or "Easy"
 
                     -- 1. Quét tìm rương báu Boss trước nếu có
                     if hubState.autoCollectChest then
@@ -73,9 +191,22 @@
                         end
                     end
 
-                    -- 2. Quét Boss biển theo các bảng riêng biệt đã chọn
-                    local function isBossWanted(rawName: string): boolean
+                    -- 2. Quét Boss Đảo nếu bật autoFightIslandBoss, hoặc Boss Biển nếu bật autoFightMaster
+                    local islandKeyword = ""
+                    if hubState.autoFightIslandBoss and hubState.islandBossTarget then
+                        local rawIsl = string.match(hubState.islandBossTarget, "^([^(]+)") or hubState.islandBossTarget
+                        rawIsl = string.gsub(rawIsl, "%s+[Bb]oss%s*$", "")
+                        islandKeyword = string.lower(string.gsub(rawIsl, "%s+$", ""))
+                    end
+
+                    local function isBossWanted(rawName: string, folderName: string?): boolean
                         local n = string.lower(rawName)
+                        if hubState.autoFightIslandBoss and islandKeyword ~= "" and string.find(n, islandKeyword) ~= nil then
+                            return true
+                        end
+                        if not hubState.autoFightMaster then
+                            return false
+                        end
                         if string.find(n, "depth") and string.find(n, "abyssal") == nil then return hubState.fightSea3DepthKing ~= false end
                         if string.find(n, "drakenfyr") or string.find(n, "inferno king") or (string.find(n, "dragon") and not string.find(n, "fruit")) then return hubState.fightSea3Dragon ~= false end
                         if string.find(n, "abyssal") or string.find(n, "tyrant") then return hubState.fightSea3Abyssal ~= false end
@@ -85,25 +216,26 @@
                         if string.find(n, "sea king") or string.find(n, "seaking") then return hubState.fightSea2SeaKing ~= false end
                         if string.find(n, "ghost") then return hubState.fightSea2GhostShip ~= false end
                         if string.find(n, "serpent") then return hubState.fightSea2Serpent ~= false end
-                        return hubState.fightSea3Events ~= false
+                        if folderName == "SeaMonster" or string.find(n, "sea beast") or string.find(n, "seabeast") then
+                            return hubState.fightSea3Events ~= false
+                        end
+                        return false
                     end
 
-                    -- Quét trong SeaMonster & Monster
+                    -- Quét trong SeaMonster, GhostMonster, Monster & Monster.Boss
                     local targetBoss: Model? = nil
-                    local folders = { workspace:FindFirstChild("SeaMonster"), workspace:FindFirstChild("Monster"), workspace:FindFirstChild("GhostMonster") }
+                    local folders = getAliveMobFolders(true, true, false)
                     for _, fld in ipairs(folders) do
-                        if fld then
-                            for _, m in ipairs(fld:GetChildren()) do
-                                if m:IsA("Model") and isBossWanted(m.Name) then
-                                    local bHum = m:FindFirstChildOfClass("Humanoid")
-                                    if bHum and bHum.Health > 0 then
-                                        targetBoss = m
-                                        break
-                                    end
+                        for _, m in ipairs(fld:GetChildren()) do
+                            if m:IsA("Model") and isBossWanted(m.Name, fld.Name) then
+                                local bHum = m:FindFirstChildOfClass("Humanoid")
+                                if bHum and bHum.Health > 0 then
+                                    targetBoss = m
+                                    break
                                 end
                             end
-                            if targetBoss then break end
                         end
+                        if targetBoss then break end
                     end
 
                     -- Nếu tìm thấy Boss hợp lệ: Bay đến trên đầu và xả chiêu
@@ -113,22 +245,7 @@
                             local sHeight = hubState.bossSafeHeight or 18
                             hrp.Velocity = Vector3.new(0, 0, 0)
                             hrp.CFrame = CFrame.new(bRoot.Position + Vector3.new(0, sHeight, 0), bRoot.Position)
-
-                            -- Bật Haki
-                            if hubState.autoHaki then
-                                pcall(function() genv.haki = true; genv.hakivutrangv2 = true end)
-                            end
-
-                            -- Tự trang bị vũ khí nếu chưa cầm
-                            local curTool = char:FindFirstChildOfClass("Tool")
-                            if not curTool then
-                                local bpTool = player.Backpack:FindFirstChildOfClass("Tool")
-                                if bpTool then char.Humanoid:EquipTool(bpTool) end
-                            else
-                                curTool:Activate()
-                            end
-
-                            -- Kích hoạt xả chiêu
+                            castConfiguredSkills(char, hum)
                             pcall(function()
                                 genv.opeskill = true
                                 genv.autoskillsea = true
@@ -597,6 +714,7 @@
         end
     end
 
+    task.spawn(function()
     local prevSoloKey = ""
     while genv._YokaHubToken == myToken do
         local mode: string = hubState.mode or currentMode
@@ -971,7 +1089,7 @@ end)
 
     -- 🎣 LUỒNG CÂU CÁ TỰ ĐỘNG (AUTO FISHING WORKER)
     task.spawn(function()
-        while true do
+        while genv._YokaHubToken == myToken do
             task.wait(1.5)
             if hubState.autoFish and currentMode == "off" then
                 pcall(function()
@@ -979,11 +1097,13 @@ end)
                     if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then return end
 
                     -- Tự động cầm cần câu hoặc kiếm câu cá
-                    local weaponName = hubState.fishWeapon or "True Muramasa"
+                    local rawWeapon = hubState.fishWeapon or "True Muramasa"
+                    local weaponName = string.match(rawWeapon, "^([%w%s%']+)") or "True Muramasa"
+                    weaponName = string.gsub(weaponName, "%s+$", "")
                     local tool = char:FindFirstChild(weaponName) or player.Backpack:FindFirstChild(weaponName)
                     if not tool then
                         for _, t in ipairs(player.Backpack:GetChildren()) do
-                            if t:IsA("Tool") and (string.find(string.lower(t.Name), "rod") or string.find(string.lower(t.Name), "fish")) then
+                            if t:IsA("Tool") and (string.find(string.lower(t.Name), "rod") or string.find(string.lower(t.Name), "fish") or string.find(string.lower(t.Name), string.lower(weaponName))) then
                                 tool = t
                                 break
                             end
@@ -1026,49 +1146,47 @@ end)
     -- [NATIVE AUTO FARM LEVEL & SELECT MOB WORKER]
     -- ========================================================
     task.spawn(function()
-        local vim = game:GetService("VirtualInputManager")
         while genv._YokaHubToken == myToken do
             task.wait(0.3)
-            if (hubState.autoLevel or genv.Autokillmob or genv.Famlevel) and currentMode == "off" then
+            if (hubState.autoLevel or hubState.autoKillSelectedMob or genv.Autokillmob or genv.Famlevel) and currentMode == "off" then
                 pcall(function()
                     local char = player.Character
                     if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then return end
                     local hrp = char.HumanoidRootPart
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
-                    local dMode = hubState.dungeonMode or genv.dungeonmode or "Easy"
 
-                    -- 1. Tìm quái mục tiêu
+                    -- 1. Tìm quái mục tiêu (Quét đầy đủ cả thư mục con Monster.Mon)
                     local targetMob: Model? = nil
-                    local mobFolders = { workspace:FindFirstChild("Monster"), workspace:FindFirstChild("Enemy"), workspace:FindFirstChild("Monsters") }
-                    local selectedMobName = genv.chonmod or ""
+                    local mobFolders = getAliveMobFolders(false, false, false)
+                    local isSelectMode = (hubState.autoKillSelectedMob or genv.Autokillmob) == true
+                    local selectedMobName = hubState.selectedMob or genv.chonmod or ""
 
                     for _, fld in ipairs(mobFolders) do
-                        if fld then
-                            for _, m in ipairs(fld:GetChildren()) do
-                                if m:IsA("Model") then
-                                    local mHum = m:FindFirstChildOfClass("Humanoid")
-                                    local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
-                                    if mHum and mHum.Health > 0 and mRoot then
-                                        if genv.Autokillmob and selectedMobName ~= "" then
-                                            local rawSel = string.match(selectedMobName, "^([%w%s%']+)") or selectedMobName
-                                            rawSel = string.gsub(rawSel, "%s+$", "")
-                                            if string.find(string.lower(m.Name), string.lower(rawSel)) then
-                                                targetMob = m
-                                                break
-                                            end
-                                        else
-                                            -- Auto level: chọn quái gần nhất
-                                            local targetDist = targetMob and ((targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")).Position - hrp.Position).Magnitude or 99999
-                                            if not targetMob or (mRoot.Position - hrp.Position).Magnitude < targetDist then
-                                                targetMob = m
-                                            end
+                        for _, m in ipairs(fld:GetChildren()) do
+                            if m:IsA("Model") then
+                                local mHum = m:FindFirstChildOfClass("Humanoid")
+                                local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                                if mHum and mHum.Health > 0 and mRoot then
+                                    if isSelectMode and selectedMobName ~= "" then
+                                        local rawSel = string.match(selectedMobName, "^([%w%s%']+)") or selectedMobName
+                                        rawSel = string.gsub(rawSel, "%s+$", "")
+                                        if string.find(string.lower(m.Name), string.lower(rawSel)) then
+                                            targetMob = m
+                                            break
+                                        end
+                                    else
+                                        -- Auto level: chọn quái gần nhất
+                                        local targetRoot = targetMob and (targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart"))
+                                        local targetDist = targetRoot and (targetRoot.Position - hrp.Position).Magnitude or 99999
+                                        if not targetMob or (mRoot.Position - hrp.Position).Magnitude < targetDist then
+                                            targetMob = m
                                         end
                                     end
                                 end
                             end
-                            if targetMob and genv.Autokillmob then break end
                         end
+                        if targetMob and isSelectMode then break end
                     end
 
                     if targetMob then
@@ -1079,97 +1197,23 @@ end)
                             hrp.Velocity = Vector3.new(0, 0, 0)
                             hrp.CFrame = CFrame.new(mRoot.Position + Vector3.new(0, sHeight, 0), mRoot.Position)
 
-                            -- Gom quái xung quanh nếu bật autocat
-                            if genv.autocat then
+                            -- Gom quái xung quanh nếu bật Fast Mob Bring
+                            if hubState.fastMobBring ~= false or genv.autocat then
                                 for _, fld in ipairs(mobFolders) do
-                                    if fld then
-                                        for _, otherMob in ipairs(fld:GetChildren()) do
-                                            if otherMob:IsA("Model") and otherMob.Name == targetMob.Name and otherMob ~= targetMob then
-                                                local oRoot = otherMob:FindFirstChild("HumanoidRootPart") or otherMob.PrimaryPart or otherMob:FindFirstChildWhichIsA("BasePart")
-                                                local oHum = otherMob:FindFirstChildOfClass("Humanoid")
-                                                if oRoot and oHum and oHum.Health > 0 and (oRoot.Position - mRoot.Position).Magnitude < 160 then
-                                                    oRoot.CFrame = mRoot.CFrame
-                                                    oRoot.Velocity = Vector3.new(0, 0, 0)
-                                                end
+                                    for _, otherMob in ipairs(fld:GetChildren()) do
+                                        if otherMob:IsA("Model") and otherMob.Name == targetMob.Name and otherMob ~= targetMob then
+                                            local oRoot = otherMob:FindFirstChild("HumanoidRootPart") or otherMob.PrimaryPart or otherMob:FindFirstChildWhichIsA("BasePart")
+                                            local oHum = otherMob:FindFirstChildOfClass("Humanoid")
+                                            if oRoot and oHum and oHum.Health > 0 and (oRoot.Position - mRoot.Position).Magnitude < 160 then
+                                                oRoot.CFrame = mRoot.CFrame
+                                                oRoot.Velocity = Vector3.new(0, 0, 0)
                                             end
                                         end
                                     end
                                 end
                             end
 
-                            -- Tự bật Haki
-                            if hubState.autoHaki or genv.haki then
-                                pcall(function()
-                                    local net = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
-                                    if net and net:FindFirstChild("Functions") and net.Functions:FindFirstChild("Skill") then
-                                        net.Functions.Skill:InvokeServer("Buso")
-                                    end
-                                end)
-                            end
-
-                            -- Trang bị vũ khí đánh
-                            local tool = char:FindFirstChildOfClass("Tool")
-                            if not tool then
-                                local bpTool = player.Backpack:FindFirstChildOfClass("Tool")
-                                if bpTool then hum:EquipTool(bpTool) end
-                            else
-                                tool:Activate()
-                            end
-
-                            -- Xả chiêu thông minh (Z, X, C, V, E)
-                            if hubState.autoSkills or genv.opeskill then
-                                local activeSkillKeys = {}
-                                local function pushKey(k)
-                                    for _, ek in ipairs(activeSkillKeys) do
-                                        if ek == k then return end
-                                    end
-                                    table.insert(activeSkillKeys, k)
-                                end
-
-                                if hubState.skillSword and hubState.skillSwordKeys then
-                                    if hubState.skillSwordKeys == "Chỉ Phím Z" then pushKey("Z")
-                                    elseif hubState.skillSwordKeys == "Chỉ Phím X" then pushKey("X")
-                                    else pushKey("Z"); pushKey("X") end
-                                end
-                                if hubState.skillFruit and hubState.skillFruitKeys then
-                                    if string.find(hubState.skillFruitKeys, "Z") then pushKey("Z") end
-                                    if string.find(hubState.skillFruitKeys, "X") then pushKey("X") end
-                                    if string.find(hubState.skillFruitKeys, "C") then pushKey("C") end
-                                    if string.find(hubState.skillFruitKeys, "V") then pushKey("V") end
-                                end
-
-                                if type(genv.CombatSkillFruit) == "table" and #genv.CombatSkillFruit > 0 then
-                                    for _, k in ipairs(genv.CombatSkillFruit) do pushKey(k) end
-                                end
-                                if type(genv.CombatSkillSword) == "table" and #genv.CombatSkillSword > 0 then
-                                    for _, k in ipairs(genv.CombatSkillSword) do pushKey(k) end
-                                end
-                                if type(genv.CombatSkillMelee) == "table" and #genv.CombatSkillMelee > 0 then
-                                    for _, k in ipairs(genv.CombatSkillMelee) do pushKey(k) end
-                                end
-
-                                if #activeSkillKeys == 0 then
-                                    activeSkillKeys = { "Z", "X" }
-                                    if hubState.skillMelee and hubState.skillMeleeKeys == "Toàn Bộ (Z, X, C, V, E)" then
-                                        activeSkillKeys = { "Z", "X", "C", "V", "E" }
-                                    elseif hubState.skillFruit then
-                                        activeSkillKeys = { "Z", "X", "C", "V" }
-                                    end
-                                end
-
-                                for _, k in ipairs(activeSkillKeys) do
-                                    pcall(function()
-                                        if vim then
-                                            local keyEnum = Enum.KeyCode[k]
-                                            if keyEnum then
-                                                vim:SendKeyEvent(true, keyEnum, false, game)
-                                                task.wait(0.03)
-                                                vim:SendKeyEvent(false, keyEnum, false, game)
-                                            end
-                                        end
-                                    end)
-                                end
-                            end
+                            castConfiguredSkills(char, hum)
                         end
                     end
                 end)
@@ -1193,8 +1237,8 @@ end)
 
                     -- Xác định nguyên liệu đang chọn
                     local targetMat = hubState.nguyenlieuSea3 or "Coral"
-                    if hubState.farmSea2Mat then targetMat = hubState.nguyenlieuSea2 or "Iron Ingot"
-                    elseif hubState.farmSea1Mat then targetMat = hubState.nguyenlieuSea1 or "Leather" end
+                    if hubState.farmSea2Mat or genv.farmMaterialsea2 then targetMat = hubState.nguyenlieuSea2 or "Iron Ingot"
+                    elseif hubState.farmSea1Mat or genv.farmMaterialsea1 then targetMat = hubState.nguyenlieuSea1 or "Leather" end
 
                     local rawMat = string.match(targetMat, "^([%w%s%']+)") or targetMat
                     rawMat = string.lower(string.gsub(rawMat, "%s+$", ""))
@@ -1216,43 +1260,40 @@ end)
                     }
                     local keywords = MAT_MOB_MAP[rawMat] or { rawMat }
 
-                    -- Tìm quái rơi nguyên liệu
+                    -- Tìm quái rơi nguyên liệu (Quét cả Monster.Mon và SeaMonster nếu săn máu Hải Vương)
                     local targetMob: Model? = nil
-                    local mobFolders = { workspace:FindFirstChild("Monster"), workspace:FindFirstChild("Enemy") }
+                    local mobFolders = getAliveMobFolders(true, rawMat == "sea king's blood", false)
                     for _, fld in ipairs(mobFolders) do
-                        if fld then
-                            for _, m in ipairs(fld:GetChildren()) do
-                                if m:IsA("Model") then
-                                    local mHum = m:FindFirstChildOfClass("Humanoid")
-                                    local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
-                                    if mHum and mHum.Health > 0 and mRoot then
-                                        local mn = string.lower(m.Name)
-                                        local matched = false
-                                        for _, kw in ipairs(keywords) do
-                                            if string.find(mn, kw) or string.find(kw, mn) then
-                                                matched = true
-                                                break
-                                            end
-                                        end
-                                        if matched then
-                                            targetMob = m
+                        for _, m in ipairs(fld:GetChildren()) do
+                            if m:IsA("Model") then
+                                local mHum = m:FindFirstChildOfClass("Humanoid")
+                                local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                                if mHum and mHum.Health > 0 and mRoot then
+                                    local mn = string.lower(m.Name)
+                                    local matched = false
+                                    for _, kw in ipairs(keywords) do
+                                        if string.find(mn, kw) or string.find(kw, mn) then
+                                            matched = true
                                             break
                                         end
                                     end
+                                    if matched then
+                                        targetMob = m
+                                        break
+                                    end
                                 end
                             end
-                            if targetMob then break end
                         end
+                        if targetMob then break end
                     end
 
                     if targetMob then
                         local mRoot = targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart or targetMob:FindFirstChildWhichIsA("BasePart")
                         if mRoot then
+                            local sHeight = hubState.safeDistance and 18 or 10
                             hrp.Velocity = Vector3.new(0, 0, 0)
-                            hrp.CFrame = CFrame.new(mRoot.Position + Vector3.new(0, 18, 0), mRoot.Position)
-                            local tool = char:FindFirstChildOfClass("Tool") or player.Backpack:FindFirstChildOfClass("Tool")
-                            if tool and tool.Parent == player.Backpack then hum:EquipTool(tool) end
-                            if tool and tool.Parent == char then tool:Activate() end
+                            hrp.CFrame = CFrame.new(mRoot.Position + Vector3.new(0, sHeight, 0), mRoot.Position)
+                            castConfiguredSkills(char, hum)
                         end
                     end
                 end)
@@ -1276,7 +1317,7 @@ end)
                     local dMode = hubState.dungeonMode or genv.dungeonmode or "Easy"
 
                     -- Tự hồi máu bằng gậy nếu bật và máu < 85%
-                    if hubState.dungeonAutoHeal and hum.Health / hum.MaxHealth < 0.85 then
+                    if hubState.dungeonAutoHeal and hum.Health / math.max(1, hum.MaxHealth) < 0.85 then
                         local scepter = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter") or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
                         if scepter and scepter.Parent == player.Backpack then
                             hum:EquipTool(scepter)
@@ -1285,23 +1326,21 @@ end)
                         end
                     end
 
-                    -- Quét quái Dungeon
-                    local dungeonFolders = { workspace:FindFirstChild("Dungeon"), workspace:FindFirstChild("Monster"), workspace:FindFirstChild("RaidMonster") }
+                    -- Quét quái Dungeon (bao gồm cả Monster.Mon và Monster.Boss)
+                    local dungeonFolders = getAliveMobFolders(true, false, true)
                     local targetMob: Model? = nil
                     for _, fld in ipairs(dungeonFolders) do
-                        if fld then
-                            for _, m in ipairs(fld:GetChildren()) do
-                                if m:IsA("Model") then
-                                    local mHum = m:FindFirstChildOfClass("Humanoid")
-                                    local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
-                                    if mHum and mHum.Health > 0 and mRoot then
-                                        targetMob = m
-                                        break
-                                    end
+                        for _, m in ipairs(fld:GetChildren()) do
+                            if m:IsA("Model") then
+                                local mHum = m:FindFirstChildOfClass("Humanoid")
+                                local mRoot = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                                if mHum and mHum.Health > 0 and mRoot then
+                                    targetMob = m
+                                    break
                                 end
                             end
-                            if targetMob then break end
                         end
+                        if targetMob then break end
                     end
 
                     if targetMob then
@@ -1316,9 +1355,7 @@ end)
                                     workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, mRoot.Position)
                                 end)
                             end
-                            local tool = char:FindFirstChildOfClass("Tool") or player.Backpack:FindFirstChildOfClass("Tool")
-                            if tool and tool.Parent == player.Backpack then hum:EquipTool(tool) end
-                            if tool and tool.Parent == char then tool:Activate() end
+                            castConfiguredSkills(char, hum)
                         end
                     end
                 end)
@@ -1352,12 +1389,17 @@ end)
                 end
 
                 -- 2. Tự Động Cất Trái Vào Kho Rương (Store Fruit)
-                if hubState.storeFruits or genv.autobuy then
+                if hubState.storeFruits or genv.AutoStoreFruit then
                     local function checkAndStore(tool: Tool)
                         if tool and string.find(string.lower(tool.Name), "fruit") then
                             local net = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
                             if net and net:FindFirstChild("Functions") and net.Functions:FindFirstChild("StoreFruit") then
                                 net.Functions.StoreFruit:InvokeServer(tool.Name)
+                            end
+                            local chest = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
+                            local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                            if remFuncs and remFuncs:FindFirstChild("DealFruit") then
+                                pcall(function() remFuncs.DealFruit:InvokeServer(tool.Name, "Store") end)
                             end
                         end
                     end
@@ -1382,9 +1424,9 @@ end)
                             local shopFunc = net.Functions:FindFirstChild("FruitShop") or net.Functions:FindFirstChild("Merchant")
                             if shopFunc then
                                 for _, fruitName in ipairs(targetFruits) do
-                                    pcall(function()
-                                        shopFunc:InvokeServer("Buy", fruitName)
-                                    end)
+                                    local baseName = string.gsub(fruitName, "Fruit$", "")
+                                    pcall(function() shopFunc:InvokeServer("Buy", baseName) end)
+                                    pcall(function() shopFunc:InvokeServer("Buy", baseName .. "Fruit") end)
                                 end
                             end
                         end
@@ -1434,27 +1476,29 @@ end)
     -- 2. Nhảy Vô Hạn (Infinite Jump)
     pcall(function()
         local uis = game:GetService("UserInputService")
-        uis.JumpRequest:Connect(function()
-            if (hubState.infiniteJump or genv.InfiniteJumpEnabled) and player.Character then
+        trackConn(uis.JumpRequest:Connect(function()
+            if genv._YokaHubToken ~= myToken then return end
+            if (hubState.infiniteJump or genv.InfiniteJumpEnabled) and player and player.Character then
                 local hum = player.Character:FindFirstChildOfClass("Humanoid")
                 if hum then
                     hum:ChangeState(Enum.HumanoidStateType.Jumping)
                 end
             end
-        end)
+        end))
     end)
 
     -- 3. Click Teleport (Bấm chuột dịch chuyển)
     pcall(function()
         local mouse = player:GetMouse()
-        mouse.Button1Down:Connect(function()
-            if (hubState.clickTeleport or genv.clickTeleportEnabled) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        trackConn(mouse.Button1Down:Connect(function()
+            if genv._YokaHubToken ~= myToken then return end
+            if (hubState.clickTeleport or genv.clickTeleportEnabled) and player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                 local hit = mouse.Hit
                 if hit then
                     player.Character.HumanoidRootPart.CFrame = CFrame.new(hit.Position + Vector3.new(0, 3, 0))
                 end
             end
-        end)
+        end))
     end)
 
     -- 4. Tăng Tốc Độ Chạy (Speed Boost)
@@ -1483,21 +1527,33 @@ end)
                     blackGui.Name = "YokaBlackScreen"
                     blackGui.IgnoreGuiInset = true
                     blackGui.DisplayOrder = 999999
-                    local f = Instance.new("Frame")
+                    local f = Instance.new("TextButton")
                     f.Size = UDim2.new(1, 0, 1, 0)
                     f.BackgroundColor3 = Color3.new(0, 0, 0)
                     f.BorderSizePixel = 0
+                    f.AutoButtonColor = false
+                    f.Text = ""
                     f.Parent = blackGui
                     local lbl = Instance.new("TextLabel")
                     lbl.Size = UDim2.new(1, 0, 0, 40)
                     lbl.Position = UDim2.new(0, 0, 0.5, -20)
                     lbl.BackgroundTransparency = 1
-                    lbl.Text = "YokaHub AFK Mode — Tiết Kiệm Điện (Bấm lại để tắt)"
+                    lbl.Text = "YokaHub AFK Mode — Tiết Kiệm Điện (Bấm vào màn hình để tắt)"
                     lbl.TextColor3 = Color3.fromRGB(160, 160, 160)
                     lbl.Font = Enum.Font.GothamBold
                     lbl.TextSize = 16
                     lbl.Parent = f
-                    blackGui.Parent = coreGui
+                    f.MouseButton1Click:Connect(function()
+                        hubState.blackScreen = false
+                        genv.BlackScreen = false
+                        saveState(hubState)
+                        if blackGui then
+                            blackGui:Destroy()
+                            blackGui = nil
+                        end
+                        safeNotify("YokaHub AFK", "Đã tắt Màn hình đen.", "light_mode")
+                    end)
+                    blackGui.Parent = guiParent
                 elseif not (hubState.blackScreen or genv.BlackScreen) and blackGui then
                     blackGui:Destroy()
                     blackGui = nil
@@ -1718,8 +1774,8 @@ end)
                 if not (hrp and hum and hum.Health > 0) then return end
 
                 -- 1. Auto Transform
-                if genv.bienhinh and (os.clock() - lastTransformTick) > 12.0 then
-                    local isFighting = (currentMode ~= "off") or (hubState.autoLevel) or (hubState.autoFightMaster)
+                if (hubState.autoTransform ~= false or genv.bienhinh) and (os.clock() - lastTransformTick) > 12.0 then
+                    local isFighting = (currentMode ~= "off") or (hubState.autoLevel) or (hubState.autoKillSelectedMob) or (hubState.autoFightMaster) or (hubState.autoFightIslandBoss) or (hubState.autoDungeon)
                     if isFighting then
                         lastTransformTick = os.clock()
                         pcall(function()
@@ -1738,15 +1794,15 @@ end)
                 end
 
                 -- 2. Skill Direction Aimbot
-                if genv.PlayerAimbotEnabled then
+                if hubState.skillAimbot ~= false and genv.PlayerAimbotEnabled then
                     local aimRange = tonumber(genv.PlayerAimRange) or 350
                     local myPos = hrp.Position
                     local closestTarget: Instance? = nil
                     local closestDist = aimRange
 
-                    local monFolder = workspace:FindFirstChild("Monster")
-                    if monFolder then
-                        for _, m in ipairs(monFolder:GetDescendants()) do
+                    local folders = getAliveMobFolders(true, true, true)
+                    for _, fld in ipairs(folders) do
+                        for _, m in ipairs(fld:GetChildren()) do
                             if m:IsA("Model") and m:FindFirstChild("HumanoidRootPart") and m:FindFirstChildOfClass("Humanoid") then
                                 local mHum = m:FindFirstChildOfClass("Humanoid")
                                 if mHum and mHum.Health > 0 then
@@ -1768,12 +1824,12 @@ end)
                 end
 
                 -- 3. Auto Dodge
-                if genv.autoDodgeEnabled and (os.clock() - lastDodgeTick) > 2.0 then
+                if hubState.autoDodge ~= false and genv.autoDodgeEnabled and (os.clock() - lastDodgeTick) > 2.0 then
                     local isLowHp = (hum.Health / math.max(1, hum.MaxHealth)) < 0.45
                     local mobClose = false
-                    local monFolder = workspace:FindFirstChild("Monster")
-                    if monFolder then
-                        for _, m in ipairs(monFolder:GetDescendants()) do
+                    local folders = getAliveMobFolders(true, true, true)
+                    for _, fld in ipairs(folders) do
+                        for _, m in ipairs(fld:GetChildren()) do
                             if m:IsA("Model") and m:FindFirstChild("HumanoidRootPart") then
                                 if (m.HumanoidRootPart.Position - hrp.Position).Magnitude < 22 then
                                     mobClose = true
@@ -1781,6 +1837,7 @@ end)
                                 end
                             end
                         end
+                        if mobClose then break end
                     end
 
                     if isLowHp or mobClose then
@@ -1806,7 +1863,8 @@ end)
         while genv._YokaHubToken == myToken do
             task.wait(2.5)
             pcall(function()
-                if not genv.MaterialQuantityTracker then return end
+                if not (hubState.materialQuantityTracker or genv.MaterialQuantityTracker) then return end
+                if not (hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat or genv.farmMaterialsea3 or genv.farmMaterialsea2 or genv.farmMaterialsea1) then return end
                 if (os.clock() - lastCheckTick) < 5.0 then return end
                 lastCheckTick = os.clock()
 
@@ -1819,13 +1877,23 @@ end)
                 end)
                 if not okDecode or typeof(matTable) ~= "table" then return end
 
-                local curMat = genv.nguyenlieusea3 or hubState.nguyenlieuSea3 or "Coral"
+                local curMat = hubState.nguyenlieuSea3 or "Coral"
+                if hubState.farmSea2Mat or genv.farmMaterialsea2 then curMat = hubState.nguyenlieuSea2 or "Iron Ingot"
+                elseif hubState.farmSea1Mat or genv.farmMaterialsea1 then curMat = hubState.nguyenlieuSea1 or "Leather" end
+
                 curMat = string.match(curMat, "^([%w%s%']+)") or curMat
                 curMat = string.gsub(curMat, "%s+$", "")
 
                 local count = tonumber(matTable[curMat]) or 0
                 if count >= quotaTarget then
-                    safeNotify("Gom Nguyên Liệu", "Đã gom đủ " .. tostring(count) .. " " .. curMat .. "! Đạt chỉ tiêu " .. quotaTarget .. ".", "verified")
+                    hubState.farmSea3Mat = false
+                    hubState.farmSea2Mat = false
+                    hubState.farmSea1Mat = false
+                    genv.farmMaterialsea3 = false
+                    genv.farmMaterialsea2 = false
+                    genv.farmMaterialsea1 = false
+                    saveState(hubState)
+                    safeNotify("Gom Nguyên Liệu", "Đã gom đủ " .. tostring(count) .. " " .. curMat .. " (Đạt mốc " .. quotaTarget .. "). Đã tự động dừng gom!", "verified")
                 end
             end)
         end
@@ -1849,6 +1917,14 @@ end)
         while genv._YokaHubToken == myToken do
             task.wait(0.4)
             pcall(function()
+                -- Dọn dẹp các ESP của vật thể đã biến mất khỏi bản đồ
+                for inst, bb in pairs(activeEspObjects) do
+                    if not inst or not inst.Parent or not bb or not bb.Parent then
+                        pcall(function() if bb then bb:Destroy() end end)
+                        activeEspObjects[inst] = nil
+                    end
+                end
+
                 local char = player.Character
                 local myRoot = char and char:FindFirstChild("HumanoidRootPart")
                 local myPos = myRoot and myRoot.Position or Vector3.new(0, 0, 0)
@@ -1932,36 +2008,51 @@ end)
 
                 -- 3. Chest ESP
                 if hubState.chestESP or genv.ChestESPEnabled then
+                    local function attachChestEsp(root: BasePart, labelPrefix: string?)
+                        if not root:FindFirstChild("YokaChestESP") then
+                            local bb = Instance.new("BillboardGui")
+                            bb.Name = "YokaChestESP"
+                            bb.AlwaysOnTop = true
+                            bb.Size = UDim2.new(0, 150, 0, 28)
+                            bb.StudsOffset = Vector3.new(0, 2, 0)
+                            local lbl = Instance.new("TextLabel")
+                            lbl.Size = UDim2.new(1, 0, 1, 0)
+                            lbl.BackgroundTransparency = 1
+                            lbl.TextColor3 = Color3.fromRGB(255, 170, 40)
+                            lbl.TextStrokeTransparency = 0.2
+                            lbl.Font = Enum.Font.GothamBold
+                            lbl.TextSize = 12
+                            local dist = math.floor((root.Position - myPos).Magnitude)
+                            lbl.Text = "📦 " .. (labelPrefix or "Rương") .. " [" .. dist .. "m]"
+                            lbl.Parent = bb
+                            bb.Adornee = root
+                            bb.Parent = root
+                            activeEspObjects[root] = bb
+                        else
+                            local lbl = root.YokaChestESP:FindFirstChildOfClass("TextLabel")
+                            if lbl then
+                                local dist = math.floor((root.Position - myPos).Magnitude)
+                                lbl.Text = "📦 " .. (labelPrefix or "Rương") .. " [" .. dist .. "m]"
+                            end
+                        end
+                    end
+
                     local chestFolders = { workspace:FindFirstChild("Chests"), workspace:FindFirstChild("ChestFolder") }
                     for _, cf in ipairs(chestFolders) do
                         if cf then
                             for _, ch in ipairs(cf:GetChildren()) do
                                 local root = ch:IsA("BasePart") and ch or ch:FindFirstChildWhichIsA("BasePart")
-                                if root and not root:FindFirstChild("YokaChestESP") then
-                                    local bb = Instance.new("BillboardGui")
-                                    bb.Name = "YokaChestESP"
-                                    bb.AlwaysOnTop = true
-                                    bb.Size = UDim2.new(0, 140, 0, 28)
-                                    bb.StudsOffset = Vector3.new(0, 2, 0)
-                                    local lbl = Instance.new("TextLabel")
-                                    lbl.Size = UDim2.new(1, 0, 1, 0)
-                                    lbl.BackgroundTransparency = 1
-                                    lbl.TextColor3 = Color3.fromRGB(255, 170, 40)
-                                    lbl.TextStrokeTransparency = 0.2
-                                    lbl.Font = Enum.Font.GothamBold
-                                    lbl.TextSize = 12
-                                    local dist = math.floor((root.Position - myPos).Magnitude)
-                                    lbl.Text = "📦 Rương [" .. dist .. "m]"
-                                    lbl.Parent = bb
-                                    bb.Adornee = root
-                                    bb.Parent = root
-                                    activeEspObjects[root] = bb
-                                elseif root and root:FindFirstChild("YokaChestESP") then
-                                    local lbl = root.YokaChestESP:FindFirstChildOfClass("TextLabel")
-                                    if lbl then
-                                        local dist = math.floor((root.Position - myPos).Magnitude)
-                                        lbl.Text = "📦 Rương [" .. dist .. "m]"
-                                    end
+                                if root then attachChestEsp(root, "Rương") end
+                            end
+                        end
+                    end
+                    local isl = workspace:FindFirstChild("Island")
+                    if isl then
+                        for _, c in ipairs(isl:GetChildren()) do
+                            for _, d in ipairs(c:GetDescendants()) do
+                                if d:IsA("Model") and string.find(string.lower(d.Name), "chest") and not string.find(string.lower(d.Name), "spawner") then
+                                    local root = d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
+                                    if root then attachChestEsp(root, d.Name) end
                                 end
                             end
                         end
@@ -1976,3 +2067,4 @@ end)
             pcall(function() bb:Destroy() end)
         end
     end)
+end)

@@ -357,19 +357,6 @@
         applyVisualTheme()
         attachCornerResizer()
         applyWindowSize(hubState.winW, hubState.winH, false, false)
-        local winCam = workspace.CurrentCamera
-        if winCam then
-            trackConn(winCam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-                local lunaGui = getLunaGui()
-                if not lunaGui then return end
-                local smartWin = lunaGui:FindFirstChild("SmartWindow")
-                if not (smartWin and smartWin:IsA("GuiObject")) then return end
-                local v = winCam.ViewportSize
-                if smartWin.Size.X.Offset > (v.X - 16) or smartWin.Size.Y.Offset > (v.Y - 16) then
-                    applyWindowSize(math.min(smartWin.Size.X.Offset, v.X - 16), math.min(smartWin.Size.Y.Offset, v.Y - 16), true, false)
-                end
-            end))
-        end
         if not userOpenedHub then hideHubImmediate() end
         task.wait(0.6)
         applyVisualTheme()

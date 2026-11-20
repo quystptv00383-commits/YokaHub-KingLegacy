@@ -146,6 +146,19 @@
         MainStroke.Color = Color3.fromRGB(45, 55, 75)
         MainStroke.Thickness = 1.5
         MainStroke.Parent = MainFrame
+
+        local GatewayScale = Instance.new("UIScale")
+        GatewayScale.Name = "YokaGatewayScale"
+        GatewayScale.Parent = MainFrame
+        local function updateGatewayScale()
+            local cam = workspace.CurrentCamera
+            local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+            GatewayScale.Scale = math.clamp(math.min((vp.X - 24) / 560, (vp.Y - 24) / 420), 0.65, 1.0)
+        end
+        updateGatewayScale()
+        if workspace.CurrentCamera then
+            workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateGatewayScale)
+        end
         
         local TopBar = Instance.new("Frame")
         TopBar.Name = "TopBar"

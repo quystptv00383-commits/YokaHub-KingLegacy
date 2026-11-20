@@ -224,6 +224,9 @@
         -- Wukong Farm Features
         autoLevel: boolean?,
         autoTakeLevelQuest: boolean?,
+        selectedMob: string?,
+        autoKillSelectedMob: boolean?,
+        fastMobBring: boolean?,
         statMelee: boolean?,
         statDefense: boolean?,
         statSword: boolean?,
@@ -232,10 +235,15 @@
         selectedIsland: string?,
         autoSkills: boolean?,
         autoHaki: boolean?,
+        autoKenHaki: boolean?,
+        autoTransform: boolean?,
+        skillAimbot: boolean?,
+        autoDodge: boolean?,
         safeDistance: boolean?,
         farmSea3Mat: boolean?,
         farmSea2Mat: boolean?,
         farmSea1Mat: boolean?,
+        materialQuantityTracker: boolean?,
         autoDungeon: boolean?,
         dungeonMode: string?,
         -- Wukong Fruit Features
@@ -312,20 +320,28 @@
             dockY = nil,
             autoLevel = false,
             autoTakeLevelQuest = true,
+            selectedMob = "Elite Skeleton [Lv. 3100]",
+            autoKillSelectedMob = false,
+            fastMobBring = true,
             statMelee = false,
             statDefense = false,
             statSword = false,
             statFruit = false,
             statPointsPerTick = 5,
-            selectedIsland = "Starter Island (Đảo Khởi Đầu)",
+            selectedIsland = "🏝️ [Sea 1] Đảo Hải Tặc Đầu Tiên (Pirate Island)",
             autoSkills = true,
             autoHaki = true,
+            autoKenHaki = true,
+            autoTransform = true,
+            skillAimbot = true,
+            autoDodge = true,
             safeDistance = true,
             farmSea3Mat = false,
             farmSea2Mat = false,
             farmSea1Mat = false,
+            materialQuantityTracker = false,
             autoDungeon = false,
-            dungeonMode = "Easy",
+            dungeonMode = "Easy (Dễ - Phù Hợp Cày Nhanh)",
             bringFruits = false,
             storeFruits = true,
             snipeShop = false,
@@ -358,7 +374,7 @@
             snipeDelay = 5,
             autoClickPlay = true,
             autoFish = false,
-            fishWeapon = "True Muramasa",
+            fishWeapon = "True Muramasa (Khuyên Dùng - Tốc Độ Cao)",
             fishFloat = true,
             autoFightMaster = true,
             autoCollectChest = true,
@@ -400,6 +416,9 @@
             end
             if typeof(d.autoLevel) == "boolean" then st.autoLevel = d.autoLevel end
             if typeof(d.autoTakeLevelQuest) == "boolean" then st.autoTakeLevelQuest = d.autoTakeLevelQuest end
+            if typeof(d.selectedMob) == "string" then st.selectedMob = d.selectedMob end
+            if typeof(d.autoKillSelectedMob) == "boolean" then st.autoKillSelectedMob = d.autoKillSelectedMob end
+            if typeof(d.fastMobBring) == "boolean" then st.fastMobBring = d.fastMobBring end
             if typeof(d.statMelee) == "boolean" then st.statMelee = d.statMelee end
             if typeof(d.statDefense) == "boolean" then st.statDefense = d.statDefense end
             if typeof(d.statSword) == "boolean" then st.statSword = d.statSword end
@@ -408,10 +427,15 @@
             if typeof(d.selectedIsland) == "string" then st.selectedIsland = d.selectedIsland end
             if typeof(d.autoSkills) == "boolean" then st.autoSkills = d.autoSkills end
             if typeof(d.autoHaki) == "boolean" then st.autoHaki = d.autoHaki end
+            if typeof(d.autoKenHaki) == "boolean" then st.autoKenHaki = d.autoKenHaki end
+            if typeof(d.autoTransform) == "boolean" then st.autoTransform = d.autoTransform end
+            if typeof(d.skillAimbot) == "boolean" then st.skillAimbot = d.skillAimbot end
+            if typeof(d.autoDodge) == "boolean" then st.autoDodge = d.autoDodge end
             if typeof(d.safeDistance) == "boolean" then st.safeDistance = d.safeDistance end
             if typeof(d.farmSea3Mat) == "boolean" then st.farmSea3Mat = d.farmSea3Mat end
             if typeof(d.farmSea2Mat) == "boolean" then st.farmSea2Mat = d.farmSea2Mat end
             if typeof(d.farmSea1Mat) == "boolean" then st.farmSea1Mat = d.farmSea1Mat end
+            if typeof(d.materialQuantityTracker) == "boolean" then st.materialQuantityTracker = d.materialQuantityTracker end
             if typeof(d.autoDungeon) == "boolean" then st.autoDungeon = d.autoDungeon end
             if typeof(d.dungeonMode) == "string" then st.dungeonMode = d.dungeonMode end
             if typeof(d.bringFruits) == "boolean" then st.bringFruits = d.bringFruits end

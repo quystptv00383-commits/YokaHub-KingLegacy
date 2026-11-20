@@ -5,18 +5,30 @@
     -- Tu dong dong bo cai dat Wukong Engine khi khoi dong
     pcall(function()
         if hubState.autoLevel then genv.Famlevel = true; genv.start = true end
+        genv.chonmod = hubState.selectedMob or "Elite Skeleton [Lv. 3100]"
+        if hubState.autoKillSelectedMob then genv.Autokillmob = true; genv.start = true end
+        genv.autocat = (hubState.fastMobBring ~= false)
         if hubState.autoSkills then genv.opeskill = true; genv.autoskillsea = true end
-        if hubState.autoHaki then genv.haki = true; genv.hakivutrangv2 = true; genv.hakiquansatv2 = true end
+        if hubState.autoHaki then genv.haki = true; genv.hakivutrangv2 = true end
+        genv.hakiquansatv2 = (hubState.autoKenHaki ~= false)
+        genv.bienhinh = (hubState.autoTransform ~= false)
+        genv.PlayerAimbotEnabled = (hubState.skillAimbot ~= false)
+        genv.PlayerAimMode = "Skill Direction"
+        genv.PlayerAimRange = 350
+        genv.autoDodgeEnabled = (hubState.autoDodge ~= false)
         if hubState.safeDistance then genv.nequaikill = true; genv.tamxanekillquai = 250; genv.docaokillquai = 18 end
         if hubState.farmSea3Mat then genv.farmMaterialsea3 = true end
         if hubState.farmSea2Mat then genv.farmMaterialsea2 = true end
         if hubState.farmSea1Mat then genv.farmMaterialsea1 = true end
+        genv.MaterialQuantityTracker = (hubState.materialQuantityTracker == true)
         if hubState.autoDungeon then genv.autodungeon = true end
-        if hubState.dungeonMode then genv.dungeonmode = hubState.dungeonMode end
+        if hubState.dungeonMode then genv.dungeonmode = string.match(hubState.dungeonMode, "^(%a+)") or "Easy" end
         if hubState.bringFruits then genv.BringDroppedFruit = true end
-        if hubState.storeFruits then genv.autocat = true end
-        if hubState.snipeShop then genv.autobuy = true end
+        if hubState.storeFruits then genv.AutoStoreFruit = true end
+        if hubState.snipeShop then genv.shopSniperEnabled = true end
         if hubState.fruitESP then genv.FruitESPEnabled = true end
+        if hubState.playerESP then genv.PlayerESPEnabled = true end
+        if hubState.chestESP then genv.ChestESPEnabled = true end
         if hubState.blackScreen then
             if typeof(genv.WK_ApplyBlackScreen) == "function" then genv.WK_ApplyBlackScreen(true) else genv.BlackScreen = true end
         end
@@ -90,17 +102,22 @@
         -- Sync Shop Sniper
         if hubState.snipeFruit then
             if string.find(hubState.snipeFruit, "Toàn Bộ") then
-                genv.shopSniperFruits = {"DragonFruit", "PhoenixFruit", "GateFruit", "DoughFruit", "ErebusFruit", "SpiritFruit", "MagnetFruit", "ToyFruit", "MelodyFruit", "DemonFruit"}
+                genv.shopSniperFruits = {"Dragon", "Phoenix", "Gate", "Dough", "Erebus", "Spirit", "Magnet", "Toy", "Melody", "Demon", "Snow"}
             else
-                local fName = hubState.snipeFruit:match("^([%w]+)") or hubState.snipeFruit
-                genv.shopSniperFruits = { fName }
+                local rawName = string.match(hubState.snipeFruit, "^([%w%s%']+)") or "Dragon"
+                rawName = string.gsub(rawName, "%s+$", "")
+                genv.shopSniperFruits = { rawName }
             end
         end
         if hubState.snipeDelay then genv.shopSniperDelay = hubState.snipeDelay end
 
         -- Sync Auto Fishing
         if hubState.autoFish then genv.AutoFish = true end
-        if hubState.fishWeapon then genv.kiemmacauca = hubState.fishWeapon end
+        if hubState.fishWeapon then
+            local rawWeapon = string.match(hubState.fishWeapon, "^([%w%s%']+)") or "True Muramasa"
+            rawWeapon = string.gsub(rawWeapon, "%s+$", "")
+            genv.kiemmacauca = rawWeapon
+        end
     end)
     local currentSoloTarget: string = hubState.soloTarget
     local myToken = (tonumber(genv._YokaHubToken) or 0) + 1
@@ -569,21 +586,11 @@
     end)
 
     
-    task.spawn(function()
-        task.wait(0.5)
-        pcall(function()
-            local lg = getLunaGui()
-            if lg then
-                for _, desc in ipairs(lg:GetDescendants()) do
-                    if desc.Name == "Tabs" and desc:IsA("ScrollingFrame") then
-                        desc.AutomaticCanvasSize = Enum.AutomaticSize.Y
-                        desc.ScrollBarThickness = 3
-                        desc.CanvasSize = UDim2.new(0, 0, 0, 0)
-                    end
-                end
-            end
-        end)
-    end)
+    local function getLunaGui(): ScreenGui?
+        local g = guiParent:FindFirstChild("Luna UI") or coreGui:FindFirstChild("Luna UI")
+        if g and g:IsA("ScreenGui") then return g end
+        return nil
+    end
 
     local Window = Luna:CreateWindow({
         Name = "YokaHub",
@@ -600,11 +607,24 @@
     })
     if preHideConn then preHideConn:Disconnect(); preHideConn = nil end
 
-    local function getLunaGui(): ScreenGui?
-        local g = guiParent:FindFirstChild("Luna UI") or coreGui:FindFirstChild("Luna UI")
-        if g and g:IsA("ScreenGui") then return g end
-        return nil
-    end
+    task.spawn(function()
+        task.wait(0.5)
+        pcall(function()
+            local lg = getLunaGui()
+            if lg then
+                for _, desc in ipairs(lg:GetDescendants()) do
+                    if desc.Name == "Tabs" and desc:IsA("ScrollingFrame") then
+                        desc.Size = UDim2.new(1, -2, 1, -12)
+                        desc.ClipsDescendants = true
+                        desc.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                        desc.ScrollingDirection = Enum.ScrollingDirection.Y
+                        desc.ScrollBarThickness = 3
+                        desc.CanvasSize = UDim2.new(0, 0, 0, 0)
+                    end
+                end
+            end
+        end)
+    end)
 
     local function hideHubImmediate()
         hubDesiredOpen = false
@@ -656,7 +676,7 @@
         local cam = workspace.CurrentCamera
         local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
         return math.clamp(math.floor(x), 8, math.max(8, math.floor(vp.X - 68))),
-            math.clamp(math.floor(y), 8, math.max(8, math.floor(vp.Y - 68)))
+            math.clamp(math.floor(y), 8, math.max(8, math.floor(vp.Y - 92)))
     end
     if hubState.dockX and hubState.dockY then
         local cx, cy = clampDockPos(hubState.dockX, hubState.dockY)
@@ -705,8 +725,12 @@
     local initCam = workspace.CurrentCamera
     if initCam then
         trackConn(initCam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+            local rawX = hubState.dockX or dockBtn.AbsolutePosition.X
+            local rawY = hubState.dockY or dockBtn.AbsolutePosition.Y
+            local cx, cy = clampDockPos(rawX, rawY)
             if hubState.dockX and hubState.dockY then
-                local cx, cy = clampDockPos(hubState.dockX, hubState.dockY)
+                dockBtn.Position = UDim2.fromOffset(cx, cy)
+            elseif dockBtn.AbsolutePosition.Y > (initCam.ViewportSize.Y - 92) or dockBtn.AbsolutePosition.X > (initCam.ViewportSize.X - 68) then
                 dockBtn.Position = UDim2.fromOffset(cx, cy)
             end
         end))
@@ -855,21 +879,24 @@
                 bodyTxt.Size = UDim2.new(1, -28, 0, 0)
             end
         elseif (kind == "toggle" or kind == "button" or kind == "danger") and hasDesc and desc and desc:IsA("TextLabel") then
-            card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 62)
+            local isLongDesc = (#desc.Text > 62)
+            card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, isLongDesc and 70 or 62)
             if ttl and ttl:IsA("TextLabel") then
-                ttl.Position = UDim2.new(0, 14, 0, 9)
+                ttl.Position = UDim2.new(0, 14, 0, 8)
                 ttl.Size = UDim2.new(1, -92, 0, 20)
+                ttl.TextTruncate = Enum.TextTruncate.AtEnd
             end
             desc.AnchorPoint = Vector2.new(0, 0)
             desc.Visible = true
             desc.Active = false
             desc.Font = Enum.Font.Gotham
             desc.TextColor3 = descCol
-            desc.TextSize = 13
+            desc.TextSize = 12
+            desc.TextWrapped = true
             desc.TextYAlignment = Enum.TextYAlignment.Top
             desc.TextTruncate = Enum.TextTruncate.AtEnd
-            desc.Position = UDim2.new(0, 14, 0, 34)
-            desc.Size = UDim2.new(1, -92, 0, 20)
+            desc.Position = UDim2.new(0, 14, 0, 31)
+            desc.Size = UDim2.new(1, -92, 0, isLongDesc and 32 or 24)
         elseif kind == "button" or kind == "danger" then
             card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 44)
             if desc and desc:IsA("GuiObject") then desc.Visible = false end
@@ -877,6 +904,7 @@
                 ttl.Position = UDim2.new(0, 14, 0, 0)
                 ttl.Size = UDim2.new(1, -56, 1, 0)
                 ttl.TextYAlignment = Enum.TextYAlignment.Center
+                ttl.TextTruncate = Enum.TextTruncate.AtEnd
             end
         elseif kind == "dropdown" then
             if card.Size.Y.Offset <= 55 then
@@ -884,8 +912,9 @@
             end
             if ttl and ttl:IsA("TextLabel") then
                 ttl.Position = UDim2.new(0, 14, 0, 0)
-                ttl.Size = UDim2.new(0.55, 0, 0, 44)
+                ttl.Size = UDim2.new(0.52, -14, 0, 44)
                 ttl.TextYAlignment = Enum.TextYAlignment.Center
+                ttl.TextTruncate = Enum.TextTruncate.AtEnd
             end
             if desc and desc:IsA("TextLabel") then
                 desc.Font = Enum.Font.Gotham
@@ -893,16 +922,23 @@
                 desc.TextSize = 13
                 desc.Active = false
             end
-            -- Khong de o TextBox Selected chan click mo Dropdown
+            -- Khong de o TextBox Selected chan click mo Dropdown va khong tran de len Title
             local sel = card:FindFirstChild("Selected")
             if sel and sel:IsA("TextBox") then
                 sel.TextEditable = false
                 sel.Active = false
                 sel.Selectable = false
                 sel.ZIndex = 151
+                sel.AnchorPoint = Vector2.new(1, 0)
+                sel.Position = UDim2.new(1, -34, 0, 9)
+                sel.Size = UDim2.new(0.46, -24, 0, 26)
+                sel.ClipsDescendants = true
+                sel.TextTruncate = Enum.TextTruncate.AtEnd
+                sel.TextXAlignment = Enum.TextXAlignment.Right
                 sel.TextColor3 = THEME.c1
                 sel.PlaceholderColor3 = THEME.c1
                 sel.Font = Enum.Font.GothamMedium
+                sel.TextSize = 13
             end
             -- An List & OptionHolderBackground khi Dropdown dang dong de khong de nut ben duoi
             local ddList = card:FindFirstChild("List")
@@ -1070,7 +1106,9 @@
             end
 
             local titleBox = smartWin:FindFirstChild("Title")
-            if titleBox then
+            if titleBox and titleBox:IsA("GuiObject") then
+                titleBox.Size = UDim2.new(1, -265, 0, 22)
+                titleBox.ClipsDescendants = true
                 local tbLL = titleBox:FindFirstChildOfClass("UIListLayout")
                 if tbLL then tbLL.Padding = UDim.new(0, 10) end
                 local t1 = titleBox:FindFirstChild("Title")
@@ -1082,6 +1120,7 @@
                 if t2 and t2:IsA("TextLabel") then
                     t2.Font = Enum.Font.Gotham
                     t2.TextColor3 = Color3.fromRGB(168, 178, 196)
+                    t2.TextTruncate = Enum.TextTruncate.AtEnd
                 end
             end
 
@@ -1117,10 +1156,24 @@
                 if not sidebarExpandedInit then
                     sidebarExpandedInit = true
                     nav.Size = UDim2.new(0, 205, 1, -43)
+                    nav.ClipsDescendants = true
                     syncPaneLayout()
                     trackConn(nav:GetPropertyChangedSignal("Size"):Connect(syncPaneLayout))
                 else
                     syncPaneLayout()
+                end
+                local tabsFolder = nav:FindFirstChild("Tabs")
+                if tabsFolder and tabsFolder:IsA("ScrollingFrame") then
+                    tabsFolder.Size = UDim2.new(1, -2, 1, -12)
+                    tabsFolder.ClipsDescendants = true
+                    tabsFolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                    tabsFolder.ScrollingDirection = Enum.ScrollingDirection.Y
+                    tabsFolder.ScrollBarThickness = 3
+                    tabsFolder.CanvasSize = UDim2.new(0, 0, 0, 0)
+                end
+                local navPlayer = nav:FindFirstChild("Player")
+                if navPlayer and navPlayer:IsA("GuiObject") then
+                    navPlayer.Visible = false
                 end
                 styleTabButtons(nav, inter)
             end
@@ -1400,15 +1453,41 @@
         end)
     end
 
+    local function getResponsiveScaleFactor(vp: Vector2): number
+        return math.clamp(math.min(vp.X / 1050, vp.Y / 680), 0.72, 1.0)
+    end
+
+    local function syncResponsiveScale(smartWin: GuiObject, shadow: GuiObject?, scaleFactor: number)
+        local smartScale = smartWin:FindFirstChild("YokaResponsiveScale")
+        if not smartScale then
+            smartScale = Instance.new("UIScale")
+            smartScale.Name = "YokaResponsiveScale"
+            smartScale.Parent = smartWin
+        end
+        (smartScale :: UIScale).Scale = scaleFactor
+        if shadow and shadow:IsA("GuiObject") then
+            local shadowScale = shadow:FindFirstChild("YokaResponsiveScale")
+            if not shadowScale then
+                shadowScale = Instance.new("UIScale")
+                shadowScale.Name = "YokaResponsiveScale"
+                shadowScale.Parent = shadow
+            end
+            (shadowScale :: UIScale).Scale = scaleFactor
+        end
+    end
+
     local function applyWindowSize(w: number, h: number, smooth: boolean, saveIt: boolean)
         local cam = workspace.CurrentCamera
         local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-        
+        local scaleFactor = getResponsiveScaleFactor(vp)
+        local effVpX = math.floor((vp.X - 16) / scaleFactor)
+        local effVpY = math.floor((vp.Y - 16) / scaleFactor)
+
         -- Nguong an toan dong phu hop moi man hinh (Mobile / Tablet / PC nho / 4K)
-        local minW = math.clamp(math.floor(vp.X * 0.45), 360, 540)
-        local maxW = math.max(minW, math.floor(vp.X - 16))
-        local minH = math.clamp(math.floor(vp.Y * 0.45), 260, 340)
-        local maxH = math.max(minH, math.floor(vp.Y - 16))
+        local minW = math.clamp(math.floor(effVpX * 0.45), 480, 560)
+        local maxW = math.max(minW, effVpX)
+        local minH = math.clamp(math.floor(effVpY * 0.45), 320, 360)
+        local maxH = math.max(minH, effVpY)
 
         local finalW = math.clamp(math.floor(w + 0.5), minW, maxW)
         local finalH = math.clamp(math.floor(h + 0.5), minH, maxH)
@@ -1422,15 +1501,7 @@
         local shadow = lunaGui:FindFirstChild("ShadowHolder")
         if not (smartWin and smartWin:IsA("GuiObject")) then return end
 
-        -- He so co gian ty le noi dung tu dong (Responsive UI Scale)
-        local smartScale = smartWin:FindFirstChild("YokaResponsiveScale")
-        if not smartScale then
-            smartScale = Instance.new("UIScale")
-            smartScale.Name = "YokaResponsiveScale"
-            smartScale.Parent = smartWin
-        end
-        local scaleFactor = math.clamp(math.min(vp.X / 1050, vp.Y / 680), 0.72, 1.0)
-        smartScale.Scale = scaleFactor
+        syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
 
         local newSize = UDim2.fromOffset(finalW, finalH)
         local twInfo = TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
@@ -1453,19 +1524,22 @@
         local twInfo = TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
         local cam = workspace.CurrentCamera
         local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+        local scaleFactor = getResponsiveScaleFactor(vp)
+        syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
+        local effMaxW = math.max(480, math.floor((vp.X - 16) / scaleFactor))
+        local effMaxH = math.max(320, math.floor((vp.Y - 16) / scaleFactor))
+
         if not isFullscreen then
             isFullscreen = true
             local curW = smartWin.Size.X.Offset
             local curH = smartWin.Size.Y.Offset
-            if curW >= (vp.X - 40) or curH >= (vp.Y - 40) then
+            if curW >= (effMaxW - 24) or curH >= (effMaxH - 24) then
                 preFullW, preFullH, preFullPos = 720, 450, UDim2.fromScale(0.5, 0.5)
             else
                 preFullW, preFullH, preFullPos = curW, curH, smartWin.Position
             end
 
-            local fullW = math.max(360, math.floor(vp.X - 16))
-            local fullH = math.max(260, math.floor(vp.Y - 16))
-            local fullSz = UDim2.fromOffset(fullW, fullH)
+            local fullSz = UDim2.fromOffset(effMaxW, effMaxH)
             local centerPos = UDim2.fromScale(0.5, 0.5)
 
             tweenService:Create(smartWin, twInfo, { Size = fullSz, Position = centerPos }):Play()
@@ -1474,8 +1548,8 @@
             end
         else
             isFullscreen = false
-            local backW = math.clamp(preFullW, 360, math.max(360, math.floor(vp.X - 16)))
-            local backH = math.clamp(preFullH, 260, math.max(260, math.floor(vp.Y - 16)))
+            local backW = math.clamp(preFullW, 480, effMaxW)
+            local backH = math.clamp(preFullH, 320, effMaxH)
             local backSz = UDim2.fromOffset(backW, backH)
             local backPos = preFullPos or UDim2.fromScale(0.5, 0.5)
             tweenService:Create(smartWin, twInfo, { Size = backSz, Position = backPos }):Play()
@@ -1678,17 +1752,20 @@
         trackConn(userInputService.InputChanged:Connect(function(input: InputObject)
             if not resizing then return end
             if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
-            local delta = Vector2.new(input.Position.X, input.Position.Y) - rStartMouse
             local cam = workspace.CurrentCamera
             local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-            local dragMinW = math.clamp(math.floor(vp.X * 0.45), 360, 540)
-            local dragMaxW = math.max(dragMinW, math.floor(vp.X - 16))
-            local dragMinH = math.clamp(math.floor(vp.Y * 0.45), 260, 340)
-            local dragMaxH = math.max(dragMinH, math.floor(vp.Y - 16))
+            local scaleFactor = getResponsiveScaleFactor(vp)
+            local delta = (Vector2.new(input.Position.X, input.Position.Y) - rStartMouse) / scaleFactor
+            local effVpX = math.floor((vp.X - 16) / scaleFactor)
+            local effVpY = math.floor((vp.Y - 16) / scaleFactor)
+            local dragMinW = math.clamp(math.floor(effVpX * 0.45), 480, 560)
+            local dragMaxW = math.max(dragMinW, effVpX)
+            local dragMinH = math.clamp(math.floor(effVpY * 0.45), 320, 360)
+            local dragMaxH = math.max(dragMinH, effVpY)
             local newW = math.clamp(math.floor(rStartW + delta.X), dragMinW, dragMaxW)
             local newH = math.clamp(math.floor(rStartH + delta.Y), dragMinH, dragMaxH)
-            local ddx = (newW - rStartW) * 0.5
-            local ddy = (newH - rStartH) * 0.5
+            local ddx = (newW - rStartW) * 0.5 * scaleFactor
+            local ddy = (newH - rStartH) * 0.5 * scaleFactor
 
             smartWin.Size = UDim2.fromOffset(newW, newH)
             smartWin.Position = UDim2.new(rStartPos.X.Scale, rStartPos.X.Offset + ddx, rStartPos.Y.Scale, rStartPos.Y.Offset + ddy)
@@ -1722,19 +1799,29 @@
         trackConn(cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
             pcall(function()
                 local vp = cam.ViewportSize
+                local scaleFactor = getResponsiveScaleFactor(vp)
                 local lunaGui = getLunaGui()
                 if lunaGui then
                     local smartWin = lunaGui:FindFirstChild("SmartWindow")
+                    local shadow = lunaGui:FindFirstChild("ShadowHolder")
                     if smartWin and smartWin:IsA("GuiObject") then
-                        local smartScale = smartWin:FindFirstChild("YokaResponsiveScale")
-                        if smartScale and smartScale:IsA("UIScale") then
-                            local scaleFactor = math.clamp(math.min(vp.X / 1050, vp.Y / 680), 0.72, 1.0)
-                            smartScale.Scale = scaleFactor
-                        end
-                        local curW = smartWin.Size.X.Offset
-                        local curH = smartWin.Size.Y.Offset
-                        if curW > (vp.X - 20) or curH > (vp.Y - 20) then
-                            applyWindowSize(math.min(curW, vp.X - 24), math.min(curH, vp.Y - 24), false, false)
+                        syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
+                        local effMaxW = math.max(480, math.floor((vp.X - 16) / scaleFactor))
+                        local effMaxH = math.max(320, math.floor((vp.Y - 16) / scaleFactor))
+                        if isFullscreen then
+                            local fullSz = UDim2.fromOffset(effMaxW, effMaxH)
+                            smartWin.Size = fullSz
+                            smartWin.Position = UDim2.fromScale(0.5, 0.5)
+                            if shadow and shadow:IsA("GuiObject") then
+                                shadow.Size = fullSz
+                                shadow.Position = UDim2.fromScale(0.5, 0.5)
+                            end
+                        else
+                            local curW = smartWin.Size.X.Offset
+                            local curH = smartWin.Size.Y.Offset
+                            if curW > effMaxW or curH > effMaxH then
+                                applyWindowSize(math.min(curW, effMaxW), math.min(curH, effMaxH), false, false)
+                            end
                         end
                     end
                 end

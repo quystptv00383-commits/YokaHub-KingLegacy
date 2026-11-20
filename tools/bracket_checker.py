@@ -53,6 +53,8 @@ for lnum, line in enumerate(lines, 1):
                         errors.append(f'Mismatched {top} (line {top_lnum}) and {ch} at line {lnum}')
         i += 1
 
+if len(stack) > 0:
+    errors.append(f'Remaining open brackets: {len(stack)}')
 print('Remaining open brackets:', len(stack))
 if stack:
     for op, lnum in stack[-10:]:

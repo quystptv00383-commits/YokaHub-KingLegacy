@@ -364,6 +364,8 @@
         local now = os.time()
         local changed = false
         local rareNotifies: { string } = {}
+        local fruitWebhooks: { string } = {}
+        local dropWebhooks: { string } = {}
 
         for key, curVal in pairs(curSnap) do
             local prevVal = tonumber(dropStore.baseline[key]) or 0
@@ -386,8 +388,15 @@
                         dropStore.drops[key] = { name = dispName, cat = cat, count = delta, lastAt = now }
                     end
                     dropStore.lastDrop = "+" .. fmtNum(delta) .. " " .. dispName
-                    if notifyRare and (cat == "sword" or cat == "acc" or cat == "fruit") then
-                        table.insert(rareNotifies, dropCatIcon(cat) .. " +" .. fmtNum(delta) .. " " .. dispName)
+                    if notifyRare then
+                        if cat == "sword" or cat == "acc" or cat == "fruit" then
+                            table.insert(rareNotifies, dropCatIcon(cat) .. " +" .. fmtNum(delta) .. " " .. dispName)
+                        end
+                        if cat == "fruit" and hubState.whFruit then
+                            table.insert(fruitWebhooks, dropCatIcon(cat) .. " **+" .. fmtNum(delta) .. " " .. dispName .. "** (Tổng: " .. fmtNum(curVal) .. ")")
+                        elseif cat ~= "fruit" and hubState.whDrop then
+                            table.insert(dropWebhooks, dropCatIcon(cat) .. " **+" .. fmtNum(delta) .. " " .. dispName .. "** (Tổng: " .. fmtNum(curVal) .. ")")
+                        end
                     end
                 end
             elseif curVal < prevVal then
@@ -413,6 +422,33 @@
             updateDropUI(false)
             if #rareNotifies > 0 then
                 safeNotify("🎁 Vừa Drop Hiếm!", table.concat(rareNotifies, ", "), "check_circle")
+            end
+            local whUrl = hubState.webhookUrl or genv.Webhook_URL2 or ""
+            if #whUrl > 25 and (#fruitWebhooks > 0 or #dropWebhooks > 0) then
+                task.spawn(function()
+                    pcall(function()
+                        local reqFn = (genv.syn and genv.syn.request) or (genv.http and genv.http.request) or genv.request or genv.http_request or request or http_request
+                        if typeof(reqFn) ~= "function" then return end
+                        local lines = {}
+                        for _, f in ipairs(fruitWebhooks) do table.insert(lines, f) end
+                        for _, d in ipairs(dropWebhooks) do table.insert(lines, d) end
+                        local payload = httpService:JSONEncode({
+                            username = "YokaHub · King Legacy",
+                            embeds = {{
+                                title = "🌊 YokaHub — Thông Báo Vật Phẩm Mới (" .. curSeaLabel .. ")",
+                                description = table.concat(lines, "\n"),
+                                color = (#fruitWebhooks > 0) and 16766720 or 4118931,
+                                footer = { text = "Người chơi: " .. tostring(player and player.Name or "Unknown") }
+                            }}
+                        })
+                        reqFn({
+                            Url = whUrl,
+                            Method = "POST",
+                            Headers = { ["Content-Type"] = "application/json" },
+                            Body = payload
+                        })
+                    end)
+                end)
             end
         end
     end

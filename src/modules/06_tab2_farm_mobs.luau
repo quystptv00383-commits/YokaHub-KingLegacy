@@ -119,20 +119,24 @@
         }, "StatPointsSlider")
 
         local MobSection = FarmTab:CreateSection("🎯 Farm Quái Chọn Lọc (Select Mob Farm)")
+        local mobOptions = {
+            "Elite Skeleton [Lv. 3100]",
+            "Ocean Gladiator [Lv. 4500]",
+            "Sea Soldier [Lv. 2250]",
+            "Fishman Raider [Lv. 1500]",
+            "Pirate Guard [Lv. 500]",
+            "Desert Bandit [Lv. 100]",
+        }
+        local defaultSelectedMob = table.find(mobOptions, hubState.selectedMob) and hubState.selectedMob or mobOptions[1]
         MobSection:CreateDropdown({
             Name = "👾 Chọn Quái Muốn Cày",
-            Options = {
-                "Elite Skeleton [Lv. 3100]",
-                "Ocean Gladiator [Lv. 4500]",
-                "Sea Soldier [Lv. 2250]",
-                "Fishman Raider [Lv. 1500]",
-                "Pirate Guard [Lv. 500]",
-                "Desert Bandit [Lv. 100]",
-            },
-            CurrentOption = { "Elite Skeleton [Lv. 3100]" },
+            Options = mobOptions,
+            CurrentOption = { defaultSelectedMob },
             MultipleOptions = false,
             Callback = function(opt: any)
                 local val = pickDropdownValue(opt)
+                hubState.selectedMob = val
+                saveState(hubState)
                 pcall(function()
                     genv.chonmod = val
                 end)
@@ -142,14 +146,21 @@
         MobSection:CreateToggle({
             Name = "⚔️ Bật Cày Quái Đã Chọn",
             Description = "Tập trung đánh loại quái được chọn ở dropdown trên",
-            CurrentValue = false,
+            CurrentValue = hubState.autoKillSelectedMob == true,
             Callback = function(Value: boolean)
+                hubState.autoKillSelectedMob = Value
+                if Value and currentMode ~= "off" then
+                    applyMode("off", false)
+                    setStatus("Đang cày quái chọn lọc — Tạm dừng Săn Boss.")
+                end
+                saveState(hubState)
                 pcall(function()
                     genv.Autokillmob = Value
                     genv.start = Value
                     if Value then
-                        genv.autocat = true
-                        genv.haki = true
+                        genv.chonmod = hubState.selectedMob or defaultSelectedMob
+                        genv.autocat = hubState.fastMobBring ~= false
+                        genv.haki = hubState.autoHaki ~= false
                     end
                 end)
             end,
@@ -158,8 +169,10 @@
         MobSection:CreateToggle({
             Name = "⚡ Gom Quái Nhanh (Fast Mob Bring)",
             Description = "Hút quái vật xung quanh tụ lại 1 điểm để chém lan dọn nhanh",
-            CurrentValue = true,
+            CurrentValue = hubState.fastMobBring ~= false,
             Callback = function(Value: boolean)
+                hubState.fastMobBring = Value
+                saveState(hubState)
                 pcall(function()
                     genv.autocat = Value
                 end)

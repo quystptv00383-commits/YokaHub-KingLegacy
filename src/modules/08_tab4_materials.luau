@@ -16,9 +16,14 @@
             CurrentValue = hubState.farmSea3Mat,
             Callback = function(Value: boolean)
                 hubState.farmSea3Mat = Value
-                if Value and currentMode ~= "off" then
-                    applyMode("off", false)
-                    setStatus("Đang cày nguyên liệu Sea 3 — Tạm dừng Săn Boss.")
+                if Value then
+                    hubState.farmSea2Mat = false
+                    hubState.farmSea1Mat = false
+                    pcall(function() genv.farmMaterialsea2 = false; genv.farmMaterialsea1 = false end)
+                    if currentMode ~= "off" then
+                        applyMode("off", false)
+                        setStatus("Đang cày nguyên liệu Sea 3 — Tạm dừng Săn Boss.")
+                    end
                 end
                 saveState(hubState)
                 pcall(function()
@@ -28,8 +33,8 @@
                         local rawMat = string.match(hubState.nguyenlieuSea3 or "", "^([%w%s%']+)") or "Coral"
                         rawMat = string.gsub(rawMat, "%s+$", "")
                         genv.nguyenlieusea3 = rawMat
-                        genv.autocat = true
-                        genv.haki = true
+                        genv.autocat = hubState.fastMobBring ~= false
+                        genv.haki = hubState.autoHaki ~= false
                     end
                 end)
                 if Value then safeNotify("YokaHub Nguyên Liệu", "Đang cày nguyên liệu Sea 3: " .. tostring(hubState.nguyenlieuSea3), "layers") end
@@ -68,9 +73,14 @@
             CurrentValue = hubState.farmSea2Mat,
             Callback = function(Value: boolean)
                 hubState.farmSea2Mat = Value
-                if Value and currentMode ~= "off" then
-                    applyMode("off", false)
-                    setStatus("Đang cày nguyên liệu Sea 2 — Tạm dừng Săn Boss.")
+                if Value then
+                    hubState.farmSea3Mat = false
+                    hubState.farmSea1Mat = false
+                    pcall(function() genv.farmMaterialsea3 = false; genv.farmMaterialsea1 = false end)
+                    if currentMode ~= "off" then
+                        applyMode("off", false)
+                        setStatus("Đang cày nguyên liệu Sea 2 — Tạm dừng Săn Boss.")
+                    end
                 end
                 saveState(hubState)
                 pcall(function()
@@ -80,8 +90,8 @@
                         local rawMat = string.match(hubState.nguyenlieuSea2 or "", "^([%w%s%']+)") or "Iron Ingot"
                         rawMat = string.gsub(rawMat, "%s+$", "")
                         genv.nguyenlieusea2 = rawMat
-                        genv.autocat = true
-                        genv.haki = true
+                        genv.autocat = hubState.fastMobBring ~= false
+                        genv.haki = hubState.autoHaki ~= false
                     end
                 end)
                 if Value then safeNotify("YokaHub Nguyên Liệu", "Đang cày nguyên liệu Sea 2: " .. tostring(hubState.nguyenlieuSea2), "layers") end
@@ -119,9 +129,14 @@
             CurrentValue = hubState.farmSea1Mat,
             Callback = function(Value: boolean)
                 hubState.farmSea1Mat = Value
-                if Value and currentMode ~= "off" then
-                    applyMode("off", false)
-                    setStatus("Đang cày nguyên liệu Sea 1 — Tạm dừng Săn Boss.")
+                if Value then
+                    hubState.farmSea3Mat = false
+                    hubState.farmSea2Mat = false
+                    pcall(function() genv.farmMaterialsea3 = false; genv.farmMaterialsea2 = false end)
+                    if currentMode ~= "off" then
+                        applyMode("off", false)
+                        setStatus("Đang cày nguyên liệu Sea 1 — Tạm dừng Săn Boss.")
+                    end
                 end
                 saveState(hubState)
                 pcall(function()
@@ -131,8 +146,8 @@
                         local rawMat = string.match(hubState.nguyenlieuSea1 or "", "^([%w%s%']+)") or "Leather"
                         rawMat = string.gsub(rawMat, "%s+$", "")
                         genv.nguyenlieusea1 = rawMat
-                        genv.autocat = true
-                        genv.haki = true
+                        genv.autocat = hubState.fastMobBring ~= false
+                        genv.haki = hubState.autoHaki ~= false
                     end
                 end)
                 if Value then safeNotify("YokaHub Nguyên Liệu", "Đang cày nguyên liệu Sea 1: " .. tostring(hubState.nguyenlieuSea1), "layers") end
@@ -167,8 +182,10 @@
         QueueSection:CreateToggle({
             Name = "🎯 Cày Đủ Số Lượng Tự Chuyển Món Tiếp Theo",
             Description = "Tự động ngưng khi gom đủ số lượng nguyên liệu đặt ra",
-            CurrentValue = false,
+            CurrentValue = hubState.materialQuantityTracker == true,
             Callback = function(Value: boolean)
+                hubState.materialQuantityTracker = Value
+                saveState(hubState)
                 pcall(function()
                     genv.MaterialQuantityTracker = Value
                 end)

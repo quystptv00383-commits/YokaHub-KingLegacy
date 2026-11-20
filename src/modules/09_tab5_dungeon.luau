@@ -40,10 +40,18 @@
         })
 
         local ModeDungSection = DungTab:CreateSection("🎚️ Lựa Chọn Độ Khó & Chiến Thuật")
+        local dungDiffOptions = { "Easy (Dễ - Phù Hợp Cày Nhanh)", "Normal (Thường - Cân Bằng)", "Hard (Khó - Thưởng Lớn)" }
+        local defaultDungDiff = dungDiffOptions[1]
+        for _, optStr in ipairs(dungDiffOptions) do
+            if hubState.dungeonMode and (optStr == hubState.dungeonMode or string.find(optStr, "^" .. tostring(hubState.dungeonMode))) then
+                defaultDungDiff = optStr
+                break
+            end
+        end
         ModeDungSection:CreateDropdown({
             Name = "Chọn Độ Khó Dungeon",
-            Options = { "Easy (Dễ - Phù Hợp Cày Nhanh)", "Normal (Thường - Cân Bằng)", "Hard (Khó - Thưởng Lớn)" },
-            CurrentOption = { hubState.dungeonMode or "Easy (Dễ - Phù Hợp Cày Nhanh)" },
+            Options = dungDiffOptions,
+            CurrentOption = { defaultDungDiff },
             MultipleOptions = false,
             Callback = function(opt: any)
                 local val = pickDropdownValue(opt)

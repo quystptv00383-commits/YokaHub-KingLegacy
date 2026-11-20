@@ -31,6 +31,12 @@ text = re.sub(r"'(\\.|[^'])*'", "''", text)
 lines = text.splitlines()
 stack = []
 errors = []
+main_spawn_opened = False
+main_spawn_closed_line = None
+last_code_line = 0
+for idx, l in enumerate(lines, 1):
+    if l.strip():
+        last_code_line = idx
 
 # Tokenize
 word_re = re.compile(r'\b(if|then|elseif|else|for|while|do|repeat|until|function|end)\b')
@@ -52,6 +58,8 @@ for lnum, line in enumerate(lines, 1):
             stack.append(('do', lnum))
         elif kw == 'function':
             stack.append(('function', lnum))
+            if lnum >= 10 and not main_spawn_opened:
+                main_spawn_opened = True
         elif kw == 'repeat':
             stack.append(('repeat', lnum))
         elif kw == 'until':
@@ -66,6 +74,11 @@ for lnum, line in enumerate(lines, 1):
                 top, top_lnum = stack.pop()
                 if top not in ('if', 'do', 'function'):
                     errors.append(f"Mismatched end for {top} (line {top_lnum}) at line {lnum}")
+                if main_spawn_opened and len(stack) == 0 and lnum < last_code_line:
+                    errors.append(f"Prematurely closed outer main task.spawn scope at line {lnum} (before final line {last_code_line})")
+
+if len(stack) > 0:
+    errors.append(f"Remaining unclosed keyword blocks: {len(stack)}")
 
 print("Remaining unclosed keyword blocks:", len(stack))
 if stack:

@@ -36,22 +36,31 @@
         })
 
         local GearFishSection = FishTab:CreateSection("🗡️ Trang Bị Cần & Kiếm Câu Cá")
+        local fishWeaponOptions = {
+            "True Muramasa (Khuyên Dùng - Tốc Độ Cao)",
+            "Muramasa (Kiếm Câu Chuẩn)",
+            "Triple Katana (Tam Kiếm Phái)",
+            "Golden Staff (Gậy Vàng Thần Thoại)",
+            "Fishing Rod (Cần Câu Mặc Định)",
+        }
+        local defaultFishWeapon = fishWeaponOptions[1]
+        for _, optStr in ipairs(fishWeaponOptions) do
+            local rawOpt = string.gsub(string.match(optStr, "^([%w%s%']+)") or optStr, "%s+$", "")
+            if hubState.fishWeapon and (optStr == hubState.fishWeapon or rawOpt == hubState.fishWeapon) then
+                defaultFishWeapon = optStr
+                break
+            end
+        end
         GearFishSection:CreateDropdown({
             Name = "Chọn Cần / Kiếm Câu Cá",
-            Options = {
-                "True Muramasa (Khuyên Dùng - Tốc Độ Cao)",
-                "Muramasa (Kiếm Câu Chuẩn)",
-                "Triple Katana (Tam Kiếm Phái)",
-                "Golden Staff (Gậy Vàng Thần Thoại)",
-                "Fishing Rod (Cần Câu Mặc Định)",
-            },
-            CurrentOption = { hubState.fishWeapon or "True Muramasa (Khuyên Dùng - Tốc Độ Cao)" },
+            Options = fishWeaponOptions,
+            CurrentOption = { defaultFishWeapon },
             MultipleOptions = false,
             Callback = function(opt: any)
                 local val = pickDropdownValue(opt)
                 local rawWeapon = string.match(val, "^([%w%s%']+)") or "True Muramasa"
                 rawWeapon = string.gsub(rawWeapon, "%s+$", "")
-                hubState.fishWeapon = rawWeapon
+                hubState.fishWeapon = val
                 saveState(hubState)
                 pcall(function()
                     genv.kiemmacauca = rawWeapon

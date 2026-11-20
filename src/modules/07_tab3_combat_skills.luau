@@ -164,8 +164,10 @@
         HakiSection:CreateToggle({
             Name = "👁️ Tự Bật Haki Quan Sát (Ken Haki / Kenbunshoku V2)",
             Description = "Tự động bật quan sát né đòn tự động",
-            CurrentValue = true,
+            CurrentValue = hubState.autoKenHaki ~= false,
             Callback = function(Value: boolean)
+                hubState.autoKenHaki = Value
+                saveState(hubState)
                 pcall(function()
                     genv.hakiquansatv2 = Value
                 end)
@@ -175,8 +177,10 @@
         HakiSection:CreateToggle({
             Name = "⚡ Tự Động Biến Hình (Auto Transform)",
             Description = "Tự động kích hoạt dạng biến hình của Trái Ác Quỷ khi giao chiến",
-            CurrentValue = true,
+            CurrentValue = hubState.autoTransform ~= false,
             Callback = function(Value: boolean)
+                hubState.autoTransform = Value
+                saveState(hubState)
                 pcall(function()
                     genv.bienhinh = Value
                 end)
@@ -187,8 +191,10 @@
         AimSection:CreateToggle({
             Name = "🎯 Khóa Chiêu Vào Mục Tiêu (Skill Direction Aimbot)",
             Description = "Tự động xoay người và hướng chiêu thẳng vào tim boss hoặc quái",
-            CurrentValue = true,
+            CurrentValue = hubState.skillAimbot ~= false,
             Callback = function(Value: boolean)
+                hubState.skillAimbot = Value
+                saveState(hubState)
                 pcall(function()
                     genv.PlayerAimbotEnabled = Value
                     genv.PlayerAimMode = "Skill Direction"
@@ -200,8 +206,10 @@
         AimSection:CreateToggle({
             Name = "💨 Tự Động Lướt Né Chiêu (Auto Dodge)",
             Description = "Tự động lướt né khi quái vật hoặc boss vận chiêu diện rộng",
-            CurrentValue = true,
+            CurrentValue = hubState.autoDodge ~= false,
             Callback = function(Value: boolean)
+                hubState.autoDodge = Value
+                saveState(hubState)
                 pcall(function()
                     genv.autoDodgeEnabled = Value
                 end)

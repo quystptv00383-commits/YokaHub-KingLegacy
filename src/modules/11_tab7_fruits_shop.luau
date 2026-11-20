@@ -29,7 +29,7 @@
             Callback = function(Value: boolean)
                 hubState.storeFruits = Value
                 saveState(hubState)
-                pcall(function() genv.autobuy = Value end)
+                pcall(function() genv.AutoStoreFruit = Value end)
             end,
         }, "StoreFruitsToggle")
 

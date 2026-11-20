@@ -42,7 +42,7 @@ for fname in sorted(os.listdir(MODULES_DIR)):
         # Find variables or remotes referenced
         hub_vars = list(set(re.findall(r'hubState\.([a-zA-Z0-9_]+)', block)))
         genv_vars = list(set(re.findall(r'genv\.([a-zA-Z0-9_]+)', block)))
-        has_invoke = bool(re.search(r'(InvokeServer|FireServer|Teleport|Destroy|SetAttribute)', block))
+        has_invoke = bool(re.search(r'(InvokeServer|FireServer|Teleport|Destroy|SetAttribute|applyMode|doExitToGateway|copyToClipboard|resetDropsFn|updateDmgUI|refreshNearbyMobs|snipeTarget|travelChoice)', block))
         has_callback = "Callback" in block
 
         # Check if variables are used in engine or ui

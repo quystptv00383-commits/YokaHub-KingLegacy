@@ -17,7 +17,8 @@ task.spawn(function()
     while not players.LocalPlayer and (os.clock() - initStart) < 15.0 do
         task.wait(0.2)
     end
-    if not players.LocalPlayer then return end
+    local player = players.LocalPlayer
+    if not player then return end
 
     local genv: any = getgenv()
     genv._YokaHub_IsEmbedded = true
