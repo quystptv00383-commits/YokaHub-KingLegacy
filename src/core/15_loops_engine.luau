@@ -52,6 +52,7 @@
     local isHoldingSkill = false
     local lastPlayerSkillCastClock = 0
     local getActiveM1Categories: () -> { string }
+    local getAvailableM1Categories: () -> { string }
 
     local activeFlightTarget = {
         pos = nil :: Vector3?,
@@ -137,6 +138,41 @@
             end
         end
         return list
+    end
+
+    local function isSea3BossEnabled(name: string): boolean
+        local n = string.lower(name)
+        if (string.find(n, "depth", 1, true) ~= nil) and string.find(n, "abyssal", 1, true) == nil then
+            return hubState.fightSea3DepthKing ~= false
+        end
+        if string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno king", 1, true) ~= nil or (string.find(n, "dragon", 1, true) ~= nil and string.find(n, "fruit", 1, true) == nil) then
+            return hubState.fightSea3Dragon ~= false
+        end
+        if string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "tyrant", 1, true) ~= nil then
+            return hubState.fightSea3Abyssal ~= false
+        end
+        if string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil then
+            return hubState.fightSea3Kraken ~= false
+        end
+        if string.find(n, "crab", 1, true) ~= nil then
+            return hubState.fightSea3Crab ~= false
+        end
+        if string.find(n, "serpent", 1, true) ~= nil then
+            return hubState.fightSea2Serpent ~= false
+        end
+        if string.find(n, "sea beast", 1, true) ~= nil or string.find(n, "seabeast", 1, true) ~= nil or string.find(n, "sea event", 1, true) ~= nil then
+            return hubState.fightSea3Events ~= false
+        end
+        return hubState.fightSea3Events ~= false
+    end
+
+    local function isSea2BossEnabled(name: string): boolean
+        local n = string.lower(name)
+        if string.find(n, "hydra", 1, true) ~= nil then return hubState.fightSea2Hydra ~= false end
+        if string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil then return hubState.fightSea2SeaKing ~= false end
+        if string.find(n, "ghost", 1, true) ~= nil then return hubState.fightSea2GhostShip ~= false end
+        if string.find(n, "serpent", 1, true) ~= nil then return hubState.fightSea2Serpent ~= false end
+        return false
     end
 
     local function getAimPoint(targetModel: Model, targetRoot: BasePart): Vector3
@@ -242,7 +278,7 @@
                 if tModel and tRoot then
                     aimPos = getAimPoint(tModel, tRoot)
                     _G.MouseHit = CFrame.new(aimPos)
-                    if not flightAlive and (aimPos - hrp.Position).Magnitude <= 140 and (isHoldingSkill or #getActiveM1Categories() > 0) then
+                    if not flightAlive and (aimPos - hrp.Position).Magnitude <= 140 and (isHoldingSkill or #getAvailableM1Categories() > 0) then
                         local flatLook = Vector3.new(aimPos.X, hrp.Position.Y, aimPos.Z)
                         if (flatLook - hrp.Position).Magnitude > 0.5 then
                             hrp.CFrame = CFrame.lookAt(hrp.Position, flatLook)
@@ -436,10 +472,51 @@
 
     getActiveM1Categories = function(): { string }
         local cats = {}
-        if hubState.autoM1Fruit then table.insert(cats, "fruit") end
-        if hubState.autoM1Sword then table.insert(cats, "sword") end
-        if hubState.autoM1Melee then table.insert(cats, "melee") end
+        if hubState.autoM1Fruit or genv.AutoM1Fruit then table.insert(cats, "fruit") end
+        if hubState.autoM1Sword or genv.AutoM1Sword then table.insert(cats, "sword") end
+        if hubState.autoM1Melee or genv.AutoM1Melee then table.insert(cats, "melee") end
         return cats
+    end
+
+    getAvailableM1Categories = function(): { string }
+        local userCats = getActiveM1Categories()
+        local available = {}
+        local seen = {}
+
+        -- 1. Nếu người dùng chủ động chọn nhiều hơn 1 loại vũ khí: tuân thủ đúng các loại được chọn
+        if #userCats > 1 then
+            for _, cat in ipairs(userCats) do
+                if findToolByCategory(cat) and not seen[cat] then
+                    seen[cat] = true
+                    table.insert(available, cat)
+                end
+            end
+            if #available > 0 then
+                return available
+            end
+        end
+
+        -- 2. Tự động nhận diện toàn bộ kho vũ khí người chơi đang sở hữu (Sword ↔ Fruit ↔ Melee)
+        -- Luân chuyển mượt mà: Sword -> Fruit -> Melee (tự động 100%, không cần hiện thêm giao diện)
+        local preferred = { "sword", "fruit", "melee" }
+        for _, cat in ipairs(preferred) do
+            if findToolByCategory(cat) and not seen[cat] then
+                seen[cat] = true
+                table.insert(available, cat)
+            end
+        end
+
+        -- 3. Fallback: Nếu không tìm thấy qua danh mục, lấy theo Tool đang cầm trên người
+        if #available == 0 then
+            local char = player.Character
+            local curHeld = char and char:FindFirstChildOfClass("Tool")
+            if curHeld then
+                local cCat = classifyKingLegacyTool(curHeld) or "fruit"
+                table.insert(available, cCat)
+            end
+        end
+
+        return available
     end
 
     local clientModuleCache: { [string]: any } = {}
@@ -480,92 +557,143 @@
         return nil
     end
 
+    local cachedSwordM1: RemoteEvent? = nil
+    local function getSwordM1Remote(): RemoteEvent?
+        if cachedSwordM1 and cachedSwordM1.Parent then
+            return cachedSwordM1
+        end
+        local chest = sharedRS:FindFirstChild("Chest")
+        local remEvts = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Events")
+        local sm1 = remEvts and remEvts:FindFirstChild("SwordM1")
+        if sm1 and sm1:IsA("RemoteEvent") then
+            cachedSwordM1 = sm1
+            return sm1
+        end
+        return nil
+    end
+
     local function triggerKingLegacyM1(tool: Tool, cat: string)
-        if not tool then return end
+        if not tool or not tool.Parent then return end
         pcall(function()
             local tModel, tRoot = getBestCombatTarget(420)
             if tModel and tRoot then
-                _G.MouseHit = CFrame.new(getAimPoint(tModel, tRoot))
+                local aimPt = getAimPoint(tModel, tRoot)
+                _G.MouseHit = CFrame.new(aimPt)
             end
 
-            -- 1. Gọi bất đồng bộ tốc độ cao chuẩn Wukong qua ClientSkillHandler
-            local firedViaModule = false
             local modTbl = getClientSkillModule(tool.Name, cat)
-            if modTbl and typeof(modTbl.M1) == "function" then
-                firedViaModule = true
-                task.spawn(function()
-                    pcall(modTbl.M1)
-                end)
-            end
+            local sa = getSkillActionRemote()
+            local sm1 = (cat == "sword") and getSwordM1Remote() or nil
+            local vu = game:GetService("VirtualUser")
 
-            -- 2. Gọi bổ trợ bất đồng bộ qua SkillAction Remote nếu module không có hàm M1
-            if not firedViaModule then
-                local sa = getSkillActionRemote()
+            -- Fast Attack Multi-Vector (2 xung nhịp liên tiếp chuẩn siêu tốc)
+            for _ = 1, 2 do
+                if modTbl and typeof(modTbl.M1) == "function" then
+                    task.spawn(function()
+                        pcall(modTbl.M1)
+                    end)
+                end
+
+                if sm1 then
+                    pcall(function() sm1:FireServer() end)
+                end
+
                 if sa then
                     local prefix = (cat == "fruit" and "DF_") or (cat == "sword" and "SW_") or "FS_"
                     local actionName = prefix .. tool.Name .. "_M1"
                     task.spawn(function()
-                        pcall(function()
-                            sa:InvokeServer(actionName)
-                        end)
+                        pcall(function() sa:InvokeServer(actionName) end)
                     end)
                 end
+
+                pcall(function() tool:Activate() end)
             end
 
-            -- 3. Kích hoạt Tool chuẩn Roblox
-            pcall(function() tool:Activate() end)
+            if vu then
+                pcall(function()
+                    vu:CaptureController()
+                    vu:ClickButton1(Vector2.zero)
+                end)
+            end
+
+            -- Tăng tốc Animation swing / attack (Animation Speedup Bypass)
+            pcall(function()
+                local char = player.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                local animator = hum and hum:FindFirstChildOfClass("Animator")
+                if animator then
+                    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                        local nameLower = track.Animation and track.Animation.Name:lower() or ""
+                        if nameLower:find("slash") or nameLower:find("attack") or nameLower:find("swing") 
+                           or nameLower:find("punch") or nameLower:find("m1") or nameLower:find("hit") 
+                           or nameLower:find("combo") then
+                            track:AdjustSpeed(4.0)
+                        end
+                    end
+                end
+            end)
         end)
     end
 
     local m1CycleIndex = 1
     local lastM1CycleClock = 0
+    local m1HitsOnCurrentTool = 0
 
     local function equipAndFireSelectedM1(char: Model, hum: Humanoid): Tool?
-        local cats = getActiveM1Categories()
-        if #cats > 0 then
-            if #cats > 1 and (os.clock() - lastM1CycleClock) >= 1.1 then
-                lastM1CycleClock = os.clock()
+        local cats = getAvailableM1Categories()
+        if #cats == 0 then
+            local curHeld = char:FindFirstChildOfClass("Tool")
+            if curHeld then
+                local curCat = classifyKingLegacyTool(curHeld) or "fruit"
+                triggerKingLegacyM1(curHeld, curCat)
+                return curHeld
+            end
+            local bpTool = player.Backpack and player.Backpack:FindFirstChildOfClass("Tool")
+            if bpTool then
+                hum:EquipTool(bpTool)
+                local bCat = classifyKingLegacyTool(bpTool) or "fruit"
+                triggerKingLegacyM1(bpTool, bCat)
+                return bpTool
+            end
+            return nil
+        end
+
+        local now = os.clock()
+        -- Tự động luân chuyển vũ khí mượt mà theo nhịp burst siêu tốc (~0.28s hoặc sau 4 nhát đánh)
+        if #cats > 1 then
+            if (now - lastM1CycleClock) >= 0.28 or m1HitsOnCurrentTool >= 4 then
+                lastM1CycleClock = now
+                m1HitsOnCurrentTool = 0
                 m1CycleIndex = (m1CycleIndex % #cats) + 1
             elseif m1CycleIndex > #cats then
                 m1CycleIndex = 1
             end
-            local chosenCat = cats[m1CycleIndex]
-            local targetTool = findToolByCategory(chosenCat)
-            if not targetTool then
-                for _, fallbackCat in ipairs(cats) do
-                    targetTool = findToolByCategory(fallbackCat)
-                    if targetTool then
-                        chosenCat = fallbackCat
-                        break
-                    end
+        else
+            m1CycleIndex = 1
+        end
+
+        local chosenCat = cats[m1CycleIndex] or cats[1]
+        local targetTool = findToolByCategory(chosenCat)
+        if not targetTool then
+            for _, fallbackCat in ipairs(cats) do
+                targetTool = findToolByCategory(fallbackCat)
+                if targetTool then
+                    chosenCat = fallbackCat
+                    break
                 end
-            end
-            if targetTool then
-                if targetTool.Parent == player.Backpack then
-                    hum:EquipTool(targetTool)
-                end
-                triggerKingLegacyM1(targetTool, chosenCat)
-                return targetTool
             end
         end
 
-        -- Nếu người dùng không tích M1 nào: ưu tiên giữ nguyên vũ khí đang cầm trên tay (ví dụ Trái Erebus)
-        local curHeld = char:FindFirstChildOfClass("Tool")
-        if curHeld then
-            local curCat = classifyKingLegacyTool(curHeld) or "fruit"
-            triggerKingLegacyM1(curHeld, curCat)
-            return curHeld
-        end
-        local fallbackCat = (hubState.skillFruit and "fruit") or (hubState.skillSword and "sword") or (hubState.skillMelee and "melee") or "fruit"
-        local tool = findToolByCategory(fallbackCat) or player.Backpack:FindFirstChildOfClass("Tool")
-        if tool then
-            local tCat = classifyKingLegacyTool(tool) or fallbackCat
-            if tool.Parent == player.Backpack then
-                hum:EquipTool(tool)
+        if targetTool then
+            if targetTool.Parent == player.Backpack then
+                hum:EquipTool(targetTool)
             end
-            triggerKingLegacyM1(tool, tCat)
+            triggerKingLegacyM1(targetTool, chosenCat)
+            m1HitsOnCurrentTool += 1
+            return targetTool
         end
-        return tool
+
+        return nil
     end
 
     -- ========================================================
@@ -573,9 +701,14 @@
     -- ========================================================
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.06)
-            local cats = getActiveM1Categories()
-            if #cats > 0 and not hubState.autoFish and not isHoldingSkill and os.clock() >= dodgeUntilClock then
+            task.wait(0.02)
+            local hasAnyM1 = (hubState.autoM1Fruit == true) or (hubState.autoM1Sword == true) or (hubState.autoM1Melee == true) 
+                or (genv.AutoM1Fruit == true) or (genv.AutoM1Sword == true) or (genv.AutoM1Melee == true)
+            local inCombat = (currentMode ~= "off") or (hubState.autoLevel == true) or (hubState.autoKillSelectedMob == true) 
+                or (hubState.autoFightMaster == true) or (hubState.autoFightIslandBoss == true) or (hubState.autoDungeon == true) 
+                or (hubState.farmSea3Mat == true) or (hubState.farmSea2Mat == true) or (hubState.farmSea1Mat == true)
+
+            if (hasAnyM1 or inCombat) and not hubState.autoFish and not isHoldingSkill and os.clock() >= dodgeUntilClock then
                 pcall(function()
                     local char = player.Character
                     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -994,6 +1127,22 @@
 
                     -- 1. Quét tìm rương báu Boss / Sea Event không giới hạn tầm (Streaming-safe, bay lơ lửng tới nhặt không rơi xuống biển)
                     if hubState.autoCollectChest ~= false then
+                        local foundChestTarget: BasePart? = nil
+                        local foundChestPrompt: ProximityPrompt? = nil
+
+                        local function inspectChestModel(m: Instance): boolean
+                            if m:IsA("Model") and string.find(string.lower(m.Name), "chest", 1, true) and not string.find(string.lower(m.Name), "spawner", 1, true) then
+                                local pp = m.PrimaryPart or m:FindFirstChildWhichIsA("BasePart")
+                                if pp then
+                                    foundChestTarget = pp
+                                    foundChestPrompt = m:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                    return true
+                                end
+                            end
+                            return false
+                        end
+
+                        -- Quét trong workspace.Island
                         local isl = workspace:FindFirstChild("Island")
                         if isl then
                             for _, c in ipairs(isl:GetChildren()) do
@@ -1001,22 +1150,35 @@
                                 local isEventIsl = string.find(cn, "hydra", 1, true) or string.find(cn, "legacy", 1, true) or string.find(cn, "sea", 1, true) or string.find(cn, "ghost", 1, true) or string.find(cn, "event", 1, true) or string.find(cn, "depth", 1, true)
                                 if isEventIsl or currentMode == "off" then
                                     for _, d in ipairs(c:GetDescendants()) do
-                                        if d:IsA("Model") and string.find(string.lower(d.Name), "chest", 1, true) and not string.find(string.lower(d.Name), "spawner", 1, true) then
-                                            local pp = d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
-                                            if pp then
-                                                local chestPos = pp.Position + Vector3.new(0, 4, 0)
-                                                setFlightTarget(chestPos, pp.Position, (pp.Position - hrp.Position).Magnitude > 1400, 60)
-                                                -- Tự kích hoạt ProximityPrompt trên rương nếu có
-                                                local prompt = d:FindFirstChildWhichIsA("ProximityPrompt", true)
-                                                if prompt and (pp.Position - hrp.Position).Magnitude <= 20 and typeof(fireproximityprompt) == "function" then
-                                                    pcall(fireproximityprompt, prompt)
-                                                end
-                                                return
-                                            end
-                                        end
+                                        if inspectChestModel(d) then break end
                                     end
+                                    if foundChestTarget then break end
                                 end
                             end
+                        end
+
+                        -- Quét bổ sung trực tiếp ngoài workspace và SeaMonster
+                        if not foundChestTarget then
+                            for _, obj in ipairs(workspace:GetChildren()) do
+                                if inspectChestModel(obj) then break end
+                            end
+                        end
+                        if not foundChestTarget then
+                            local sm = workspace:FindFirstChild("SeaMonster")
+                            if sm then
+                                for _, obj in ipairs(sm:GetChildren()) do
+                                    if inspectChestModel(obj) then break end
+                                end
+                            end
+                        end
+
+                        if foundChestTarget then
+                            local chestPos = foundChestTarget.Position + Vector3.new(0, 4, 0)
+                            setFlightTarget(chestPos, foundChestTarget.Position, (foundChestTarget.Position - hrp.Position).Magnitude > 1400, 60)
+                            if foundChestPrompt and (foundChestTarget.Position - hrp.Position).Magnitude <= 20 and typeof(fireproximityprompt) == "function" then
+                                pcall(fireproximityprompt, foundChestPrompt)
+                            end
+                            return
                         end
                     end
 
@@ -1031,7 +1193,9 @@
                         -- Tự nhận đúng Quest Boss Đảo chuẩn King Legacy nếu bật Auto Take Boss Quest
                         if hubState.autoTakeBossQuest and islandKeyword ~= "" then
                             local curQ = player:FindFirstChild("CurrentQuest")
-                            if not curQ or curQ.Value == "" or curQ.Value == "None" then
+                            local curQVal = curQ and tostring(curQ.Value) or ""
+                            local hasMyQuest = curQVal ~= "" and curQVal ~= "None" and (string.find(string.lower(curQVal), islandKeyword, 1, true) ~= nil or (islandExact ~= "" and string.find(curQVal, islandExact, 1, true) ~= nil))
+                            if not hasMyQuest then
                                 pcall(function()
                                     local chest = sharedRS:FindFirstChild("Chest")
                                     local qmMod = chest and chest:FindFirstChild("Modules") and chest.Modules:FindFirstChild("QuestManager")
@@ -1043,6 +1207,9 @@
                                                 if typeof(qName) == "string" and typeof(qInfo) == "table" and not qInfo.DailyQuest then
                                                     local mobLow = string.lower(tostring(qInfo.Mob or ""))
                                                     if tostring(qInfo.Mob or "") == islandExact or string.find(mobLow, islandKeyword, 1, true) or string.find(string.lower(qName), islandKeyword, 1, true) then
+                                                        if curQVal ~= "" and curQVal ~= "None" then
+                                                            pcall(function() qRem:InvokeServer("abandon") end)
+                                                        end
                                                         qRem:InvokeServer("take", qName)
                                                         break
                                                     end
@@ -1074,26 +1241,14 @@
                             if soloKeyActive == "serpent" then return string.find(n, "serpent", 1, true) ~= nil end
                             if soloKeyActive == "sea3_events" then return folderName == "SeaMonster" or string.find(n, "sea", 1, true) ~= nil or string.find(n, "dragon", 1, true) ~= nil or string.find(n, "kraken", 1, true) ~= nil end
                         elseif currentMode == "sea2" then
-                            return folderName == "SeaMonster" or folderName == "GhostMonster" or string.find(n, "hydra", 1, true) ~= nil or string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil or string.find(n, "ghost", 1, true) ~= nil or string.find(n, "serpent", 1, true) ~= nil
+                            return isSea2BossEnabled(rawName)
                         elseif currentMode == "sea3" then
-                            return folderName == "SeaMonster" or string.find(n, "depth", 1, true) ~= nil or string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "dragon", 1, true) ~= nil or string.find(n, "kraken", 1, true) ~= nil or string.find(n, "crab", 1, true) ~= nil or string.find(n, "serpent", 1, true) ~= nil
+                            return isSea3BossEnabled(rawName)
                         end
                         if not hubState.autoFightMaster then
                             return false
                         end
-                        if string.find(n, "depth", 1, true) and string.find(n, "abyssal", 1, true) == nil then return hubState.fightSea3DepthKing ~= false end
-                        if string.find(n, "drakenfyr", 1, true) or string.find(n, "inferno king", 1, true) or (string.find(n, "dragon", 1, true) and not string.find(n, "fruit", 1, true)) then return hubState.fightSea3Dragon ~= false end
-                        if string.find(n, "abyssal", 1, true) or string.find(n, "tyrant", 1, true) then return hubState.fightSea3Abyssal ~= false end
-                        if string.find(n, "kraken", 1, true) or string.find(n, "tentacle", 1, true) then return hubState.fightSea3Kraken ~= false end
-                        if string.find(n, "crab", 1, true) then return hubState.fightSea3Crab ~= false end
-                        if string.find(n, "hydra", 1, true) then return hubState.fightSea2Hydra ~= false end
-                        if string.find(n, "sea king", 1, true) or string.find(n, "seaking", 1, true) then return hubState.fightSea2SeaKing ~= false end
-                        if string.find(n, "ghost", 1, true) then return hubState.fightSea2GhostShip ~= false end
-                        if string.find(n, "serpent", 1, true) then return hubState.fightSea2Serpent ~= false end
-                        if folderName == "SeaMonster" or string.find(n, "sea beast", 1, true) or string.find(n, "seabeast", 1, true) then
-                            return hubState.fightSea3Events ~= false
-                        end
-                        return false
+                        return isSea3BossEnabled(rawName) or isSea2BossEnabled(rawName)
                     end
 
                     -- Quét trong SeaMonster, GhostMonster, Monster & Monster.Boss
@@ -1131,6 +1286,34 @@
                             pcall(function()
                                 genv.autoskillsea = true
                             end)
+                        end
+                    elseif hubState.autoFightIslandBoss and hubState.islandBossTarget then
+                        -- StreamingEnabled fix cho Boss Đảo: Nếu Boss chưa load quanh nhân vật -> quét vị trí Spawner/Boss trong Monster.Boss hoặc AllNPC để bay tới
+                        local bossPos: Vector3? = nil
+                        local monB = workspace:FindFirstChild("Monster") and workspace.Monster:FindFirstChild("Boss")
+                        if monB then
+                            for _, b in ipairs(monB:GetChildren()) do
+                                if b.Name == islandExact or (islandKeyword ~= "" and string.find(string.lower(b.Name), islandKeyword, 1, true) ~= nil) then
+                                    local root = getModelRoot(b)
+                                    if root then bossPos = root.Position; break end
+                                end
+                            end
+                        end
+                        if not bossPos then
+                            local allNpc = workspace:FindFirstChild("AllNPC")
+                            if allNpc then
+                                for _, n in ipairs(allNpc:GetChildren()) do
+                                    if islandKeyword ~= "" and string.find(string.lower(n.Name), islandKeyword, 1, true) ~= nil then
+                                        local root = n:IsA("BasePart") and n or (n:FindFirstChild("HumanoidRootPart") or n:FindFirstChildWhichIsA("BasePart"))
+                                        if root then bossPos = root.Position; break end
+                                    end
+                                end
+                            end
+                        end
+                        if bossPos and (bossPos - hrp.Position).Magnitude > 60 then
+                            local sHeight = math.clamp(tonumber(hubState.bossSafeHeight) or 18, 8, 50)
+                            local flyPos = bossPos + Vector3.new(0, sHeight, 0)
+                            setFlightTarget(flyPos, bossPos, (bossPos - hrp.Position).Magnitude > 1400, 52)
                         end
                     elseif currentMode ~= "off" or hubState.autoFightMaster then
                         -- StreamingEnabled fix: Nếu SeaMonster chưa load do ở quá xa -> bay tới thẳng Đảo Sự Kiện (Hydra / Sea Island / Legacy / Ghost Ship) để nạp Boss!
@@ -1407,7 +1590,7 @@
                 local n = string.lower(m.Name)
                 if string.find(n, "depth") or string.find(n, "abyssal tyrant") or string.find(n, "dragon") or string.find(n, "drakenfyr") or string.find(n, "crab") or string.find(n, "kraken") or string.find(n, "tentacle") or string.find(n, "sea beast") or string.find(n, "seabeast") or string.find(n, "serpent") then
                     local hum = m:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 then return true, m.Name end
+                    if hum and hum.Health > 0 and isSea3BossEnabled(m.Name) then return true, m.Name end
                 end
             end
         end
@@ -1419,11 +1602,11 @@
                 local n = string.lower(m.Name)
                 if string.find(n, "depth king") or string.find(n, "abyssal tyrant") or string.find(n, "drakenfyr") or string.find(n, "sea dragon") or string.find(n, "kraken") or string.find(n, "serpent") then
                     local hum = m:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 then return true, m.Name end
+                    if hum and hum.Health > 0 and isSea3BossEnabled(m.Name) then return true, m.Name end
                 end
             end
         end
-        if genv.DepthKingChestWaitStarted == true and genv.DepthKingChestReadyToHop == false then
+        if genv.DepthKingChestWaitStarted == true and genv.DepthKingChestReadyToHop == false and hubState.fightSea3DepthKing ~= false then
             return true, "Đang mở rương Depth King"
         end
         if genv.SeaKingChestWaitStarted == true and genv.SeaKingChestReadyToHop == false then
@@ -1443,7 +1626,7 @@
                     local n = string.lower(m.Name)
                     if string.find(n, "hydra") or string.find(n, "seaking") or string.find(n, "sea king") or string.find(n, "serpent") or string.find(n, "ghost") then
                         local hum = m:FindFirstChildOfClass("Humanoid")
-                        if hum and hum.Health > 0 then
+                        if hum and hum.Health > 0 and isSea2BossEnabled(m.Name) then
                             lastSea2ChestResult = nil
                             return "boss", m.Name
                         end
@@ -1457,7 +1640,7 @@
             for _, m in ipairs(bossF2:GetChildren()) do
                 if string.find(string.lower(m.Name), "serpent") then
                     local hum = m:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 then
+                    if hum and hum.Health > 0 and isSea2BossEnabled(m.Name) then
                         lastSea2ChestResult = nil
                         return "boss", m.Name
                     end
@@ -1468,7 +1651,7 @@
             lastSea2ChestResult = nil
             return "none", "claimed"
         end
-        if genv.HydraChestWaitStarted == true or genv.SeaKingChestWaitStarted == true then return "chest", "Rương Sea 2" end
+        if (genv.HydraChestWaitStarted == true and hubState.fightSea2Hydra ~= false) or (genv.SeaKingChestWaitStarted == true and hubState.fightSea2SeaKing ~= false) then return "chest", "Rương Sea 2" end
         local now = os.clock()
         if (now - lastSea2IslandScan) < 4 then
             if lastSea2ChestResult then return "chest", lastSea2ChestResult end
@@ -1480,7 +1663,12 @@
         if isl then
             for _, c in ipairs(isl:GetChildren()) do
                 local n = string.lower(c.Name)
-                if string.find(n, "hydra") or string.find(n, "sea island") or string.find(n, "legacy island") or string.find(n, "sea king") or string.find(n, "ghost") then
+                local chestAllowed = false
+                if string.find(n, "hydra") and hubState.fightSea2Hydra ~= false then chestAllowed = true
+                elseif (string.find(n, "sea king") or string.find(n, "sea island") or string.find(n, "legacy island")) and hubState.fightSea2SeaKing ~= false then chestAllowed = true
+                elseif string.find(n, "ghost") and hubState.fightSea2GhostShip ~= false then chestAllowed = true
+                end
+                if chestAllowed then
                     for _, d in ipairs(c:GetDescendants()) do
                         if d:IsA("Model") then
                             local dn = string.lower(d.Name)
@@ -1945,12 +2133,12 @@ end)
                         task.wait(0.4)
                     end
 
-                    -- Đứng trên mặt nước nếu bật Water Float
+                    -- Đứng trên mặt nước nếu bật Water Float (giữ độ cao ổn định trên bệ nổi YokaWaterPlatform)
                     if hubState.fishFloat then
                         local hrp = char:FindFirstChild("HumanoidRootPart")
-                        if hrp and hrp.Position.Y < 15 and hrp.Position.Y > -25 then
+                        if hrp and hrp.Position.Y < 1 and hrp.Position.Y > -25 then
                             hrp.Velocity = Vector3.new(0, 0, 0)
-                            hrp.CFrame = CFrame.new(hrp.Position.X, 18, hrp.Position.Z)
+                            hrp.CFrame = CFrame.new(hrp.Position.X, 4, hrp.Position.Z)
                         end
                     end
 
@@ -2508,9 +2696,11 @@ end)
                     -- Tự hồi máu bằng gậy nếu bật và máu < 85%
                     if hubState.dungeonAutoHeal and hum.Health / math.max(1, hum.MaxHealth) < 0.85 then
                         local scepter = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter") or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
-                        if scepter and scepter.Parent == player.Backpack then
-                            hum:EquipTool(scepter)
-                            task.wait(0.2)
+                        if scepter then
+                            if scepter.Parent == player.Backpack then
+                                hum:EquipTool(scepter)
+                                task.wait(0.2)
+                            end
                             scepter:Activate()
                         end
                     end
@@ -2624,7 +2814,7 @@ end)
                             local baseName = string.gsub(fruitName, "Fruit$", "")
                             if buyStock then
                                 pcall(function() buyStock:InvokeServer(baseName) end)
-                                pcall(function() buyStock:InvokeServer(baseName .. baseName) end)
+                                pcall(function() buyStock:InvokeServer(baseName .. "Fruit") end)
                             elseif legacyShop then
                                 pcall(function() legacyShop:InvokeServer("Buy", baseName) end)
                                 pcall(function() legacyShop:InvokeServer("Buy", baseName .. "Fruit") end)

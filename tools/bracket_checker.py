@@ -44,12 +44,12 @@ for lnum, line in enumerate(lines, 1):
         elif ch in ('(', '[', '{'):
             stack.append((ch, lnum))
         elif ch in (')', ']', '}'):
-                if not stack:
-                    errors.append(f'Extra closing {ch} at line {lnum}')
-                else:
-                    top, top_lnum = stack.pop()
-                    if top != pairs[ch]:
-                        errors.append(f'Mismatched {top} (line {top_lnum}) and {ch} at line {lnum}')
+            if not stack:
+                errors.append(f'Extra closing {ch} at line {lnum}')
+            else:
+                top, top_lnum = stack.pop()
+                if top != pairs[ch]:
+                    errors.append(f'Mismatched {top} (line {top_lnum}) and {ch} at line {lnum}')
         i += 1
 
 if len(stack) > 0:

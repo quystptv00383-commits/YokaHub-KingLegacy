@@ -20,27 +20,37 @@
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
         -- Top 1: Depth King (Sea 3) - Ưu tiên cao nhất (6 điểm)
-        if (src == "depth_king" or string.find(nm, "depth") ~= nil) and string.find(nm, "abyssal") == nil then
+        if (src == "depth_king" or string.find(nm, "depth", 1, true) ~= nil) and string.find(nm, "abyssal", 1, true) == nil then
+            if hubState.fightSea3DepthKing == false then return 0 end
             return 6
         end
         -- Top 2: Drakenfyr the Inferno King / Dragon (Sea 3) - Ưu tiên số 2 (5 điểm)
-        if string.find(nm, "drakenfyr") ~= nil or string.find(nm, "inferno king") ~= nil or (src == "sea_event" and string.find(nm, "dragon") ~= nil) then
+        if string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "dragon", 1, true) ~= nil) then
+            if hubState.fightSea3Dragon == false then return 0 end
             return 5
         end
         -- Top 3: Abyssal Tyrant (Sea 3) - Ưu tiên số 3 (4 điểm)
-        if string.find(nm, "abyssal tyrant") ~= nil or string.find(nm, "abyssal") ~= nil then
+        if string.find(nm, "abyssal tyrant", 1, true) ~= nil or string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil then
+            if hubState.fightSea3Abyssal == false then return 0 end
             return 4
         end
         -- Top 4: Kraken (Sea 3) - Ưu tiên số 4 (3 điểm)
-        if src == "sea_event" and (string.find(nm, "kraken") ~= nil or string.find(nm, "tentacle") ~= nil) then
+        if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) then
+            if hubState.fightSea3Kraken == false then return 0 end
             return 3
         end
-        -- Top 5: Các Sea Events khác (Cua Biển / Crab, Sea Beast...) (2 điểm)
-        if src == "sea_event" then
+        -- Top 5: Cua Biển (Giant Crab) & Các Sea Events khác (2 điểm)
+        if src == "sea_event" or string.find(nm, "crab", 1, true) ~= nil or string.find(nm, "sea beast", 1, true) ~= nil then
+            if string.find(nm, "crab", 1, true) ~= nil then
+                if hubState.fightSea3Crab == false then return 0 end
+            else
+                if hubState.fightSea3Events == false and hubState.fightSea3Crab == false then return 0 end
+            end
             return 2
         end
         -- Top 6: Rắn Biển / Serpent (1 điểm)
-        if src == "serpent" or string.find(nm, "serpent") ~= nil then
+        if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
+            if hubState.fightSea2Serpent == false then return 0 end
             return 1
         end
         return 0
@@ -49,13 +59,22 @@
     local function getSea2Prio(e: any): number
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
-        if src == "sk_hd_chest" and string.find(nm, "hydra") then return 7 end
-        if src == "hydra" then return 6 end
-        if src == "sk_hd_chest" and (string.find(nm, "sea king") or string.find(nm, "seaking")) then return 5 end
-        if src == "sea_king" then return 4 end
-        if src == "serpent" or string.find(nm, "serpent") then return 3 end
-        if (string.find(src, "ghost") or string.find(nm, "ghost")) and string.find(nm, "chest") then return 2 end
-        if src == "ghost_ship" then return 1 end
+        if (src == "sk_hd_chest" and string.find(nm, "hydra", 1, true) ~= nil) or src == "hydra" or string.find(nm, "hydra", 1, true) ~= nil then
+            if hubState.fightSea2Hydra == false then return 0 end
+            return src == "sk_hd_chest" and 7 or 6
+        end
+        if (src == "sk_hd_chest" and (string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil)) or src == "sea_king" or string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil then
+            if hubState.fightSea2SeaKing == false then return 0 end
+            return src == "sk_hd_chest" and 5 or 4
+        end
+        if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
+            if hubState.fightSea2Serpent == false then return 0 end
+            return 3
+        end
+        if string.find(src, "ghost", 1, true) ~= nil or string.find(nm, "ghost", 1, true) ~= nil then
+            if hubState.fightSea2GhostShip == false then return 0 end
+            return string.find(nm, "chest", 1, true) ~= nil and 2 or 1
+        end
         return 0
     end
 
