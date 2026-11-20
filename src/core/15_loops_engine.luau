@@ -1537,10 +1537,14 @@
     local function getSlotTier(e: any): number
         local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
         local pMax = typeof(e.players) == "table" and (tonumber(e.players.max) or 12) or 12
-        local free = pMax - pCur
-        if pCur >= 4 and pCur <= 8 and free >= 3 then return 4 end
-        if free >= 2 then return 3 end
-        if free >= 1 then return 1 end
+        if pCur >= pMax then return 0 end
+        -- Phân hạng ưu tiên phòng ít người nhất: Càng ít người thì Tier càng cao
+        if pCur <= 3 then return 5      -- Siêu ít người (1-3 người): Ưu tiên cao nhất
+        elseif pCur <= 6 then return 4  -- Rất ít người (4-6 người): Ưu tiên rất cao
+        elseif pCur <= 8 then return 3  -- Trung bình (7-8 người): Khá
+        elseif pCur <= 10 then return 2 -- Khá đông (9-10 người): Thấp
+        elseif pCur < pMax then return 1 -- Gần đầy (11 người): Dự phòng cuối
+        end
         return 0
     end
 
@@ -1992,9 +1996,9 @@
             pcall(genv.WK_JoinLiveBossApiEntry, chosen)
             local waited = 0
             local failed = false
-            while waited < 5.0 and currentMode == expectedMode and genv._YokaHubToken == myToken do
-                task.wait(0.25); waited += 0.25
-                if (tonumber(genv._LastTeleportFailClock) or 0) >= hopStart and waited >= 1.4 then
+            while waited < 4.0 and currentMode == expectedMode and genv._YokaHubToken == myToken do
+                task.wait(0.2); waited += 0.2
+                if (tonumber(genv._LastTeleportFailClock) or 0) >= hopStart and waited >= 1.0 then
                     failed = true
                     if ref ~= "" and shortFailCooldownSec and shortFailCooldownSec > 0 then
                         visited[vKey] = os.time() - visitedTTL + shortFailCooldownSec
@@ -2144,6 +2148,7 @@
                         elseif hpOk and sinkOk then
                             e._prio = prio
                             e._tier = getSlotTier(e)
+                            e._pCur = pCur
                             e._sinkSec = sinkSec or 999
                             e._hp = typeof(e.health) == "table" and (tonumber(e.health.percent) or 100) or 100
                             table.insert(candidates, e)
@@ -2156,6 +2161,9 @@
                     if (soloKey == "hydra" or soloKey == "sea_king") and a._prio == 2 and a._sinkSec ~= b._sinkSec then
                         return a._sinkSec > b._sinkSec
                     end
+                    local aCur = a._pCur or 99
+                    local bCur = b._pCur or 99
+                    if aCur ~= bCur then return aCur < bCur end -- Ưu tiên phòng ít người nhất lên đầu
                     return a._hp > b._hp
                 end)
 
@@ -2163,19 +2171,19 @@
                     burstHopCandidates(candidates, visited, visitedSoloFile, "solo", shortCd, vPrefix)
                 else
                     if fullRooms > 0 then
-                        setStatus(string.format("Có %d phòng %s đều đầy 12/12 — dò lại sau 2s...", fullRooms, soloOpt))
-                        smartWait(2.0, "solo")
+                        setStatus(string.format("Có %d phòng %s đều đầy 12/12 — dò lại sau 1.2s...", fullRooms, soloOpt))
+                        smartWait(1.2, "solo")
                     elseif visitedRooms > 0 then
-                        setStatus(string.format("Có %d phòng %s vừa ghé — chờ phòng mới sau 2s...", visitedRooms, soloOpt))
-                        smartWait(2.0, "solo")
+                        setStatus(string.format("Có %d phòng %s vừa ghé — chờ phòng mới sau 1.2s...", visitedRooms, soloOpt))
+                        smartWait(1.2, "solo")
                     else
-                        setStatus("Chưa có phòng trống cho " .. soloOpt .. " — dò lại sau 2.2s...")
-                        smartWait(2.2, "solo")
+                        setStatus("Chưa có phòng trống cho " .. soloOpt .. " — dò lại sau 1.2s...")
+                        smartWait(1.2, "solo")
                     end
                 end
             else
-                setStatus("Đang chờ API, thử lại sau 2.2s...")
-                smartWait(2.2, "solo")
+                setStatus("Đang chờ API, thử lại sau 1.2s...")
+                smartWait(1.2, "solo")
             end
 
         elseif mode == "sea3" then
@@ -2237,6 +2245,7 @@
                     if e.alive == true and tonumber(e.placeId) == SEA3_PLACE and prio > 0 and pCur < pMax and hpOk and (ref == "" or visited[ref] == nil) then
                         e._prio = prio
                         e._tier = getSlotTier(e)
+                        e._pCur = pCur
                         e._hp = typeof(e.health) == "table" and (tonumber(e.health.percent) or 0) or 0
                         table.insert(candidates, e)
                     end
@@ -2244,17 +2253,20 @@
                 table.sort(candidates, function(a, b)
                     if a._prio ~= b._prio then return a._prio > b._prio end
                     if a._tier ~= b._tier then return a._tier > b._tier end
+                    local aCur = a._pCur or 99
+                    local bCur = b._pCur or 99
+                    if aCur ~= bCur then return aCur < bCur end -- Phòng ít người nhất được ưu tiên hàng đầu!
                     return a._hp > b._hp
                 end)
                 if #candidates > 0 then
                     burstHopCandidates(candidates, visited, visitedSea3File, "sea3")
                 else
-                    setStatus("Chưa có phòng phù hợp, quét lại sau 2.5s...")
-                    smartWait(2.5, "sea3")
+                    setStatus("Chưa có phòng phù hợp, quét lại sau 1.2s...")
+                    smartWait(1.2, "sea3")
                 end
             else
-                setStatus("Đang chờ API, thử lại sau 2.5s...")
-                smartWait(2.5, "sea3")
+                setStatus("Đang chờ API, thử lại sau 1.2s...")
+                smartWait(1.2, "sea3")
             end
 
         elseif mode == "sea2" then
@@ -2320,6 +2332,7 @@
                     if e.alive == true and tonumber(e.placeId) == SEA2_PLACE and prio > 0 and pCur < pMax and hpOk and sinkOk and (ref == "" or visited[ref] == nil) then
                         e._prio = prio
                         e._tier = getSlotTier(e)
+                        e._pCur = pCur
                         e._sinkSec = sinkSec or 999
                         e._hp = typeof(e.health) == "table" and (tonumber(e.health.percent) or 100) or 100
                         if prio >= 6 then
@@ -2336,6 +2349,9 @@
                         if (a._prio == 7 or a._prio == 5) and a._sinkSec ~= b._sinkSec then
                             return a._sinkSec > b._sinkSec
                         end
+                        local aCur = a._pCur or 99
+                        local bCur = b._pCur or 99
+                        if aCur ~= bCur then return aCur < bCur end -- Phòng ít người nhất được ưu tiên hàng đầu!
                         return a._hp > b._hp
                     end)
                 end

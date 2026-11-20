@@ -33,7 +33,7 @@
     local visitedSea3File = "AutoSeaEventApiVisited.json"
     local visitedSea2File = "AutoSea2PriorityApiVisited.json"
     local visitedSoloFile = "AutoSoloApiVisited.json"
-    local visitedTTL = 150
+    local visitedTTL = 85 -- Thoi gian ghi nho phong da ghe (85s giup hop nhanh & xoay tua phong lien tuc)
 
     local rf = genv.readfile or readfile
     local wf = genv.writefile or writefile

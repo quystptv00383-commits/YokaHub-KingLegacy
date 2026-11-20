@@ -9,10 +9,14 @@
     local function getSlotTier(e: any): number
         local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
         local pMax = typeof(e.players) == "table" and (tonumber(e.players.max) or 12) or 12
-        local free = pMax - pCur
-        if pCur >= 4 and pCur <= 8 and free >= 3 then return 4 end
-        if free >= 2 then return 3 end
-        if free >= 1 then return 1 end
+        if pCur >= pMax then return 0 end
+        -- Phân hạng ưu tiên phòng ít người nhất: Càng ít người thì Tier càng cao
+        if pCur <= 3 then return 5      -- Siêu ít người (1-3 người): Ưu tiên cao nhất
+        elseif pCur <= 6 then return 4  -- Rất ít người (4-6 người): Ưu tiên rất cao
+        elseif pCur <= 8 then return 3  -- Trung bình (7-8 người): Khá
+        elseif pCur <= 10 then return 2 -- Khá đông (9-10 người): Thấp
+        elseif pCur < pMax then return 1 -- Gần đầy (11 người): Dự phòng cuối
+        end
         return 0
     end
 
