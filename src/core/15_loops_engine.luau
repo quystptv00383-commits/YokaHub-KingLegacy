@@ -258,70 +258,24 @@
     end)
 
     -- ========================================================
-    -- [AUTO CLICK PLAY] - TU DONG NHAN PLAY KHI LOAD XONG
+    -- [AUTO CLICK PLAY] - TU DONG NHAN PLAY KHI LOAD XONG / HOP SERVER
     -- ========================================================
     task.spawn(function()
-        local maxWait = 30
-        local startClock = os.clock()
-        while (os.clock() - startClock) < maxWait and genv._YokaHubToken == myToken do
-            task.wait(0.5)
-            if hubState.autoClickPlay == false then break end
-
-            local char = player.Character
-            local hasHrp = char and char:FindFirstChild("HumanoidRootPart")
-            local hasHum = char and char:FindFirstChild("Humanoid")
-            if hasHrp and hasHum and hasHum.Health > 0 then
-                break
-            end
-
-            pcall(function()
+        triggerKingLegacyAutoPlay(function()
+            return hubState.autoClickPlay ~= false and genv._YokaHubToken == myToken
+        end)
+        while genv._YokaHubToken == myToken do
+            task.wait(1.5)
+            if hubState.autoClickPlay ~= false then
                 local pgui = player:FindFirstChild("PlayerGui")
-                if not pgui then return end
-
-                local clicked = false
-                for _, btn in ipairs(pgui:GetDescendants()) do
-                    if btn:IsA("GuiButton") and btn.Visible and btn.Active ~= false then
-                        local bName = string.lower(btn.Name)
-                        local bText = ""
-                        if btn:IsA("TextButton") then
-                            bText = string.lower(btn.Text)
-                        else
-                            local lbl = btn:FindFirstChildOfClass("TextLabel")
-                            if lbl then bText = string.lower(lbl.Text) end
-                        end
-
-                        local isPlayBtn = (bName == "play" or bName == "playbutton" or bName == "start" or bName == "btnplay" or bName == "play_btn" or string.find(bName, "play") ~= nil)
-                        local isPlayText = (bText == "play" or bText == "start" or bText == "chơi" or string.find(bText, "play") ~= nil)
-
-                        if isPlayBtn or isPlayText then
-                            if typeof(firesignal) == "function" then
-                                pcall(function() firesignal(btn.MouseButton1Click) end)
-                                pcall(function() firesignal(btn.Activated) end)
-                                pcall(function() firesignal(btn.MouseButton1Down) end)
-                                pcall(function() firesignal(btn.MouseButton1Up) end)
-                            end
-
-                            local vim = game:GetService("VirtualInputManager")
-                            if vim and btn.AbsoluteSize.X > 0 and btn.AbsoluteSize.Y > 0 then
-                                local cx = btn.AbsolutePosition.X + btn.AbsoluteSize.X / 2
-                                local cy = btn.AbsolutePosition.Y + btn.AbsoluteSize.Y / 2
-                                pcall(function()
-                                    vim:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
-                                    task.wait(0.03)
-                                    vim:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
-                                end)
-                            end
-
-                            clicked = true
-                            break
-                        end
-                    end
+                local loadingGui = pgui and pgui:FindFirstChild("LoadingGUI")
+                if player:GetAttribute("Playing") ~= true or loadingGui then
+                    triggerKingLegacyAutoPlay(function()
+                        return hubState.autoClickPlay ~= false and genv._YokaHubToken == myToken
+                    end)
+                    task.wait(3.0)
                 end
-
-                if clicked then
-                    task.wait(1.5)
-                end
-            end)
+            end
         end
     end)
 
@@ -693,6 +647,7 @@
             local infoStr = string.format("%s (%s/%s người)", tostring(chosen.eventName), tostring(chosen.players and chosen.players.current or "?"), tostring(chosen.players and chosen.players.max or "?"))
             setStatus("Đang sang phòng: " .. infoStr)
             if idx == 1 then recordHop() end
+            armAutoReexec(false)
             pcall(genv.WK_JoinLiveBossApiEntry, chosen)
             local waited = 0
             local failed = false

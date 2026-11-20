@@ -314,7 +314,7 @@
             winW = 720,
             winH = 450,
             autoDismiss773 = true,
-            autoReexec = false,
+            autoReexec = true,
             damageMeter = false,
             dockX = nil,
             dockY = nil,

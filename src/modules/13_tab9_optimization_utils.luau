@@ -28,14 +28,16 @@
             hubState.autoClickPlay = Value
             saveState(hubState)
             if Value then
-                safeNotify("YokaHub", "Đã bật tự động nhấn Play khi load xong!", "play_circle")
+                armAutoReexec(false)
+                triggerKingLegacyAutoPlay(function() return hubState.autoClickPlay ~= false end)
+                safeNotify("YokaHub", "Đã bật tự động nhấn Play ngay khi vào server / hop server!", "play_circle")
             else
                 safeNotify("YokaHub", "Đã tắt tự động nhấn Play.", "info")
             end
         end,
     }, "AutoClickPlayToggle")
 
-    if hubState.autoReexec then
+    if hubState.autoReexec or hubState.autoClickPlay then
         task.defer(function() armAutoReexec(false) end)
     end
 
@@ -86,6 +88,7 @@
                 pcall(function()
                     hubState.mode = "off"
                     saveState(hubState)
+                    armAutoReexec(false)
                     if targetPlace then
                         if teleportToSea then
                             teleportToSea(targetPlace)

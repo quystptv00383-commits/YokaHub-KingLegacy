@@ -154,6 +154,9 @@
         genv._AutoDepthKingOnlyApiHop = (newMode == "solo" and getSoloKey(currentSoloTarget) == "depth_king")
         saveState(hubState)
         updateDockDot()
+        if newMode ~= "off" then
+            armAutoReexec(false)
+        end
 
         syncingToggles = true
         if SoloToggle and typeof(SoloToggle.Set) == "function" then
@@ -648,6 +651,7 @@
                     local info = string.format("%s (%s/%s người)", tostring(chosen.eventName), tostring(chosen.players and chosen.players.current or "?"), tostring(chosen.players and chosen.players.max or "?"))
                     setStatus("Đang bay vào: " .. info)
                     if idx == 1 then recordHop() end
+                    armAutoReexec(false)
                     local hopStart = os.clock()
                     pcall(genv.WK_JoinLiveBossApiEntry, chosen)
                     safeNotify("Đang bay tới", info, "public")
@@ -708,6 +712,7 @@
                 end
 
                 recordHop()
+                armAutoReexec(false)
                 if chosenId and chosenId ~= "" then
                     setStatus(chosenInfo)
                     safeNotify("Đang chuyển phòng", chosenInfo, "public")

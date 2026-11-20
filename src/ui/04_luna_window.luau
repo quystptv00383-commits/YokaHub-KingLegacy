@@ -336,7 +336,7 @@
     end
 
     local function armAutoReexec(notifyUser: boolean): boolean
-        if not hubState.autoReexec then return false end
+        if not hubState.autoReexec and not hubState.autoClickPlay and currentMode == "off" then return false end
         local qFn = getRealQueueOnTeleport()
         if not qFn then
             if notifyUser then
@@ -346,7 +346,7 @@
         end
         if genv._YokaReexecQueued then
             if notifyUser then
-                safeNotify("YokaHub", "Đã bật tự chạy lại khi chuyển server (Delta / Mobile).", "check_circle")
+                safeNotify("YokaHub", "Đã bật tự chạy lại & tự nhấn Play khi chuyển server.", "check_circle")
             end
             return true
         end
@@ -356,38 +356,81 @@
         local payload = table.concat({
             'if game.GameId ~= 1451439645 then return end',
             'task.spawn(function()',
-            '    if not game:IsLoaded() then game.Loaded:Wait() end',
-            '    task.wait(1.0)',
+            '    if not game:IsLoaded() then pcall(function() game.Loaded:Wait() end) end',
             '    local g = getgenv()',
-            '    if g._WukongMasterLoaded then return end',
             '    local rf, isf = g.readfile or readfile, g.isfile or isfile',
+            '    local allowPlay, allowReexec = true, true',
             '    if typeof(isf) == "function" and typeof(rf) == "function" and isf("YokaHub_State.json") then',
             '        local ok, raw = pcall(rf, "YokaHub_State.json")',
-            '        if ok and typeof(raw) == "string" and string.find(raw, \'"autoReexec":false\', 1, true) then return end',
+            '        if ok and typeof(raw) == "string" then',
+            '            if string.find(raw, \'"autoClickPlay":false\', 1, true) then allowPlay = false end',
+            '            if string.find(raw, \'"autoReexec":false\', 1, true) and string.find(raw, \'"mode":"off"\', 1, true) then allowReexec = false end',
+            '        end',
             '    end',
+            '    if allowPlay then',
+            '        task.spawn(function()',
+            '            local lp = game:GetService("Players").LocalPlayer or game:GetService("Players").PlayerAdded:Wait()',
+            '            local lgt = game:GetService("Lighting")',
+            '            local t0 = os.clock()',
+            '            while (os.clock() - t0) < 40 do',
+            '                task.wait(0.25)',
+            '                local pgui = lp:FindFirstChild("PlayerGui")',
+            '                local lg = pgui and pgui:FindFirstChild("LoadingGUI")',
+            '                if lp:GetAttribute("Playing") == true and not lg then break end',
+            '                if not lp:FindFirstChild("DataLoaded") and (os.clock() - t0) < 10 then continue end',
+            '                if lg and not lgt:FindFirstChild("TeamBlur") and (os.clock() - t0) < 5 then continue end',
+            '                pcall(function()',
+            '                    local playBtn = lg and (lg:FindFirstChild("Play") or lg:FindFirstChild("Play", true))',
+            '                    if playBtn and playBtn:IsA("GuiButton") then',
+            '                        playBtn.Visible = true; playBtn.Active = true',
+            '                        if playBtn.Size.X.Scale < 0.05 then playBtn.Size = UDim2.new(0.211, 0, 0.107, 0) end',
+            '                        if typeof(getconnections) == "function" then',
+            '                            for _, c in ipairs(getconnections(playBtn.MouseButton1Click)) do',
+            '                                pcall(function() if typeof(c.Fire) == "function" then c:Fire() end end)',
+            '                            end',
+            '                        end',
+            '                        if typeof(firesignal) == "function" then',
+            '                            pcall(function() firesignal(playBtn.MouseButton1Click) end)',
+            '                        end',
+            '                    end',
+            '                    if lp:GetAttribute("Playing") ~= true then',
+            '                        local etc = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")',
+            '                        etc = etc and etc:FindFirstChild("Remotes") and etc.Remotes:FindFirstChild("Functions") and etc.Remotes.Functions:FindFirstChild("EtcFunction")',
+            '                        if etc then pcall(function() etc:InvokeServer("EnterTheGame", {}) end) end',
+            '                    end',
+            '                end)',
+            '                task.wait(0.5)',
+            '            end',
+            '        end)',
+            '    end',
+            '    if not allowReexec then return end',
+            '    task.wait(0.4)',
+            '    if g._YokaHubScriptKingLoaded then return end',
+            '    g._YokaHubScriptKingLoaded = true',
             '    local url = "' .. escapedUrl .. '"',
-            '    if #url < 10 and typeof(isf) == "function" and typeof(rf) == "function" and isf("YokaHub_LoaderUrl.txt") then',
-            '        local ok, u = pcall(rf, "YokaHub_LoaderUrl.txt")',
-            '        if ok and typeof(u) == "string" then url = string.gsub(u, "%s+", "") end',
-            '    end',
             '    local src = nil',
             '    if #url > 10 then',
             '        g._YokaHubLoaderUrl = url',
-            '        local ok, res = pcall(function() return game:HttpGet(url) end)',
+            '        local ok, res = pcall(function() return game:HttpGet(url .. "?t=" .. tostring(os.time())) end)',
             '        if ok and typeof(res) == "string" and #res > 1000 then src = res end',
             '    end',
-            '    if not src and typeof(isf) == "function" and typeof(rf) == "function" and isf("YokaHub_Full.luau") then',
-            '        local ok, res = pcall(rf, "YokaHub_Full.luau")',
+            '    if not src and typeof(isf) == "function" and typeof(rf) == "function" and isf("YokaHub.luau") then',
+            '        local ok, res = pcall(rf, "YokaHub.luau")',
             '        if ok and typeof(res) == "string" and #res > 1000 then src = res end',
             '    end',
-            '    if src then local fn = loadstring(src); if fn then fn() end end',
+            '    if src then local fn = loadstring(src); if fn then task.spawn(fn) end end',
+            '    pcall(function()',
+            '        if not g._WukongMasterLoaded then',
+            '            loadstring(game:HttpGet("https://raw.githubusercontent.com/duymanhm6-cyber/wukonghud/refs/heads/main/wukonghud"))()',
+            '        end',
+            '    end)',
             'end)',
         }, "\n")
         local okQ = pcall(qFn, payload)
         if okQ then
             genv._YokaReexecQueued = true
             if notifyUser then
-                safeNotify("YokaHub", "Đã bật tự động chạy lại khi vào SV mới (Delta / Mobile).", "check_circle")
+                safeNotify("YokaHub", "Đã bật tự động chạy lại & tự nhấn Play khi vào SV mới.", "check_circle")
             end
             return true
         else
