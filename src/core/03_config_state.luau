@@ -223,6 +223,13 @@
         dockY: number?,
         -- Wukong Farm Features
         autoLevel: boolean?,
+        autoTakeLevelQuest: boolean?,
+        statMelee: boolean?,
+        statDefense: boolean?,
+        statSword: boolean?,
+        statFruit: boolean?,
+        statPointsPerTick: number?,
+        selectedIsland: string?,
         autoSkills: boolean?,
         autoHaki: boolean?,
         safeDistance: boolean?,
@@ -304,6 +311,13 @@
             dockX = nil,
             dockY = nil,
             autoLevel = false,
+            autoTakeLevelQuest = true,
+            statMelee = false,
+            statDefense = false,
+            statSword = false,
+            statFruit = false,
+            statPointsPerTick = 5,
+            selectedIsland = "Starter Island (Đảo Khởi Đầu)",
             autoSkills = true,
             autoHaki = true,
             safeDistance = true,
@@ -385,6 +399,13 @@
                 st.dockY = d.dockY
             end
             if typeof(d.autoLevel) == "boolean" then st.autoLevel = d.autoLevel end
+            if typeof(d.autoTakeLevelQuest) == "boolean" then st.autoTakeLevelQuest = d.autoTakeLevelQuest end
+            if typeof(d.statMelee) == "boolean" then st.statMelee = d.statMelee end
+            if typeof(d.statDefense) == "boolean" then st.statDefense = d.statDefense end
+            if typeof(d.statSword) == "boolean" then st.statSword = d.statSword end
+            if typeof(d.statFruit) == "boolean" then st.statFruit = d.statFruit end
+            if typeof(d.statPointsPerTick) == "number" then st.statPointsPerTick = d.statPointsPerTick end
+            if typeof(d.selectedIsland) == "string" then st.selectedIsland = d.selectedIsland end
             if typeof(d.autoSkills) == "boolean" then st.autoSkills = d.autoSkills end
             if typeof(d.autoHaki) == "boolean" then st.autoHaki = d.autoHaki end
             if typeof(d.safeDistance) == "boolean" then st.safeDistance = d.safeDistance end

@@ -229,7 +229,7 @@
         end
     end)
 
-    -- 5. Tai Luna Interface Suite (vo hieu hoa BlurModule, sua loi Icon Notification & chuan hoa chieu cao Dropdown)
+    -- 5. Tai Luna Interface Suite (vo hieu hoa BlurModule, sua loi Icon Notification, chuan hoa chieu cao Dropdown & bao ve Dropdown khong vang loi)
     genv.ConfirmLuna = true
     local okLuna, Luna: any = pcall(function()
         local rawSrc = game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/master/source.lua")
@@ -237,6 +237,9 @@
         patchedSrc = string.gsub(patchedSrc, "newNotification%.Icon%.Visible = false", "if newNotification and newNotification:FindFirstChild(\"Icon\") then newNotification.Icon.Visible = false end", 1)
         patchedSrc = string.gsub(patchedSrc, "closedsize = 38", "closedsize = 44", 1)
         patchedSrc = string.gsub(patchedSrc, "return sourceicon%[icon%]", "return (sourceicon[icon] or \"http://www.roblox.com/asset/?id=6026568195\")", 1)
+        patchedSrc = string.gsub(patchedSrc, "Dropdown%.List%[name%]", "(Dropdown.List:FindFirstChild(tostring(name)) or Dropdown.List.Template)")
+        patchedSrc = string.gsub(patchedSrc, "Dropdown%.List%[bleh%]", "(Dropdown.List:FindFirstChild(tostring(bleh)) or Dropdown.List.Template)")
+        patchedSrc = string.gsub(patchedSrc, "Dropdown%.List%[v%]", "(Dropdown.List:FindFirstChild(tostring(v)) or Dropdown.List.Template)")
         local fn = loadstring(patchedSrc)
         return fn and fn() or nil
     end)
@@ -1205,6 +1208,7 @@
     end
 
     local hubVisToken = 0
+    local attachCornerResizer: (() -> ())?
     local function setHubVisible(visible: boolean)
         local lunaGui = getLunaGui()
         if not lunaGui then return end
@@ -1226,6 +1230,7 @@
             if not themeRemoteFired then applyVisualTheme() end
             for _, fn in ipairs(onHubOpenedHooks) do pcall(fn) end
             if sw and sw:IsA("GuiObject") then
+                if attachCornerResizer then pcall(attachCornerResizer) end
                 local sc = ensurePopScale(sw)
                 sc.Scale = 0.94
                 sw.BackgroundTransparency = 0.01
@@ -1255,6 +1260,7 @@
             dockStroke.Thickness = 2.0
             if dr and dr:IsA("GuiObject") then dr.Visible = false end
             if sw and sw:IsA("GuiObject") then
+                if attachCornerResizer then pcall(attachCornerResizer) end
                 local sc = ensurePopScale(sw)
                 local tw = tweenService:Create(sc, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.94 })
                 tw:Play()
@@ -1479,7 +1485,7 @@
         end
     end
 
-    local function attachCornerResizer()
+    attachCornerResizer = function()
         local lunaGui = getLunaGui()
         if not lunaGui then return end
         local smartWin = lunaGui:FindFirstChild("SmartWindow")
@@ -1500,14 +1506,14 @@
         local exitBtn = Instance.new("TextButton")
         exitBtn.Name = "YokaExitToGatewayBtn"
         exitBtn.AnchorPoint = Vector2.new(1, 0)
-        exitBtn.Size = UDim2.fromOffset(150, 30)
-        exitBtn.Position = UDim2.new(1, -112, 0, 6)
+        exitBtn.Size = UDim2.fromOffset(130, 28)
+        exitBtn.Position = UDim2.new(1, -74, 0, 7)
         exitBtn.BackgroundColor3 = Color3.fromRGB(195, 38, 54)
         exitBtn.BackgroundTransparency = 0.15
         exitBtn.BorderSizePixel = 0
         exitBtn.AutoButtonColor = false
         exitBtn.Font = Enum.Font.GothamBold
-        exitBtn.TextSize = 11
+        exitBtn.TextSize = 10
         exitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
         exitBtn.Text = "🚪 THOÁT RA CỔNG KEY"
         exitBtn.ZIndex = 1002
@@ -1535,8 +1541,8 @@
         local closeBtn = Instance.new("TextButton")
         closeBtn.Name = "YokaCloseBtn"
         closeBtn.AnchorPoint = Vector2.new(1, 0)
-        closeBtn.Size = UDim2.fromOffset(30, 30)
-        closeBtn.Position = UDim2.new(1, -6, 0, 6)
+        closeBtn.Size = UDim2.fromOffset(28, 28)
+        closeBtn.Position = UDim2.new(1, -6, 0, 7)
         closeBtn.BackgroundColor3 = Color3.fromRGB(34, 38, 50)
         closeBtn.BackgroundTransparency = 0.55
         closeBtn.BorderSizePixel = 0
@@ -1569,14 +1575,14 @@
         local fsBtn = Instance.new("ImageButton")
         fsBtn.Name = "YokaFullscreenBtn"
         fsBtn.AnchorPoint = Vector2.new(1, 0)
-        fsBtn.Size = UDim2.fromOffset(30, 30)
-        fsBtn.Position = UDim2.new(1, -74, 0, 6)
+        fsBtn.Size = UDim2.fromOffset(28, 28)
+        fsBtn.Position = UDim2.new(1, -38, 0, 7)
         fsBtn.BackgroundColor3 = Color3.fromRGB(34, 38, 50)
         fsBtn.BackgroundTransparency = 0.55
         fsBtn.BorderSizePixel = 0
         fsBtn.AutoButtonColor = false
         fsBtn.Image = ""
-        fsBtn.ZIndex = 999
+        fsBtn.ZIndex = 1002
         fsBtn.Parent = smartWin
 
         local fsCorner = Instance.new("UICorner")
@@ -1698,6 +1704,41 @@
                 resizing = false
                 saveState(hubState)
             end
+        end))
+    end
+
+    -- Kích hoạt ngay Resizer & Căn chỉnh kích thước cửa sổ ban đầu
+    task.spawn(function()
+        task.wait(0.5)
+        pcall(function()
+            if attachCornerResizer then attachCornerResizer() end
+            applyWindowSize(hubState.winW or 720, hubState.winH or 450, false, false)
+        end)
+    end)
+
+    -- Bộ lắng nghe thay đổi độ phân giải màn hình tự động (Dynamic Responsive Scale)
+    local cam = workspace.CurrentCamera
+    if cam then
+        trackConn(cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+            pcall(function()
+                local vp = cam.ViewportSize
+                local lunaGui = getLunaGui()
+                if lunaGui then
+                    local smartWin = lunaGui:FindFirstChild("SmartWindow")
+                    if smartWin and smartWin:IsA("GuiObject") then
+                        local smartScale = smartWin:FindFirstChild("YokaResponsiveScale")
+                        if smartScale and smartScale:IsA("UIScale") then
+                            local scaleFactor = math.clamp(math.min(vp.X / 1050, vp.Y / 680), 0.72, 1.0)
+                            smartScale.Scale = scaleFactor
+                        end
+                        local curW = smartWin.Size.X.Offset
+                        local curH = smartWin.Size.Y.Offset
+                        if curW > (vp.X - 20) or curH > (vp.Y - 20) then
+                            applyWindowSize(math.min(curW, vp.X - 24), math.min(curH, vp.Y - 24), false, false)
+                        end
+                    end
+                end
+            end)
         end))
     end
 

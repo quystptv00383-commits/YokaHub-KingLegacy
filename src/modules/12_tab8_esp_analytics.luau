@@ -616,5 +616,63 @@
             updateDmgUI(true)
         end,
     })
+
+    local IslandSection = MetricsTab:CreateSection("🏝️ Dịch Chuyển Đến Đảo (Island Teleports)")
+    local allIslands = {
+        -- Sea 1
+        "🏝️ [Sea 1] Đảo Hải Tặc Đầu Tiên (Pirate Island)",
+        "🏝️ [Sea 1] Trụ Sở Hải Quân (Marine Headquarters)",
+        "🏝️ [Sea 1] Đảo Hề Buggy (Clown Island)",
+        "🏝️ [Sea 1] Đảo Sa Mạc (Desert Island)",
+        "🏝️ [Sea 1] Đảo Tuyết (Snow Island)",
+        "🏝️ [Sea 1] Đảo Trên Trời (Skypiea)",
+        "🏝️ [Sea 1] Đảo Bong Bóng (Bubble Island)",
+        "🏝️ [Sea 1] Đảo Người Cá (Fishman Island)",
+        "🏝️ [Sea 1] Đảo Zombie (Thriller Island)",
+        "🏝️ [Sea 1] Đảo Tổng Bộ Hải Quân (Marineford)",
+        -- Sea 2
+        "🏝️ [Sea 2] Đảo Viridans (Viridans)",
+        "🏝️ [Sea 2] Đảo Florescence (Florescence)",
+        "🏝️ [Sea 2] Đảo Đầu Lâu (Skull Island)",
+        "🏝️ [Sea 2] Đảo Tuyết Sea 2 (Dead Tundra)",
+        "🏝️ [Sea 2] Đảo Bánh Mì (Loaf Island)",
+        "🏝️ [Sea 2] Đảo Shred (Shred Island)",
+        "🏝️ [Sea 2] Đảo Hibernus (Hibernus)",
+        -- Sea 3
+        "🏝️ [Sea 3] Cảng Hải Tặc (Port Island)",
+        "🏝️ [Sea 3] Đấu Trường La Mã (The Colosseum)",
+        "🏝️ [Sea 3] Đảo Fiore (Fiore Island)",
+        "🏝️ [Sea 3] Ổ Rồng Lửa (Mount Inferno)",
+        "🏝️ [Sea 3] Thánh Địa Mặt Trời (Sanctuary of the Sun)",
+    }
+    local defaultIsland = table.find(allIslands, hubState.selectedIsland) and hubState.selectedIsland or allIslands[1]
+    local currentChosenIsland = defaultIsland
+
+    IslandSection:CreateDropdown({
+        Name = "Chọn Đảo Muốn Dịch Chuyển Đến",
+        Options = allIslands,
+        CurrentOption = { defaultIsland },
+        MultipleOptions = false,
+        Callback = function(opt: any)
+            local val = pickDropdownValue(opt)
+            currentChosenIsland = val
+            hubState.selectedIsland = val
+            saveState(hubState)
+        end,
+    }, "IslandTeleportDropdown")
+
+    IslandSection:CreateButton({
+        Name = "🚀 Dịch Chuyển Đến Đảo Đã Chọn (Teleport Now)",
+        Callback = function()
+            local targetIsland = currentChosenIsland or hubState.selectedIsland or allIslands[1]
+            pcall(function()
+                if typeof(genv.TeleportToIsland) == "function" then
+                    genv.TeleportToIsland(targetIsland)
+                else
+                    safeNotify("Dịch Chuyển Đảo", "Đang bay đến " .. targetIsland .. "...", "near_me")
+                end
+            end)
+        end,
+    })
     end
 

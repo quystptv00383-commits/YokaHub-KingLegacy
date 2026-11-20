@@ -1535,6 +1535,141 @@ end)
     end)
 
     -- ========================================================
+    -- [NATIVE AUTO STATS WORKER]
+    -- ========================================================
+    task.spawn(function()
+        while genv._YokaHubToken == myToken do
+            task.wait(1.0)
+            pcall(function()
+                local hasStatActive = hubState.statMelee or hubState.statDefense or hubState.statSword or hubState.statFruit
+                if not hasStatActive then return end
+
+                local ps = player:FindFirstChild("PlayerStats")
+                local pointsObj = ps and ps:FindFirstChild("Points")
+                local availPoints = pointsObj and tonumber(pointsObj.Value) or 0
+                if availPoints <= 0 then return end
+
+                local pointsPerTick = math.clamp(tonumber(hubState.statPointsPerTick) or 5, 1, 100)
+                local toSpend = math.min(availPoints, pointsPerTick)
+
+                local chestFuncs = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
+                local remFuncs = chestFuncs and chestFuncs:FindFirstChild("Remotes") and chestFuncs.Remotes:FindFirstChild("Functions")
+                local upRemote = remFuncs and remFuncs:FindFirstChild("Upgrade")
+
+                local targets = {}
+                if hubState.statMelee then table.insert(targets, "Melee") end
+                if hubState.statDefense then table.insert(targets, "Defense") end
+                if hubState.statSword then table.insert(targets, "Sword") end
+                if hubState.statFruit then table.insert(targets, "DF") end
+
+                if #targets > 0 then
+                    local perTarget = math.max(1, math.floor(toSpend / #targets))
+                    for _, statName in ipairs(targets) do
+                        pcall(function()
+                            if upRemote then
+                                upRemote:InvokeServer(statName, perTarget)
+                            end
+                            if typeof(genv.UpStats) == "function" then
+                                genv.UpStats(statName, perTarget)
+                            end
+                        end)
+                        task.wait(0.08)
+                    end
+                end
+            end)
+        end
+    end)
+
+    -- ========================================================
+    -- [NATIVE AUTO LEVEL QUEST WORKER]
+    -- ========================================================
+    task.spawn(function()
+        while genv._YokaHubToken == myToken do
+            task.wait(2.5)
+            if hubState.autoTakeLevelQuest then
+                pcall(function()
+                    local curQuest = player:FindFirstChild("CurrentQuest")
+                    if curQuest and typeof(curQuest.Value) == "string" and curQuest.Value ~= "" and curQuest.Value ~= "None" then
+                        return
+                    end
+
+                    local ps = player:FindFirstChild("PlayerStats")
+                    local lvlObj = ps and ps:FindFirstChild("lvl")
+                    local myLvl = lvlObj and tonumber(lvlObj.Value) or 1
+
+                    local chestFuncs = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
+                    local remFuncs = chestFuncs and chestFuncs:FindFirstChild("Remotes") and chestFuncs.Remotes:FindFirstChild("Functions")
+                    local qRemote = remFuncs and (remFuncs:FindFirstChild("Quest") or remFuncs:FindFirstChild("CheckQuest"))
+
+                    if qRemote then
+                        pcall(function() qRemote:InvokeServer() end)
+                    end
+                    if typeof(genv.TakeQuest) == "function" then
+                        pcall(function() genv.TakeQuest() end)
+                    end
+                    if typeof(genv.GetQuest) == "function" then
+                        pcall(function() genv.GetQuest() end)
+                    end
+                end)
+            end
+        end
+    end)
+
+    -- ========================================================
+    -- [NATIVE ISLAND TELEPORT HANDLER]
+    -- ========================================================
+    local ISLAND_COORDS: { [string]: Vector3 } = {
+        ["🏝️ [Sea 1] Đảo Hải Tặc Đầu Tiên (Pirate Island)"] = Vector3.new(1450, 48, 1450),
+        ["🏝️ [Sea 1] Trụ Sở Hải Quân (Marine Headquarters)"] = Vector3.new(-3100, 35, -2300),
+        ["🏝️ [Sea 1] Đảo Hề Buggy (Clown Island)"] = Vector3.new(-1200, 35, 1200),
+        ["🏝️ [Sea 1] Đảo Sa Mạc (Desert Island)"] = Vector3.new(850, 40, -1450),
+        ["🏝️ [Sea 1] Đảo Tuyết (Snow Island)"] = Vector3.new(-2200, 75, 450),
+        ["🏝️ [Sea 1] Đảo Trên Trời (Skypiea)"] = Vector3.new(100, 950, -4500),
+        ["🏝️ [Sea 1] Đảo Bong Bóng (Bubble Island)"] = Vector3.new(-3800, 45, 2100),
+        ["🏝️ [Sea 1] Đảo Người Cá (Fishman Island)"] = Vector3.new(500, -1800, 6500),
+        ["🏝️ [Sea 1] Đảo Zombie (Thriller Island)"] = Vector3.new(-5400, 60, -800),
+        ["🏝️ [Sea 1] Đảo Tổng Bộ Hải Quân (Marineford)"] = Vector3.new(4500, 75, -2800),
+        ["🏝️ [Sea 2] Đảo Viridans (Viridans)"] = Vector3.new(-1700, 70, -2100),
+        ["🏝️ [Sea 2] Đảo Florescence (Florescence)"] = Vector3.new(1200, 65, -3400),
+        ["🏝️ [Sea 2] Đảo Đầu Lâu (Skull Island)"] = Vector3.new(-3500, 85, 1200),
+        ["🏝️ [Sea 2] Đảo Tuyết Sea 2 (Dead Tundra)"] = Vector3.new(3400, 70, 2200),
+        ["🏝️ [Sea 2] Đảo Bánh Mì (Loaf Island)"] = Vector3.new(-4200, 90, -4500),
+        ["🏝️ [Sea 2] Đảo Shred (Shred Island)"] = Vector3.new(5200, 80, -1500),
+        ["🏝️ [Sea 2] Đảo Hibernus (Hibernus)"] = Vector3.new(150, 60, 4800),
+        ["🏝️ [Sea 3] Cảng Hải Tặc (Port Island)"] = Vector3.new(150, 45, 250),
+        ["🏝️ [Sea 3] Đấu Trường La Mã (The Colosseum)"] = Vector3.new(-2200, 80, -1800),
+        ["🏝️ [Sea 3] Đảo Fiore (Fiore Island)"] = Vector3.new(2800, 65, -3200),
+        ["🏝️ [Sea 3] Ổ Rồng Lửa (Mount Inferno)"] = Vector3.new(-4500, 210, 3500),
+        ["🏝️ [Sea 3] Thánh Địa Mặt Trời (Sanctuary of the Sun)"] = Vector3.new(4200, 150, 4100),
+    }
+
+    genv.TeleportToIsland = function(islandName: string?)
+        pcall(function()
+            local chosen = islandName or hubState.selectedIsland or "🏝️ [Sea 1] Đảo Hải Tặc Đầu Tiên (Pirate Island)"
+            local targetPos = ISLAND_COORDS[chosen]
+            if not targetPos then
+                for k, pos in pairs(ISLAND_COORDS) do
+                    if string.find(string.lower(k), string.lower(chosen)) then
+                        targetPos = pos
+                        break
+                    end
+                end
+            end
+            if not targetPos then
+                safeNotify("Dịch Chuyển Đảo", "Không tìm thấy tọa độ đảo: " .. tostring(chosen), "error")
+                return
+            end
+
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                safeNotify("Dịch Chuyển Đảo", "Đang dịch chuyển đến " .. chosen .. "...", "near_me")
+                hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 15, 0))
+            end
+        end)
+    end
+
+    -- ========================================================
     -- [NATIVE AUTO DISMISS & AUTO ALLY WORKER]
     -- ========================================================
     task.spawn(function()

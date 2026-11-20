@@ -225,10 +225,11 @@
     genv.SetAutoHopEnabled = function(on: boolean) applyMode(on and "sea3" or "off", false) end
     genv.SetAutoSea2HopEnabled = function(on: boolean) applyMode(on and "sea2" or "off", false) end
 
+    local defaultSoloTarget = table.find(SOLO_OPTIONS, currentSoloTarget) and currentSoloTarget or SOLO_OPTIONS[1]
     StatusSection:CreateDropdown({
         Name = "🎯 Mục tiêu API",
         Options = SOLO_OPTIONS,
-        CurrentOption = { currentSoloTarget },
+        CurrentOption = { defaultSoloTarget },
         MultipleOptions = false,
         Callback = function(opt: any)
             local picked = pickDropdownValue(opt)
@@ -466,21 +467,23 @@
         end,
     }, "AutoFightIslandBossToggle")
 
+    local islandBossList = {
+        "Hephaestus (Thợ Rèn Thần - Sea 3)",
+        "Dark Beard (Râu Đen - Sea 3)",
+        "Gryphon Boss (Sea 3)",
+        "Lucidus (Sea 2)",
+        "Sunken Blade Boss (Sea 2)",
+        "Snow Boss (Sea 2)",
+        "Smoker (Sea 1)",
+        "Tashigi (Sea 1)",
+        "Buggy (Sea 1)",
+        "Arlong (Sea 1)",
+    }
+    local defaultIslandBoss = table.find(islandBossList, hubState.islandBossTarget) and hubState.islandBossTarget or "Hephaestus (Thợ Rèn Thần - Sea 3)"
     IslandFightSection:CreateDropdown({
         Name = "Chọn Boss Đảo Muốn Tiêu Diệt",
-        Options = {
-            "Hephaestus (Thợ Rèn Thần - Sea 3)",
-            "Dark Beard (Râu Đen - Sea 3)",
-            "Gryphon Boss (Sea 3)",
-            "Lucidus (Sea 2)",
-            "Sunken Blade Boss (Sea 2)",
-            "Snow Boss (Sea 2)",
-            "Smoker (Sea 1)",
-            "Tashigi (Sea 1)",
-            "Buggy (Sea 1)",
-            "Arlong (Sea 1)",
-        },
-        CurrentOption = { hubState.islandBossTarget or "Hephaestus (Thợ Rèn Thần - Sea 3)" },
+        Options = islandBossList,
+        CurrentOption = { defaultIslandBoss },
         MultipleOptions = false,
         Callback = function(opt: any)
             local val = pickDropdownValue(opt)

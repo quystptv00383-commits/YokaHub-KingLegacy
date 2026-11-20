@@ -36,16 +36,18 @@
             end,
         }, "FarmSea3MatToggle")
 
+        local sea3Options = {
+            "Coral (San Hô)",
+            "Shark's Fin (Vây Cá Mập)",
+            "Dragon Scale (Vảy Rồng)",
+            "Sea King's Blood (Máu Hải Vương)",
+            "Phoenix Tear (Nước Mắt Phượng Hoàng)",
+        }
+        local defaultSea3 = table.find(sea3Options, hubState.nguyenlieuSea3) and hubState.nguyenlieuSea3 or "Coral (San Hô)"
         Sea3MatSection:CreateDropdown({
             Name = "Chọn Nguyên Liệu Sea 3 Muốn Gom",
-            Options = {
-                "Coral (San Hô)",
-                "Shark's Fin (Vây Cá Mập)",
-                "Dragon Scale (Vảy Rồng)",
-                "Sea King's Blood (Máu Hải Vương)",
-                "Phoenix Tear (Nước Mắt Phượng Hoàng)",
-            },
-            CurrentOption = { hubState.nguyenlieuSea3 or "Coral (San Hô)" },
+            Options = sea3Options,
+            CurrentOption = { defaultSea3 },
             MultipleOptions = false,
             Callback = function(opt: any)
                 local val = pickDropdownValue(opt)
@@ -86,15 +88,17 @@
             end,
         }, "FarmSea2MatToggle")
 
+        local sea2Options = {
+            "Iron Ingot (Sắt Thỏi)",
+            "Dark Powder (Bột Bóng Đêm)",
+            "Ghost Flesh (Thịt Ma)",
+            "Magma Crystal (Tinh Thể Nham Thạch)",
+        }
+        local defaultSea2 = table.find(sea2Options, hubState.nguyenlieuSea2) and hubState.nguyenlieuSea2 or "Iron Ingot (Sắt Thỏi)"
         Sea2MatSection:CreateDropdown({
             Name = "Chọn Nguyên Liệu Sea 2 Muốn Gom",
-            Options = {
-                "Iron Ingot (Sắt Thỏi)",
-                "Dark Powder (Bột Bóng Đêm)",
-                "Ghost Flesh (Thịt Ma)",
-                "Magma Crystal (Tinh Thể Nham Thạch)",
-            },
-            CurrentOption = { hubState.nguyenlieuSea2 or "Iron Ingot (Sắt Thỏi)" },
+            Options = sea2Options,
+            CurrentOption = { defaultSea2 },
             MultipleOptions = false,
             Callback = function(opt: any)
                 local val = pickDropdownValue(opt)
@@ -135,15 +139,17 @@
             end,
         }, "FarmSea1MatToggle")
 
+        local sea1Options = {
+            "Leather (Da Thuộc)",
+            "Wood (Gỗ Cổ Thụ)",
+            "Rope (Dây Thừng)",
+            "Thief Rag (Vải Tặc)",
+        }
+        local defaultSea1 = table.find(sea1Options, hubState.nguyenlieuSea1) and hubState.nguyenlieuSea1 or "Leather (Da Thuộc)"
         Sea1MatSection:CreateDropdown({
             Name = "Chọn Nguyên Liệu Sea 1 Muốn Gom",
-            Options = {
-                "Leather (Da Thuộc)",
-                "Wood (Gỗ Cổ Thụ)",
-                "Rope (Dây Thừng)",
-                "Thief Rag (Vải Tặc)",
-            },
-            CurrentOption = { hubState.nguyenlieuSea1 or "Leather (Da Thuộc)" },
+            Options = sea1Options,
+            CurrentOption = { defaultSea1 },
             MultipleOptions = false,
             Callback = function(opt: any)
                 local val = pickDropdownValue(opt)

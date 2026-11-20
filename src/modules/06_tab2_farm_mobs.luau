@@ -54,6 +54,70 @@
             end,
         }, "SafeDistanceToggle")
 
+        LevelSection:CreateToggle({
+            Name = "📜 Tự Nhận Nhiệm Vụ Theo Cấp (Auto Level Quest)",
+            Description = "Tự động tìm NPC và nhận nhiệm vụ phù hợp với level hiện tại",
+            CurrentValue = hubState.autoTakeLevelQuest,
+            Callback = function(Value: boolean)
+                hubState.autoTakeLevelQuest = Value
+                saveState(hubState)
+                if Value then safeNotify("YokaHub Farm", "Đã bật tự động nhận nhiệm vụ theo cấp!", "assignment") end
+            end,
+        }, "AutoTakeLevelQuestToggle")
+
+        local StatsSection = FarmTab:CreateSection("💪 Tự Tăng Điểm Chỉ Số (Auto Stats)")
+        StatsSection:CreateToggle({
+            Name = "👊 Tự Tăng Cận Chiến (Auto Melee)",
+            Description = "Tự động cộng điểm vào Melee khi lên cấp",
+            CurrentValue = hubState.statMelee,
+            Callback = function(Value: boolean)
+                hubState.statMelee = Value
+                saveState(hubState)
+            end,
+        }, "StatMeleeToggle")
+
+        StatsSection:CreateToggle({
+            Name = "🛡️ Tự Tăng Phòng Thủ (Auto Defense)",
+            Description = "Tự động cộng điểm vào Defense khi lên cấp",
+            CurrentValue = hubState.statDefense,
+            Callback = function(Value: boolean)
+                hubState.statDefense = Value
+                saveState(hubState)
+            end,
+        }, "StatDefenseToggle")
+
+        StatsSection:CreateToggle({
+            Name = "🗡️ Tự Tăng Kiếm Thuật (Auto Sword)",
+            Description = "Tự động cộng điểm vào Sword khi lên cấp",
+            CurrentValue = hubState.statSword,
+            Callback = function(Value: boolean)
+                hubState.statSword = Value
+                saveState(hubState)
+            end,
+        }, "StatSwordToggle")
+
+        StatsSection:CreateToggle({
+            Name = "🍎 Tự Tăng Trái Ác Quỷ (Auto Fruit)",
+            Description = "Tự động cộng điểm vào Fruit khi lên cấp",
+            CurrentValue = hubState.statFruit,
+            Callback = function(Value: boolean)
+                hubState.statFruit = Value
+                saveState(hubState)
+            end,
+        }, "StatFruitToggle")
+
+        StatsSection:CreateSlider({
+            Name = "Số Điểm Nâng Mỗi Lần (Points Per Tick)",
+            Range = { 1, 50 },
+            Increment = 1,
+            Suffix = " Điểm",
+            CurrentValue = hubState.statPointsPerTick or 5,
+            Callback = function(Value: number)
+                hubState.statPointsPerTick = math.clamp(math.floor(Value), 1, 100)
+                saveState(hubState)
+            end,
+        }, "StatPointsSlider")
+
         local MobSection = FarmTab:CreateSection("🎯 Farm Quái Chọn Lọc (Select Mob Farm)")
         MobSection:CreateDropdown({
             Name = "👾 Chọn Quái Muốn Cày",
