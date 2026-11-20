@@ -25,22 +25,12 @@ files_to_sync = {
     "YokaHub_Donators.json": r"C:\Users\THIS PC\AppData\Local\Real\workspace\YokaHub_Donators.json",
 }
 
-# Files to remove from Gist to keep only 1 unified script
-files_to_remove = [
-    "YokaHub_Commercial_Loader.luau",
-    "YokaHub_KeySystem.luau",
-    "donators.json"
-]
-
 payload_files = {}
 
 for name, path in files_to_sync.items():
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             payload_files[name] = {"content": f.read()}
-
-for name in files_to_remove:
-    payload_files[name] = None
 
 req = urllib.request.Request(
     f"https://api.github.com/gists/{gist_id}",

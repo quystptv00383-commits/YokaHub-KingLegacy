@@ -51,6 +51,7 @@
                     local hrp = char.HumanoidRootPart
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
+                    local dMode = hubState.dungeonMode or genv.dungeonmode or "Easy"
 
                     -- 1. Quét tìm rương báu Boss trước nếu có
                     if hubState.autoCollectChest then
@@ -538,8 +539,15 @@
 
     local wasInEvent, lastActiveClock, chestFirstSeenClock = false, 0, 0
     local lastSea3Target = ""
-    local prevMode: string = currentMode
+    local prevMode: string = hubState.mode or currentMode
     local didInitialRoomSettle = false
+
+    -- Fast Mode rendering optimization
+    if hubState.fastMode or genv.fastMode then
+        pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        end)
+    end
 
     -- Helper doc thoi gian dao chim (sinkIn = "00:03:12") ra giay de tranh nhay vao ruong sap chim
     local function parseSinkSeconds(e: any): number?
@@ -591,7 +599,15 @@
 
     local prevSoloKey = ""
     while genv._YokaHubToken == myToken do
-        local mode: string = currentMode
+        local mode: string = hubState.mode or currentMode
+        if hubState.autoTakeBossQuest and (hubState.islandBossTarget or genv.bossTarget) then
+            pcall(function()
+                local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Quest") then
+                    rem.Functions.Quest:InvokeServer("Take", hubState.islandBossTarget or genv.bossTarget)
+                end
+            end)
+        end
         if mode ~= prevMode then
             wasInEvent, lastActiveClock, chestFirstSeenClock, lastSea3Target = false, 0, 0, ""
             prevMode = mode
@@ -1012,6 +1028,7 @@ end)
                     local hrp = char.HumanoidRootPart
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
+                    local dMode = hubState.dungeonMode or genv.dungeonmode or "Easy"
 
                     -- 1. Tìm quái mục tiêu
                     local targetMob: Model? = nil
@@ -1093,11 +1110,46 @@ end)
 
                             -- Xả chiêu thông minh (Z, X, C, V, E)
                             if hubState.autoSkills or genv.opeskill then
-                                local skillKeys = { "Z", "X" }
-                                if hubState.skillMelee and hubState.skillMeleeKeys == "Toàn Bộ (Z, X, C, V, E)" then
-                                    skillKeys = { "Z", "X", "C", "V", "E" }
+                                local activeSkillKeys = {}
+                                local function pushKey(k)
+                                    for _, ek in ipairs(activeSkillKeys) do
+                                        if ek == k then return end
+                                    end
+                                    table.insert(activeSkillKeys, k)
                                 end
-                                for _, k in ipairs(skillKeys) do
+
+                                if hubState.skillSword and hubState.skillSwordKeys then
+                                    if hubState.skillSwordKeys == "Chỉ Phím Z" then pushKey("Z")
+                                    elseif hubState.skillSwordKeys == "Chỉ Phím X" then pushKey("X")
+                                    else pushKey("Z"); pushKey("X") end
+                                end
+                                if hubState.skillFruit and hubState.skillFruitKeys then
+                                    if string.find(hubState.skillFruitKeys, "Z") then pushKey("Z") end
+                                    if string.find(hubState.skillFruitKeys, "X") then pushKey("X") end
+                                    if string.find(hubState.skillFruitKeys, "C") then pushKey("C") end
+                                    if string.find(hubState.skillFruitKeys, "V") then pushKey("V") end
+                                end
+
+                                if type(genv.CombatSkillFruit) == "table" and #genv.CombatSkillFruit > 0 then
+                                    for _, k in ipairs(genv.CombatSkillFruit) do pushKey(k) end
+                                end
+                                if type(genv.CombatSkillSword) == "table" and #genv.CombatSkillSword > 0 then
+                                    for _, k in ipairs(genv.CombatSkillSword) do pushKey(k) end
+                                end
+                                if type(genv.CombatSkillMelee) == "table" and #genv.CombatSkillMelee > 0 then
+                                    for _, k in ipairs(genv.CombatSkillMelee) do pushKey(k) end
+                                end
+
+                                if #activeSkillKeys == 0 then
+                                    activeSkillKeys = { "Z", "X" }
+                                    if hubState.skillMelee and hubState.skillMeleeKeys == "Toàn Bộ (Z, X, C, V, E)" then
+                                        activeSkillKeys = { "Z", "X", "C", "V", "E" }
+                                    elseif hubState.skillFruit then
+                                        activeSkillKeys = { "Z", "X", "C", "V" }
+                                    end
+                                end
+
+                                for _, k in ipairs(activeSkillKeys) do
                                     pcall(function()
                                         if vim then
                                             local keyEnum = Enum.KeyCode[k]
@@ -1130,6 +1182,7 @@ end)
                     local hrp = char.HumanoidRootPart
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
+                    local dMode = hubState.dungeonMode or genv.dungeonmode or "Easy"
 
                     -- Xác định nguyên liệu đang chọn
                     local targetMat = hubState.nguyenlieuSea3 or "Coral"
@@ -1189,6 +1242,7 @@ end)
                     local hrp = char.HumanoidRootPart
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
+                    local dMode = hubState.dungeonMode or genv.dungeonmode or "Easy"
 
                     -- Tự hồi máu bằng gậy nếu bật và máu < 85%
                     if hubState.dungeonAutoHeal and hum.Health / hum.MaxHealth < 0.85 then
@@ -1226,6 +1280,11 @@ end)
                             local sDist = string.find(tactics, "Fast") and 7 or (string.find(tactics, "Safe") and 22 or 15)
                             hrp.Velocity = Vector3.new(0, 0, 0)
                             hrp.CFrame = CFrame.new(mRoot.Position + Vector3.new(0, sDist, 0), mRoot.Position)
+                            if hubState.dungeonCameraLock ~= false then
+                                pcall(function()
+                                    workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, mRoot.Position)
+                                end)
+                            end
                             local tool = char:FindFirstChildOfClass("Tool") or player.Backpack:FindFirstChildOfClass("Tool")
                             if tool and tool.Parent == player.Backpack then hum:EquipTool(tool) end
                             if tool and tool.Parent == char then tool:Activate() end
@@ -1286,7 +1345,7 @@ end)
                     local delay = hubState.snipeDelay or genv.shopSniperDelay or 5
                     if now - lastSnipe >= delay then
                         lastSnipe = now
-                        local targetFruits = genv.shopSniperFruits or { "Dragon", "Phoenix", "Gate", "Dough", "Erebus" }
+                        local targetFruits = genv.shopSniperFruits or (hubState.snipeFruit and { hubState.snipeFruit }) or { "Dragon", "Phoenix", "Gate", "Dough", "Erebus" }
                         local net = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
                         if net and net:FindFirstChild("Functions") then
                             local shopFunc = net.Functions:FindFirstChild("FruitShop") or net.Functions:FindFirstChild("Merchant")
@@ -1415,4 +1474,63 @@ end)
             end)
         end
         if blackGui then blackGui:Destroy() end
+    end)
+
+    -- ========================================================
+    -- [NATIVE DAILY QUEST & RACE ROLL WORKER]
+    -- ========================================================
+    task.spawn(function()
+        while genv._YokaHubToken == myToken do
+            task.wait(1.5)
+            if hubState.autoDailyQuest or genv.autoalldailyquest then
+                pcall(function()
+                    local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                    if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("DailyQuest") then
+                        rem.Functions.DailyQuest:InvokeServer("ClaimAll")
+                        task.wait(0.5)
+                        rem.Functions.DailyQuest:InvokeServer("AcceptAll")
+                    end
+                end)
+            end
+            if hubState.autoRaceRoll or genv.AutoGetAutoRollRace then
+                pcall(function()
+                    local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                    if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Race") then
+                        rem.Functions.Race:InvokeServer("Roll")
+                    end
+                end)
+            end
+        end
+    end)
+
+    -- ========================================================
+    -- [NATIVE AUTO DISMISS & AUTO ALLY WORKER]
+    -- ========================================================
+    task.spawn(function()
+        while genv._YokaHubToken == myToken do
+            task.wait(2.0)
+            if hubState.autoDismiss773 then
+                pcall(function()
+                    local promptGui = coreGui:FindFirstChild("RobloxPromptGui")
+                    if promptGui and promptGui:FindFirstChild("promptOverlay") then
+                        local btn = promptGui.promptOverlay:FindFirstChild("ErrorDismissButton", true)
+                        if btn and btn:IsA("GuiButton") and btn.Visible then
+                            btn.Visible = false
+                        end
+                    end
+                end)
+            end
+            if hubState.autoAlly then
+                pcall(function()
+                    local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                    if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Ally") then
+                        for _, otherPlr in ipairs(players:GetPlayers()) do
+                            if otherPlr ~= player then
+                                rem.Functions.Ally:InvokeServer("Accept", otherPlr)
+                            end
+                        end
+                    end
+                end)
+            end
+        end
     end)

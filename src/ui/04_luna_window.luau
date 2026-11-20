@@ -236,6 +236,7 @@
         local patchedSrc = string.gsub(rawSrc, "local function BlurModule%(Frame%)", "local function BlurModule(Frame) if true then return end", 1)
         patchedSrc = string.gsub(patchedSrc, "newNotification%.Icon%.Visible = false", "if newNotification and newNotification:FindFirstChild(\"Icon\") then newNotification.Icon.Visible = false end", 1)
         patchedSrc = string.gsub(patchedSrc, "closedsize = 38", "closedsize = 44", 1)
+        patchedSrc = string.gsub(patchedSrc, "return sourceicon%[icon%]", "return (sourceicon[icon] or \"http://www.roblox.com/asset/?id=6026568195\")", 1)
         local fn = loadstring(patchedSrc)
         return fn and fn() or nil
     end)
