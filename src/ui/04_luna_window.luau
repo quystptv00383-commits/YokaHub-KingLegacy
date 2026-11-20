@@ -47,7 +47,7 @@
         if hubState.whDrop then genv.whitemdrop = true end
         -- Sync Auto M1 & Smart Combat
         genv.AutoM1Fruit = (hubState.autoM1Fruit == true)
-        genv.AutoM1Sword = (hubState.autoM1Sword ~= false)
+        genv.AutoM1Sword = (hubState.autoM1Sword == true)
         genv.AutoM1Melee = (hubState.autoM1Melee == true)
         genv.SmartSkillHold = (hubState.smartSkillHold ~= false)
         genv.DodgeSafeDistance = hubState.dodgeSafeDistance or 95

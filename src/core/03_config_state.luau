@@ -367,7 +367,7 @@
             whFruit = false,
             whDrop = false,
             autoM1Fruit = false,
-            autoM1Sword = true,
+            autoM1Sword = false,
             autoM1Melee = false,
             smartSkillHold = true,
             dodgeSafeDistance = 95,

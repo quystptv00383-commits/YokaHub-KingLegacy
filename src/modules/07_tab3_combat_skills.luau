@@ -60,7 +60,7 @@
         AutoM1Section:CreateToggle({
             Name = "🗡️ Auto M1 Kiếm (Sword M1)",
             Description = "Tích chọn để tự cầm Kiếm và chém thường M1 liên tục",
-            CurrentValue = hubState.autoM1Sword ~= false,
+            CurrentValue = hubState.autoM1Sword == true,
             Callback = function(Value: boolean)
                 hubState.autoM1Sword = Value
                 saveState(hubState)
