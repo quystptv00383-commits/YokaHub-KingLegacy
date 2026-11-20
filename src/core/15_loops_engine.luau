@@ -2342,10 +2342,10 @@
                 continue
             end
             pcall(function()
-                genv.HydraSeaKing = true
-                genv.seaking = true
-                genv.Serpent = true
-                genv.GhostShip = true
+                genv.HydraSeaKing = (hubState.fightSea2Hydra ~= false)
+                genv.seaking = (hubState.fightSea2SeaKing ~= false)
+                genv.Serpent = (hubState.fightSea2Serpent ~= false)
+                genv.GhostShip = (hubState.fightSea2GhostShip ~= false)
                 genv.autoskhd = true
                 genv.autoskillsea = true
                 genv.autoskhdhop = false

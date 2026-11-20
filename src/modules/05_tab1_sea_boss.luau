@@ -126,35 +126,76 @@
         ShowTitle = false,
     })
 
-    local StatusSection = HopTab:CreateSection("🌊 Tự động chuyển phòng săn Boss")
+    local StatusSection = HopTab:CreateSection("🌊 Trạng thái Săn Boss Biển")
     local StatusParagraph = StatusSection:CreateParagraph({
         Title = "Trạng thái · Đang tắt",
-        Text = currentMode == "off"
-            and "Chọn Boss săn riêng (F7) hoặc bật săn tổng hợp Sea 3 (F8) / Sea 2 (F9)."
-            or ("Đang khởi động chế độ " .. (currentMode == "solo" and ("Săn riêng: " .. currentSoloTarget) or (currentMode == "sea3" and "Sea 3" or "Sea 2")) .. "..."),
+        Text = "Bật từng Boss bên dưới để tự động tìm phòng và săn.",
     })
 
     local lastStatusTitle = ""
     local lastStatusText = ""
     local statusDirty = false
-    local function setStatus(text: string, force: boolean?)
-        local titleStr = "Trạng thái · Đang tắt"
-        if currentMode == "solo" then titleStr = "Săn riêng · " .. currentSoloTarget
-        elseif currentMode == "sea3" then titleStr = "Trạng thái · Đang săn Sea 3"
-        elseif currentMode == "sea2" then titleStr = "Trạng thái · Đang săn Sea 2"
+
+    local syncingBossToggles = false
+    local Sea3Toggle: any = nil
+    local Sea2Toggle: any = nil
+    local MasterAutoFightToggle: any = nil
+    local bossToggles: { [string]: any } = {}
+
+    local function getActiveBossSummary(): (string, string)
+        if currentMode == "sea3" then
+            local names: { string } = {}
+            if hubState.fightSea3DepthKing then table.insert(names, "Depth King") end
+            if hubState.fightSea3Dragon then table.insert(names, "Drakenfyr") end
+            if hubState.fightSea3Abyssal then table.insert(names, "Abyssal") end
+            if hubState.fightSea3Kraken then table.insert(names, "Kraken") end
+            if hubState.fightSea3Crab then table.insert(names, "Cua") end
+            if hubState.fightSea3Events then table.insert(names, "Sea Events") end
+            if #names == 6 then
+                return "Sea 3 (Tất cả)", "Đang tự động tìm phòng có bất kỳ Boss nào ở Sea 3..."
+            elseif #names > 0 then
+                local str = table.concat(names, ", ")
+                return "Sea 3 · " .. str, "Đang tự động tìm phòng có: " .. str .. "..."
+            else
+                return "Sea 3", "Chưa bật Boss nào ở Sea 3."
+            end
+        elseif currentMode == "sea2" then
+            local names: { string } = {}
+            if hubState.fightSea2Hydra then table.insert(names, "Hydra") end
+            if hubState.fightSea2SeaKing then table.insert(names, "Sea King") end
+            if hubState.fightSea2GhostShip then table.insert(names, "Thuyền Ma") end
+            if hubState.fightSea2Serpent then table.insert(names, "Serpent") end
+            if #names == 4 then
+                return "Sea 2 (Tất cả)", "Đang tự động tìm phòng có bất kỳ Boss / Rương nào ở Sea 2..."
+            elseif #names > 0 then
+                local str = table.concat(names, ", ")
+                return "Sea 2 · " .. str, "Đang tự động tìm phòng có: " .. str .. "..."
+            else
+                return "Sea 2", "Chưa bật Boss nào ở Sea 2."
+            end
         end
-        if not force and titleStr == lastStatusTitle and text == lastStatusText then
+        return "Đang tắt", "Bật từng Boss bên dưới để bắt đầu tự động tìm phòng và săn."
+    end
+
+    local function setStatus(text: string, force: boolean?)
+        local modeSummary, defaultText = getActiveBossSummary()
+        local titleStr = "Trạng thái · " .. modeSummary
+        local displayText = text
+        if displayText == "" or displayText == nil then
+            displayText = defaultText
+        end
+        if not force and titleStr == lastStatusTitle and displayText == lastStatusText then
             return
         end
         lastStatusTitle = titleStr
-        lastStatusText = text
+        lastStatusText = displayText
         if not force and not isHubOpen() then
             statusDirty = true
             return
         end
         statusDirty = false
         pcall(function()
-            StatusParagraph:Set({ Title = titleStr, Text = text })
+            StatusParagraph:Set({ Title = titleStr, Text = displayText })
         end)
     end
     table.insert(onHubOpenedHooks, function()
@@ -163,18 +204,7 @@
         end
     end)
 
-    local syncingToggles = false
-    local SoloToggle: any = nil
-    local Sea3Toggle: any = nil
-    local Sea2Toggle: any = nil
-    local MasterAutoFightToggle: any = nil
-
     local function applyMode(newMode: string, notifyUser: boolean)
-        if newMode == "depth_king" then
-            currentSoloTarget = "👑 Depth King (Sea 3)"
-            hubState.soloTarget = currentSoloTarget
-            newMode = "solo"
-        end
         -- Khử xung đột: Khi chuyển sang Săn Boss, tự động bật Master Auto Fight và tắt các chế độ cày cục bộ
         if newMode ~= "off" then
             hubState.autoFightMaster = true
@@ -187,66 +217,44 @@
         currentMode = newMode
         hubState.mode = newMode
         genv._KingAutoHopMode = newMode
-        genv._KingSoloTarget = currentSoloTarget
         genv._AutoSeaEventApiHop = (newMode == "sea3")
         genv._AutoSea2PriorityApiHop = (newMode == "sea2")
-        genv._AutoDepthKingOnlyApiHop = (newMode == "solo" and getSoloKey(currentSoloTarget) == "depth_king")
+        genv._AutoDepthKingOnlyApiHop = (newMode == "sea3" and hubState.fightSea3DepthKing == true and not hubState.fightSea3Dragon and not hubState.fightSea3Abyssal and not hubState.fightSea3Kraken and not hubState.fightSea3Crab and not hubState.fightSea3Events)
         saveState(hubState)
         updateDockDot()
         if newMode ~= "off" then
             armAutoReexec(false)
         end
 
-        syncingToggles = true
-        if SoloToggle and typeof(SoloToggle.Set) == "function" then
-            pcall(function() SoloToggle:Set({ CurrentValue = (newMode == "solo") }) end)
-        end
-        if Sea3Toggle and typeof(Sea3Toggle.Set) == "function" then
-            pcall(function() Sea3Toggle:Set({ CurrentValue = (newMode == "sea3") }) end)
-        end
-        if Sea2Toggle and typeof(Sea2Toggle.Set) == "function" then
-            pcall(function() Sea2Toggle:Set({ CurrentValue = (newMode == "sea2") }) end)
-        end
         if MasterAutoFightToggle and typeof(MasterAutoFightToggle.Set) == "function" then
             pcall(function() MasterAutoFightToggle:Set({ CurrentValue = hubState.autoFightMaster }) end)
         end
-        syncingToggles = false
 
-        if newMode == "solo" then
-            local soloKey = getSoloKey(currentSoloTarget)
-            local targetPlace = getSoloPlaceId(soloKey)
-            if not ensureCorrectSea(targetPlace, currentSoloTarget, "Săn riêng", soloKey) then
-                local sName = (targetPlace == SEA3_PLACE and "Sea 3") or "Sea 2"
-                setStatus("Đang tự động chuyển sang " .. sName .. " để săn " .. currentSoloTarget .. "...", true)
-                return
-            end
-            setStatus("Đang dò riêng API: " .. currentSoloTarget .. "...", true)
-            if notifyUser then
-                safeNotify("YokaHub", "Đã bật săn riêng: " .. currentSoloTarget, "public")
-            end
-        elseif newMode == "sea3" then
-            local preferSea3Boss = (hubState.fightSea3DepthKing ~= false and "depth")
-                or (hubState.fightSea3Dragon ~= false and "dragon")
-                or (hubState.fightSea3Abyssal ~= false and "abyssal")
-                or (hubState.fightSea3Kraken ~= false and "kraken")
-                or (hubState.fightSea3Crab ~= false and "crab")
+        if newMode == "sea3" then
+            local preferSea3Boss = (hubState.fightSea3DepthKing and "depth")
+                or (hubState.fightSea3Dragon and "dragon")
+                or (hubState.fightSea3Abyssal and "abyssal")
+                or (hubState.fightSea3Kraken and "kraken")
+                or (hubState.fightSea3Crab and "crab")
                 or "depth"
-            if not ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Săn tổng hợp", preferSea3Boss) then
-                setStatus("Đang tự động chuyển sang Sea 3 để săn Boss tổng hợp...", true)
+            if not ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Săn Boss", preferSea3Boss) then
+                setStatus("Đang tự động chuyển sang Sea 3 để săn Boss...", true)
                 return
             end
-            setStatus("Đang tìm phòng có Boss ở Sea 3...", true)
+            local summary, _ = getActiveBossSummary()
+            setStatus("Đang tìm phòng có Boss ở Sea 3 (" .. summary .. ")...", true)
             if notifyUser then
-                safeNotify("YokaHub", "Đã bật tự động săn Boss Sea 3.", "public")
+                safeNotify("YokaHub", "Đã bật Auto Hop: " .. summary, "public")
             end
         elseif newMode == "sea2" then
-            if not ensureCorrectSea(SEA2_PLACE, "Boss Sea 2", "Săn tổng hợp", "hydra") then
+            if not ensureCorrectSea(SEA2_PLACE, "Boss Sea 2", "Săn Boss", "hydra") then
                 setStatus("Đang tự động chuyển sang Sea 2 để săn Boss & Rương...", true)
                 return
             end
-            setStatus("Đang tìm phòng có Boss / Rương ở Sea 2...", true)
+            local summary, _ = getActiveBossSummary()
+            setStatus("Đang tìm phòng có Boss / Rương ở Sea 2 (" .. summary .. ")...", true)
             if notifyUser then
-                safeNotify("YokaHub", "Đã bật tự động săn Boss & Rương Sea 2.", "public")
+                safeNotify("YokaHub", "Đã bật Auto Hop: " .. summary, "public")
             end
         else
             -- Tat toan bo co tu dong hop cua Wukong de khong bi nhay phong ngam khi da tat YokaHub
@@ -278,106 +286,204 @@
         end
     end
 
+    local function recalcHopMode(notifyUser: boolean)
+        local anySea3 = (hubState.fightSea3DepthKing == true)
+            or (hubState.fightSea3Dragon == true)
+            or (hubState.fightSea3Abyssal == true)
+            or (hubState.fightSea3Kraken == true)
+            or (hubState.fightSea3Crab == true)
+            or (hubState.fightSea3Events == true)
+
+        local anySea2 = (hubState.fightSea2Hydra == true)
+            or (hubState.fightSea2SeaKing == true)
+            or (hubState.fightSea2GhostShip == true)
+            or (hubState.fightSea2Serpent == true)
+
+        local allSea3 = (hubState.fightSea3DepthKing == true)
+            and (hubState.fightSea3Dragon == true)
+            and (hubState.fightSea3Abyssal == true)
+            and (hubState.fightSea3Kraken == true)
+            and (hubState.fightSea3Crab == true)
+            and (hubState.fightSea3Events == true)
+
+        local allSea2 = (hubState.fightSea2Hydra == true)
+            and (hubState.fightSea2SeaKing == true)
+            and (hubState.fightSea2GhostShip == true)
+            and (hubState.fightSea2Serpent == true)
+
+        local newMode = "off"
+        if anySea3 and anySea2 then
+            newMode = (game.PlaceId == SEA2_PLACE) and "sea2" or "sea3"
+        elseif anySea3 then
+            newMode = "sea3"
+        elseif anySea2 then
+            newMode = "sea2"
+        else
+            newMode = "off"
+        end
+
+        applyMode(newMode, notifyUser)
+
+        syncingBossToggles = true
+        if Sea3Toggle and typeof(Sea3Toggle.Set) == "function" then
+            pcall(function() Sea3Toggle:Set({ CurrentValue = allSea3 }) end)
+        end
+        if Sea2Toggle and typeof(Sea2Toggle.Set) == "function" then
+            pcall(function() Sea2Toggle:Set({ CurrentValue = allSea2 }) end)
+        end
+        syncingBossToggles = false
+    end
+
     genv.SetKingAutoHopMode = function(m: string) applyMode(m, false) end
     genv.SetAutoDepthKingHopEnabled = function(on: boolean)
+        syncingBossToggles = true
+        hubState.fightSea3DepthKing = on
         if on then
-            currentSoloTarget = "👑 Depth King (Sea 3)"
-            hubState.soloTarget = currentSoloTarget
+            hubState.fightSea3Dragon = false
+            hubState.fightSea3Abyssal = false
+            hubState.fightSea3Kraken = false
+            hubState.fightSea3Crab = false
+            hubState.fightSea3Events = false
         end
-        applyMode(on and "solo" or "off", false)
-    end
-    genv.SetAutoSoloHopEnabled = function(on: boolean, targetOpt: string?)
-        if typeof(targetOpt) == "string" and SOLO_KEY_MAP[targetOpt] ~= nil then
-            currentSoloTarget = targetOpt
-            hubState.soloTarget = targetOpt
+        for k, tog in pairs(bossToggles) do
+            if string.sub(k, 1, 4) == "Sea3" and tog and typeof(tog.Set) == "function" then
+                pcall(function() tog:Set({ CurrentValue = (k == "Sea3DepthKing" and on or false) }) end)
+            end
         end
-        applyMode(on and "solo" or "off", false)
+        syncingBossToggles = false
+        recalcHopMode(false)
     end
-    genv.SetAutoHopEnabled = function(on: boolean) applyMode(on and "sea3" or "off", false) end
-    genv.SetAutoSea2HopEnabled = function(on: boolean) applyMode(on and "sea2" or "off", false) end
-
-    local defaultSoloTarget = table.find(SOLO_OPTIONS, currentSoloTarget) and currentSoloTarget or SOLO_OPTIONS[1]
-    StatusSection:CreateDropdown({
-        Name = "🎯 Mục tiêu API",
-        Options = SOLO_OPTIONS,
-        CurrentOption = { defaultSoloTarget },
-        MultipleOptions = false,
-        Callback = function(opt: any)
-            local picked = pickDropdownValue(opt)
-            if SOLO_KEY_MAP[picked] == nil then return end
-            if picked == currentSoloTarget then return end
-            currentSoloTarget = picked
-            hubState.soloTarget = picked
-            genv._KingSoloTarget = picked
-            genv._AutoDepthKingOnlyApiHop = (currentMode == "solo" and getSoloKey(picked) == "depth_king")
-            saveState(hubState)
-            if currentMode == "solo" then
-                local targetPlace = getSoloPlaceId(getSoloKey(picked))
-                if not ensureCorrectSea(targetPlace, picked, "Đổi mục tiêu Boss", getSoloKey(picked)) then
-                    local sName = (targetPlace == SEA3_PLACE and "Sea 3") or "Sea 2"
-                    setStatus("Đang tự động chuyển sang " .. sName .. " để săn " .. picked .. "...", true)
-                    return
-                end
-                setStatus("Đã đổi mục tiêu săn riêng sang: " .. picked, true)
-                safeNotify("YokaHub", "Đang chuyển săn riêng: " .. picked, "public")
+    genv.SetAutoHopEnabled = function(on: boolean)
+        syncingBossToggles = true
+        hubState.fightSea3DepthKing = on
+        hubState.fightSea3Dragon = on
+        hubState.fightSea3Abyssal = on
+        hubState.fightSea3Kraken = on
+        hubState.fightSea3Crab = on
+        hubState.fightSea3Events = on
+        for k, tog in pairs(bossToggles) do
+            if string.sub(k, 1, 4) == "Sea3" and tog and typeof(tog.Set) == "function" then
+                pcall(function() tog:Set({ CurrentValue = on }) end)
             end
-        end,
-    }, "SoloApiTarget")
-
-    SoloToggle = StatusSection:CreateToggle({
-        Name = "🎯 Săn riêng API đã chọn (Phím F7)",
-        Description = "Chỉ nhảy đúng 1 mục tiêu ở trên · Không qua Boss khác",
-        CurrentValue = (currentMode == "solo"),
-        Callback = function(Value: boolean)
-            if syncingToggles then return end
-            if Value then applyMode("solo", true)
-            elseif currentMode == "solo" then applyMode("off", true)
+        end
+        syncingBossToggles = false
+        recalcHopMode(false)
+    end
+    genv.SetAutoSea2HopEnabled = function(on: boolean)
+        syncingBossToggles = true
+        hubState.fightSea2Hydra = on
+        hubState.fightSea2SeaKing = on
+        hubState.fightSea2GhostShip = on
+        hubState.fightSea2Serpent = on
+        for k, tog in pairs(bossToggles) do
+            if string.sub(k, 1, 4) == "Sea2" and tog and typeof(tog.Set) == "function" then
+                pcall(function() tog:Set({ CurrentValue = on }) end)
             end
-        end,
-    }, "AutoHopSoloApi")
+        end
+        syncingBossToggles = false
+        recalcHopMode(false)
+    end
 
     Sea3Toggle = StatusSection:CreateToggle({
-        Name = "🐉 Săn tổng hợp Sea 3 (Phím F8)",
-        Description = "Ưu tiên: Depth King (Top 1) → Rồng Drakenfyr (Top 2) → Abyssal (Top 3) → Kraken → Cua → Serpent",
-        CurrentValue = (currentMode == "sea3"),
+        Name = "🐉 Bật / Tắt toàn bộ Boss Sea 3 (Phím F8)",
+        Description = "Ưu tiên: Depth King (Top 1) → Drakenfyr (Top 2) → Abyssal (Top 3) → Kraken → Cua → Events",
+        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3DepthKing and hubState.fightSea3Dragon and hubState.fightSea3Abyssal and hubState.fightSea3Kraken and hubState.fightSea3Crab and hubState.fightSea3Events),
         Callback = function(Value: boolean)
-            if syncingToggles then return end
-            if Value then applyMode("sea3", true)
-            elseif currentMode == "sea3" then applyMode("off", true)
+            if syncingBossToggles then return end
+            syncingBossToggles = true
+            hubState.fightSea3DepthKing = Value
+            hubState.fightSea3Dragon = Value
+            hubState.fightSea3Abyssal = Value
+            hubState.fightSea3Kraken = Value
+            hubState.fightSea3Crab = Value
+            hubState.fightSea3Events = Value
+            for k, tog in pairs(bossToggles) do
+                if string.sub(k, 1, 4) == "Sea3" and tog and typeof(tog.Set) == "function" then
+                    pcall(function() tog:Set({ CurrentValue = Value }) end)
+                end
             end
+            syncingBossToggles = false
+            recalcHopMode(true)
         end,
     }, "AutoHopSea3")
 
     Sea2Toggle = StatusSection:CreateToggle({
-        Name = "🐍 Săn tổng hợp Sea 2 (Phím F9)",
-        Description = "Ưu tiên: Rương Hydra → Hydra → Sea King → Serpent → Tàu",
-        CurrentValue = (currentMode == "sea2"),
+        Name = "🐍 Bật / Tắt toàn bộ Boss Sea 2 (Phím F9)",
+        Description = "Ưu tiên: Rương Hydra → Hydra → Sea King → Serpent → Tàu Ma",
+        CurrentValue = (hubState.mode == "sea2" and hubState.fightSea2Hydra and hubState.fightSea2SeaKing and hubState.fightSea2GhostShip and hubState.fightSea2Serpent),
         Callback = function(Value: boolean)
-            if syncingToggles then return end
-            if Value then applyMode("sea2", true)
-            elseif currentMode == "sea2" then applyMode("off", true)
+            if syncingBossToggles then return end
+            syncingBossToggles = true
+            hubState.fightSea2Hydra = Value
+            hubState.fightSea2SeaKing = Value
+            hubState.fightSea2GhostShip = Value
+            hubState.fightSea2Serpent = Value
+            for k, tog in pairs(bossToggles) do
+                if string.sub(k, 1, 4) == "Sea2" and tog and typeof(tog.Set) == "function" then
+                    pcall(function() tog:Set({ CurrentValue = Value }) end)
+                end
             end
+            syncingBossToggles = false
+            recalcHopMode(true)
         end,
     }, "AutoHopSea2")
 
+    StatusSection:CreateButton({
+        Name = "⛔ Dừng toàn bộ Auto Hop (Đứng yên tại phòng)",
+        Description = "Tắt tức thì mọi chế độ nhảy phòng và dừng săn Boss",
+        Callback = function()
+            syncingBossToggles = true
+            hubState.fightSea3DepthKing = false
+            hubState.fightSea3Dragon = false
+            hubState.fightSea3Abyssal = false
+            hubState.fightSea3Kraken = false
+            hubState.fightSea3Crab = false
+            hubState.fightSea3Events = false
+            hubState.fightSea2Hydra = false
+            hubState.fightSea2SeaKing = false
+            hubState.fightSea2GhostShip = false
+            hubState.fightSea2Serpent = false
+            for _, tog in pairs(bossToggles) do
+                if tog and typeof(tog.Set) == "function" then
+                    pcall(function() tog:Set({ CurrentValue = false }) end)
+                end
+            end
+            if Sea3Toggle and typeof(Sea3Toggle.Set) == "function" then
+                pcall(function() Sea3Toggle:Set({ CurrentValue = false }) end)
+            end
+            if Sea2Toggle and typeof(Sea2Toggle.Set) == "function" then
+                pcall(function() Sea2Toggle:Set({ CurrentValue = false }) end)
+            end
+            syncingBossToggles = false
+            applyMode("off", true)
+        end,
+    })
+
     trackConn(userInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
         if gp then return end
-        if input.KeyCode == Enum.KeyCode.F7 then
-            applyMode(currentMode == "solo" and "off" or "solo", true)
-        elseif input.KeyCode == Enum.KeyCode.F8 then
-            applyMode(currentMode == "sea3" and "off" or "sea3", true)
+        if input.KeyCode == Enum.KeyCode.F8 then
+            local targetVal = (currentMode ~= "sea3")
+            if Sea3Toggle and typeof(Sea3Toggle.Set) == "function" then
+                Sea3Toggle:Set({ CurrentValue = targetVal })
+            else
+                applyMode(targetVal and "sea3" or "off", true)
+            end
         elseif input.KeyCode == Enum.KeyCode.F9 then
-            applyMode(currentMode == "sea2" and "off" or "sea2", true)
+            local targetVal = (currentMode ~= "sea2")
+            if Sea2Toggle and typeof(Sea2Toggle.Set) == "function" then
+                Sea2Toggle:Set({ CurrentValue = targetVal })
+            else
+                applyMode(targetVal and "sea2" or "off", true)
+            end
         end
     end))
 
-    
     -- ========================================================
-    -- BẢNG 1: BẢNG CHUNG - TỰ ĐỘNG ĐÁNH TỔNG HỢP SEA EVENT & BOSS
+    -- BẢNG 1: CÀI ĐẶT CHIẾN ĐẤU BOSS & NHẶT RƯƠNG
     -- ========================================================
-    local MasterFightSection = HopTab:CreateSection("🌟 BẢNG CHUNG: TỰ ĐỘNG ĐÁNH TỔNG HỢP SEA EVENT & BOSS")
+    local MasterFightSection = HopTab:CreateSection("🌟 CÀI ĐẶT CHIẾN ĐẤU BOSS & NHẶT RƯƠNG")
     MasterAutoFightToggle = MasterFightSection:CreateToggle({
-        Name = "⚔️ Bật Tự Động Đánh Mọi Sea Event & Boss Khi Thấy (Master Auto Fight)",
+        Name = "⚔️ Tự Động Đánh Boss & Sea Event Khi Thấy (Master Auto Fight)",
         Description = "Tự động bay đến, né chiêu trên không và tiêu diệt bất kỳ Boss biển nào xuất hiện trong phòng",
         CurrentValue = hubState.autoFightMaster,
         Callback = function(Value: boolean)
@@ -414,114 +520,132 @@
     }, "BossSafeHeightSlider")
 
     -- ========================================================
-    -- BẢNG 2: BẢNG RIÊNG 1 - CHUYÊN SĂN BOSS BIỂN SEA 3
+    -- BẢNG 2: TỰ ĐỘNG HOP & SĂN BOSS SEA 3 (TỪNG CON RIÊNG BIỆT)
     -- ========================================================
-    local Sea3FightSection = HopTab:CreateSection("👑 BẢNG RIÊNG 1: SĂN BOSS BIỂN SEA 3 (CHỌN TỪNG CON)")
-    Sea3FightSection:CreateToggle({
-        Name = "👑 Săn Depth King (Sea 3)",
-        Description = "Tự động săn và mở rương Vua Vực Thẳm Depth King (Top 1)",
-        CurrentValue = hubState.fightSea3DepthKing,
+    local Sea3FightSection = HopTab:CreateSection("👑 TỰ ĐỘNG HOP & SĂN BOSS SEA 3 (API TỪNG CON)")
+    bossToggles.Sea3DepthKing = Sea3FightSection:CreateToggle({
+        Name = "👑 Auto Hop & Săn Depth King (Sea 3)",
+        Description = "Tự động tìm phòng có Vua Vực Thẳm Depth King qua API, bay tới diệt và mở rương (Top 1)",
+        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3DepthKing == true),
         Callback = function(Value: boolean)
+            if syncingBossToggles then return end
             hubState.fightSea3DepthKing = Value
             saveState(hubState)
+            recalcHopMode(true)
         end,
     }, "FightSea3DepthKingToggle")
 
-    Sea3FightSection:CreateToggle({
-        Name = "🐲 Săn Drakenfyr the Inferno King / Dragon (Sea 3)",
-        Description = "Tự động săn Rồng Lửa Drakenfyr the Inferno King (Top 2)",
-        CurrentValue = hubState.fightSea3Dragon,
+    bossToggles.Sea3Dragon = Sea3FightSection:CreateToggle({
+        Name = "🐲 Auto Hop & Săn Drakenfyr / Dragon (Sea 3)",
+        Description = "Tự động tìm phòng có Rồng Lửa Drakenfyr / Sea Dragon qua API và tiêu diệt (Top 2)",
+        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3Dragon == true),
         Callback = function(Value: boolean)
+            if syncingBossToggles then return end
             hubState.fightSea3Dragon = Value
             saveState(hubState)
+            recalcHopMode(true)
         end,
     }, "FightSea3DragonToggle")
 
-    Sea3FightSection:CreateToggle({
-        Name = "👑 Săn Abyssal Tyrant (Sea 3)",
-        Description = "Tự động săn bạo chúa Abyssal Tyrant (Top 3)",
-        CurrentValue = hubState.fightSea3Abyssal,
+    bossToggles.Sea3Abyssal = Sea3FightSection:CreateToggle({
+        Name = "👑 Auto Hop & Săn Abyssal Tyrant (Sea 3)",
+        Description = "Tự động tìm phòng có Bạo Chúa Abyssal Tyrant qua API và tiêu diệt (Top 3)",
+        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3Abyssal == true),
         Callback = function(Value: boolean)
+            if syncingBossToggles then return end
             hubState.fightSea3Abyssal = Value
             saveState(hubState)
+            recalcHopMode(true)
         end,
     }, "FightSea3AbyssalToggle")
 
-    Sea3FightSection:CreateToggle({
-        Name = "🐙 Săn Kraken & Xúc Tu (Sea 3)",
-        Description = "Tự động đánh Kraken và chặt xúc tu biển",
-        CurrentValue = hubState.fightSea3Kraken,
+    bossToggles.Sea3Kraken = Sea3FightSection:CreateToggle({
+        Name = "🐙 Auto Hop & Săn Kraken & Xúc Tu (Sea 3)",
+        Description = "Tự động tìm phòng có Kraken qua API, chặt xúc tu và diệt thân quái (Top 4)",
+        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3Kraken == true),
         Callback = function(Value: boolean)
+            if syncingBossToggles then return end
             hubState.fightSea3Kraken = Value
             saveState(hubState)
+            recalcHopMode(true)
         end,
     }, "FightSea3KrakenToggle")
 
-    Sea3FightSection:CreateToggle({
-        Name = "🦀 Săn Cua Biển Khổng Lồ (Giant Crab Sea 3)",
-        Description = "Tự động tiêu diệt Cua Biển khổng lồ Sea 3",
-        CurrentValue = hubState.fightSea3Crab,
+    bossToggles.Sea3Crab = Sea3FightSection:CreateToggle({
+        Name = "🦀 Auto Hop & Săn Cua Biển Khổng Lồ (Sea 3)",
+        Description = "Tự động tìm phòng có Cua Biển khổng lồ Sea 3 qua API và tiêu diệt (Top 5)",
+        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3Crab == true),
         Callback = function(Value: boolean)
+            if syncingBossToggles then return end
             hubState.fightSea3Crab = Value
             saveState(hubState)
+            recalcHopMode(true)
         end,
     }, "FightSea3CrabToggle")
 
-    Sea3FightSection:CreateToggle({
-        Name = "🌊 Săn Sea Event Thường (Bỏ qua Depth & Abyssal)",
-        Description = "Tập trung săn các sự kiện biển vừa và nhỏ",
-        CurrentValue = hubState.fightSea3Events,
+    bossToggles.Sea3Events = Sea3FightSection:CreateToggle({
+        Name = "🌊 Auto Hop & Săn Sea Event Thường (Sea 3)",
+        Description = "Tự động tìm phòng có sự kiện biển vừa và nhỏ (Galleon, Sea Beast...)",
+        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3Events == true),
         Callback = function(Value: boolean)
+            if syncingBossToggles then return end
             hubState.fightSea3Events = Value
             saveState(hubState)
+            recalcHopMode(true)
         end,
     }, "FightSea3EventsToggle")
 
     -- ========================================================
-    -- BẢNG 3: BẢNG RIÊNG 2 - CHUYÊN SĂN BOSS BIỂN SEA 2
+    -- BẢNG 3: TỰ ĐỘNG HOP & SĂN BOSS SEA 2 (TỪNG CON RIÊNG BIỆT)
     -- ========================================================
-    local Sea2FightSection = HopTab:CreateSection("🐋 BẢNG RIÊNG 2: SĂN BOSS BIỂN SEA 2 (CHỌN TỪNG CON)")
-    Sea2FightSection:CreateToggle({
-        Name = "🐍 Săn Hydra & Rương Hydra (Sea 2)",
-        Description = "Tự động đánh Rắn 3 đầu Hydra và mở rương huyền thoại",
-        CurrentValue = hubState.fightSea2Hydra,
+    local Sea2FightSection = HopTab:CreateSection("🐋 TỰ ĐỘNG HOP & SĂN BOSS SEA 2 (API TỪNG CON)")
+    bossToggles.Sea2Hydra = Sea2FightSection:CreateToggle({
+        Name = "🐍 Auto Hop & Săn Hydra & Rương Hydra (Sea 2)",
+        Description = "Tự động tìm phòng có Rắn 3 đầu Hydra / Rương Hydra qua API và mở rương (Top 1)",
+        CurrentValue = (hubState.mode == "sea2" and hubState.fightSea2Hydra == true),
         Callback = function(Value: boolean)
+            if syncingBossToggles then return end
             hubState.fightSea2Hydra = Value
             saveState(hubState)
+            recalcHopMode(true)
         end,
     }, "FightSea2HydraToggle")
 
-    Sea2FightSection:CreateToggle({
-        Name = "🐋 Săn Sea King (Vua Biển) & Rương Vua Biển (Sea 2)",
-        Description = "Tự động đánh Sea King và mở rương Vua Biển",
-        CurrentValue = hubState.fightSea2SeaKing,
+    bossToggles.Sea2SeaKing = Sea2FightSection:CreateToggle({
+        Name = "🐋 Auto Hop & Săn Sea King & Rương Vua Biển (Sea 2)",
+        Description = "Tự động tìm phòng có Vua Biển Sea King / Rương Vua Biển qua API và mở rương (Top 2)",
+        CurrentValue = (hubState.mode == "sea2" and hubState.fightSea2SeaKing == true),
         Callback = function(Value: boolean)
+            if syncingBossToggles then return end
             hubState.fightSea2SeaKing = Value
             saveState(hubState)
+            recalcHopMode(true)
         end,
     }, "FightSea2SeaKingToggle")
 
-    Sea2FightSection:CreateToggle({
-        Name = "👻 Săn Thuyền Ma & Rương Thuyền Ma (Sea 2)",
-        Description = "Tự động bắn phá Tàu Ma Ghost Ship và nhặt rương rơi",
-        CurrentValue = hubState.fightSea2GhostShip,
+    bossToggles.Sea2GhostShip = Sea2FightSection:CreateToggle({
+        Name = "👻 Auto Hop & Săn Thuyền Ma & Rương Thuyền Ma (Sea 2)",
+        Description = "Tự động tìm phòng có Tàu Ma Ghost Ship qua API, bắn phá và nhặt rương rơi",
+        CurrentValue = (hubState.mode == "sea2" and hubState.fightSea2GhostShip == true),
         Callback = function(Value: boolean)
+            if syncingBossToggles then return end
             hubState.fightSea2GhostShip = Value
             saveState(hubState)
+            recalcHopMode(true)
         end,
     }, "FightSea2GhostShipToggle")
 
-    Sea2FightSection:CreateToggle({
-        Name = "🐍 Săn Rắn Biển / Sea Serpent (Sea 2 & 3)",
-        Description = "Tự động tiêu diệt Rắn Biển Serpent",
-        CurrentValue = hubState.fightSea2Serpent,
+    bossToggles.Sea2Serpent = Sea2FightSection:CreateToggle({
+        Name = "🐍 Auto Hop & Săn Rắn Biển / Sea Serpent (Sea 2 & 3)",
+        Description = "Tự động tìm phòng có Rắn Biển Serpent qua API và tiêu diệt",
+        CurrentValue = ((hubState.mode == "sea2" or hubState.mode == "sea3") and hubState.fightSea2Serpent == true),
         Callback = function(Value: boolean)
+            if syncingBossToggles then return end
             hubState.fightSea2Serpent = Value
             saveState(hubState)
+            recalcHopMode(true)
         end,
     }, "FightSea2SerpentToggle")
-
-    -- ========================================================
     -- BẢNG 4: BẢNG RIÊNG 3 - SĂN BOSS TRÊN ĐẢO (ISLAND BOSSES)
     -- ========================================================
     local IslandFightSection = HopTab:CreateSection("🏝️ BẢNG RIÊNG 3: SĂN BOSS TRÊN ĐẢO (WORLD BOSSES)")
