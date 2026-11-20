@@ -283,7 +283,7 @@
 
         if currentCombatTarget and (os.clock() - currentCombatTargetAt) < 4.0 and isModelAlive(currentCombatTarget) then
             local cRoot = getModelRoot(currentCombatTarget)
-            if cRoot and (cRoot.Position - myPos).Magnitude <= (maxRange + 220) then
+            if cRoot and (cRoot.Position - myPos).Magnitude <= maxRange then
                 return currentCombatTarget, cRoot
             end
         end
@@ -345,6 +345,26 @@
         return false
     end
 
+    -- ========================================================
+    -- [DUAL-LAYER NATIVE AIMBOT HOOK] (TỰ ĐỘNG KHÓA TÂM VÀO MOB / BOSS 100%)
+    -- ========================================================
+    pcall(function()
+        local hmM = hookmetamethod or (syn and syn.hookmetamethod)
+        local cCall = checkcaller or (syn and syn.checkcaller)
+        if typeof(hmM) == "function" and typeof(cCall) == "function" then
+            local mouse = player:GetMouse()
+            local oldIndex
+            oldIndex = hmM(game, "__index", function(self, key)
+                if not cCall() and self == mouse and (key == "Hit" or key == "hit") then
+                    if _G.MouseHit and typeof(_G.MouseHit) == "CFrame" then
+                        return _G.MouseHit
+                    end
+                end
+                return oldIndex(self, key)
+            end)
+        end
+    end)
+
     local noclipWasActive = false
     pcall(function()
         trackConn(sharedRunService.Heartbeat:Connect(function(dt: number)
@@ -361,19 +381,18 @@
                 flightAlive = false
             end
 
-            -- 1. Realtime Auto Aim (_G.MouseHit cập nhật từng khung hình cho Quái, Boss & Sea Event)
+            -- 1. TỰ ĐỘNG KHÓA MỤC TIÊU (NATIVE ALWAYS-ON AUTO AIM CHO MỌI CHẾ ĐỘ QUÁI / BOSS / SEA EVENT)
             local aimPos: Vector3? = nil
-            if hubState.skillAimbot ~= false and genv.PlayerAimbotEnabled ~= false then
-                local aimRange = tonumber(genv.PlayerAimRange) or 450
-                local tModel, tRoot = getBestCombatTarget(aimRange)
-                if tModel and tRoot then
-                    aimPos = getAimPoint(tModel, tRoot)
-                    _G.MouseHit = CFrame.new(aimPos)
-                    if not flightAlive and (aimPos - hrp.Position).Magnitude <= 140 and (isHoldingSkill or #getAvailableM1Categories() > 0) then
-                        local flatLook = Vector3.new(aimPos.X, hrp.Position.Y, aimPos.Z)
-                        if (flatLook - hrp.Position).Magnitude > 0.5 then
-                            hrp.CFrame = CFrame.lookAt(hrp.Position, flatLook)
-                        end
+            local tModel, tRoot = getBestCombatTarget(650)
+            if tModel and tRoot then
+                aimPos = getAimPoint(tModel, tRoot)
+                _G.MouseHit = CFrame.new(aimPos)
+
+                -- Khi không bay (đứng trên mặt đất hoặc tự do di chuyển): Luôn tự động xoay mặt nhân vật hướng thẳng vào quái/boss
+                if not flightAlive and (aimPos - hrp.Position).Magnitude <= 220 then
+                    local flatLook = Vector3.new(aimPos.X, hrp.Position.Y, aimPos.Z)
+                    if (flatLook - hrp.Position).Magnitude > 0.5 then
+                        hrp.CFrame = CFrame.lookAt(hrp.Position, flatLook)
                     end
                 end
             end
@@ -392,7 +411,8 @@
                 end
 
                 local targetPos = activeFlightTarget.pos
-                local lookTarget = activeFlightTarget.lookAt or aimPos
+                -- Ưu tiên điểm ngắm thời gian thực (aimPos) để nhân vật luôn nhìn thẳng vào tâm quái/boss khi di chuyển
+                local lookTarget = aimPos or activeFlightTarget.lookAt
                 local function orientAt(p: Vector3): CFrame
                     if lookTarget and (lookTarget - p).Magnitude > 0.5 then
                         return CFrame.lookAt(p, lookTarget)
@@ -407,8 +427,8 @@
                 -- Nhận diện thao tác phím chủ động của người chơi (WASD hoặc cần gạt Joystick cảm ứng)
                 local isManualMoving = (hum.MoveDirection.Magnitude > 0.05)
 
-                if dist > 20 or activeFlightTarget.instant then
-                    -- Đang di chuyển tầm xa tới bãi quái / boss: Teleport tức thì
+                if activeFlightTarget.instant or dist > 1800 then
+                    -- Teleport tức thì (dành cho Farm level/quái/nguyên liệu/dungeon/quest NPC hoặc khoảng cách cực xa)
                     bv.Velocity = Vector3.zero
                     bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
                     pcall(function()
@@ -421,8 +441,26 @@
                     -- Người chơi đang chủ động bấm phím WASD / vuốt Joystick: Nhường quyền di chuyển tự do, chỉ giữ trục Y chống rơi nước
                     bv.Velocity = Vector3.zero
                     bv.MaxForce = Vector3.new(0, 1e7, 0)
+                    if aimPos then
+                        local flatLook = Vector3.new(aimPos.X, hrp.Position.Y, aimPos.Z)
+                        if (flatLook - hrp.Position).Magnitude > 0.5 then
+                            hrp.CFrame = CFrame.lookAt(hrp.Position, flatLook)
+                        end
+                    end
+                elseif dist > 14 then
+                    -- Bay mượt bằng tốc độ flySpeed (dành cho Săn Boss Biển, Thám Hiểm, Đi Tàu)
+                    bv.Velocity = Vector3.zero
+                    bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+                    pcall(function()
+                        hrp.AssemblyLinearVelocity = Vector3.zero
+                        hrp.AssemblyAngularVelocity = Vector3.zero
+                    end)
+                    local speed = math.clamp(tonumber(hubState.flySpeed or genv.YokaFlySpeed) or 420, 200, 650)
+                    local step = math.min(dist, speed * math.clamp(dt, 0.005, 0.08))
+                    local nextPos = curPos + (delta.Unit * step)
+                    hrp.CFrame = orientAt(nextPos)
                 else
-                    -- Trạng thái đứng yên (AFK Farm): Khóa vững độ cao và giữ chắc vị trí trên đầu mục tiêu
+                    -- Tại khu vực đánh (farm mob hoặc săn boss): Bay tại chỗ (hover lock) giữ vững độ cao
                     bv.Velocity = Vector3.zero
                     bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
                     pcall(function()
@@ -575,17 +613,10 @@
 
     getActiveM1Categories = function(): { string }
         local mode = hubState.toolMode or "Auto Mode"
-        if mode == "Sword" then
-            return { "sword" }
-        elseif mode == "Melee" then
-            return { "melee" }
-        elseif mode == "Fruit" then
-            return { "fruit" }
-        end
 
-        local hasSword = (hubState.autoM1Sword == true) or (genv.AutoM1Sword == true)
-        local hasMelee = (hubState.autoM1Melee == true) or (genv.AutoM1Melee == true)
-        local hasFruit = (hubState.autoM1Fruit == true) or (genv.AutoM1Fruit == true)
+        local hasSword = false
+        local hasMelee = false
+        local hasFruit = false
 
         if typeof(hubState.m1SpamList) == "table" then
             for _, opt in ipairs(hubState.m1SpamList) do
@@ -593,6 +624,18 @@
                 if opt == "Melee M1" then hasMelee = true end
                 if opt == "Fruit M1" then hasFruit = true end
             end
+        else
+            hasSword = (hubState.autoM1Sword == true) or (genv.AutoM1Sword == true)
+            hasMelee = (hubState.autoM1Melee == true) or (genv.AutoM1Melee == true)
+            hasFruit = (hubState.autoM1Fruit == true) or (genv.AutoM1Fruit == true)
+        end
+
+        if mode == "Sword" then
+            return hasSword and { "sword" } or {}
+        elseif mode == "Melee" then
+            return hasMelee and { "melee" } or {}
+        elseif mode == "Fruit" then
+            return hasFruit and { "fruit" } or {}
         end
 
         local cats = {}
@@ -732,8 +775,8 @@
     local lastM1FireClock = 0
 
     local function equipAndFireSelectedM1(char: Model, hum: Humanoid): Tool?
-        -- CHỈ ĐÁNH KHI CÓ MỤC TIÊU SỐNG TRONG TẦM
-        local tModel, tRoot = getBestCombatTarget(150)
+        -- CHỈ ĐÁNH KHI CÓ MỤC TIÊU SỐNG TRONG TẦM CẬN CHIẾN (<= 45 STUDS)
+        local tModel, tRoot = getBestCombatTarget(45)
         if not tModel or not tRoot then return nil end
 
         local cats = getAvailableM1Categories()
@@ -814,17 +857,9 @@
                 continue
             end
 
-            local hasAnyM1 = (hubState.autoM1Fruit == true) or (hubState.autoM1Sword == true) or (hubState.autoM1Melee == true) 
-                or (genv.AutoM1Fruit == true) or (genv.AutoM1Sword == true) or (genv.AutoM1Melee == true)
-            if typeof(hubState.m1SpamList) == "table" and #hubState.m1SpamList > 0 then
-                hasAnyM1 = true
-            end
-            local inCombat = (currentMode ~= "off") or (hubState.autoLevel == true) or (hubState.autoKillSelectedMob == true) 
-                or (hubState.autoFightMaster == true) or (hubState.autoFightIslandBoss == true) or (hubState.autoDungeon == true) 
-                or (hubState.farmSea3Mat == true) or (hubState.farmSea2Mat == true) or (hubState.farmSea1Mat == true)
-
-            if (hasAnyM1 or inCombat) and not hubState.autoFish and not isHoldingSkill and os.clock() >= dodgeUntilClock then
-                local tModel, _ = getBestCombatTarget(150)
+            -- Chỉ kích hoạt Auto M1 khi có ít nhất 1 loại vũ khí được tích chọn và người chơi đang không câu cá
+            if not hubState.autoFish and not isHoldingSkill and os.clock() >= dodgeUntilClock then
+                local tModel, _ = getBestCombatTarget(45)
                 if tModel then
                     pcall(function()
                         local char = player.Character
@@ -1111,21 +1146,30 @@
             table.insert(catPlan, { cat = cat, keys = kList, prio = (cat == primaryCat and 2 or 1) })
         end
 
-        local allowFruit = (mode == "Fruit" or (mode == "Auto Mode" and hubState.skillFruit ~= false))
-        local allowSword = (mode == "Sword" or (mode == "Auto Mode" and hubState.skillSword ~= false))
-        local allowMelee = (mode == "Melee" or (mode == "Auto Mode" and hubState.skillMelee ~= false))
+        local allowFruit = (mode == "Fruit" or mode == "Auto Mode") and (hubState.skillFruit ~= false)
+        local allowSword = (mode == "Sword" or mode == "Auto Mode") and (hubState.skillSword ~= false)
+        local allowMelee = (mode == "Melee" or mode == "Auto Mode") and (hubState.skillMelee ~= false)
 
         if allowFruit then
-            local fOpt = (typeof(hubState.fruitSkillsList) == "table" and #hubState.fruitSkillsList > 0) and hubState.fruitSkillsList or hubState.skillFruitKeys
-            addPlan("fruit", fOpt, genv.CombatSkillFruit, { "Z", "X", "C", "E" })
+            local fOpt = (typeof(hubState.fruitSkillsList) == "table") and hubState.fruitSkillsList or hubState.skillFruitKeys
+            local kList = parseKeysFromOption(fOpt, genv.CombatSkillFruit)
+            if #kList > 0 then
+                table.insert(catPlan, { cat = "fruit", keys = kList, prio = (primaryCat == "fruit" and 2 or 1) })
+            end
         end
         if allowSword then
-            local sOpt = (typeof(hubState.swordSkillsList) == "table" and #hubState.swordSkillsList > 0) and hubState.swordSkillsList or hubState.skillSwordKeys
-            addPlan("sword", sOpt, genv.CombatSkillSword, { "Z", "X" })
+            local sOpt = (typeof(hubState.swordSkillsList) == "table") and hubState.swordSkillsList or hubState.skillSwordKeys
+            local kList = parseKeysFromOption(sOpt, genv.CombatSkillSword)
+            if #kList > 0 then
+                table.insert(catPlan, { cat = "sword", keys = kList, prio = (primaryCat == "sword" and 2 or 1) })
+            end
         end
         if allowMelee then
-            local mOpt = (typeof(hubState.meleeSkillsList) == "table" and #hubState.meleeSkillsList > 0) and hubState.meleeSkillsList or hubState.skillMeleeKeys
-            addPlan("melee", mOpt, genv.CombatSkillMelee, { "Z", "X", "C", "V" })
+            local mOpt = (typeof(hubState.meleeSkillsList) == "table") and hubState.meleeSkillsList or hubState.skillMeleeKeys
+            local kList = parseKeysFromOption(mOpt, genv.CombatSkillMelee)
+            if #kList > 0 then
+                table.insert(catPlan, { cat = "melee", keys = kList, prio = (primaryCat == "melee" and 2 or 1) })
+            end
         end
         if #catPlan == 0 then return end
         table.sort(catPlan, function(a, b) return a.prio > b.prio end)
@@ -3148,7 +3192,7 @@ end)
                             local sHeight = (hubState.safeDistance ~= false) and 8.5 or 7.0
                             local aimPos = getAimPoint(targetMob, mRoot)
                             local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
-                            setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 45)
+                            setFlightTarget(hoverPos, aimPos, true, 45)
 
                             -- Gom toàn bộ quái cùng loại trên cả đảo về ngay dưới chân nhân vật (tối đa 25 con, chừa quái mục tiêu chính)
                             if (hubState.fastMobBring ~= false or genv.autocat) and (questAmount == nil or questAmount > 1) then
@@ -3173,10 +3217,10 @@ end)
                         end
                         if waitAnchor and (waitAnchor - hrp.Position).Magnitude > 60 then
                             local safeWaitPos = waitAnchor + Vector3.new(0, 24, 0)
-                            setFlightTarget(safeWaitPos, waitAnchor, (safeWaitPos - hrp.Position).Magnitude > 1600, 44)
+                            setFlightTarget(safeWaitPos, waitAnchor, true, 44)
                         end
                     elseif questMobExact then
-                        -- Quái / Boss nhiệm vụ vừa chết đang hồi sinh -> Bay lên cao (+36 studs) đứng chờ an toàn ngay bãi spawn như trong video
+                        -- Quái / Boss nhiệm vụ vừa chết đang hồi sinh -> Teleport lên cao (+36 studs) đứng chờ an toàn ngay bãi spawn
                         local waitAnchor = questMobLastPos[questMobExact]
                         if not waitAnchor then
                             local qLv = parseMobLevel(questMobExact) or myLvl
@@ -3184,7 +3228,7 @@ end)
                         end
                         if waitAnchor then
                             local safeWaitPos = waitAnchor + Vector3.new(0, 36, 0)
-                            setFlightTarget(safeWaitPos, waitAnchor, (safeWaitPos - hrp.Position).Magnitude > 1600, 44)
+                            setFlightTarget(safeWaitPos, waitAnchor, true, 44)
                         end
                     end
                 end)
@@ -3269,7 +3313,7 @@ end)
                             local sHeight = (hubState.safeDistance ~= false) and 11 or 8
                             local aimPos = getAimPoint(targetMob, mRoot)
                             local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
-                            setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 44)
+                            setFlightTarget(hoverPos, aimPos, true, 44)
                             if (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 35 then
                                 local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
                                 bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, targetMob.Name, false, targetMob)
@@ -3340,7 +3384,7 @@ end)
                             local sDist = string.find(tactics, "Fast") and 8 or (string.find(tactics, "Safe") and 18 or 12)
                             local aimPos = getAimPoint(targetMob, mRoot)
                             local hoverPos = mRoot.Position + Vector3.new(0, sDist, 0)
-                            setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 48)
+                            setFlightTarget(hoverPos, aimPos, true, 48)
                             if (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 38 then
                                 local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
                                 bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, nil, true, targetMob)
@@ -3737,11 +3781,11 @@ end)
                         task.wait(0.22)
                         local afterName = (curQuestObj and typeof(curQuestObj.Value) == "string") and curQuestObj.Value or ""
                         if afterName == "" or afterName == "None" then
-                            -- Nếu server yêu cầu đứng gần NPC Quest -> bay mượt tới đúng NPC Quest theo cấp
+                            -- Nếu server yêu cầu đứng gần NPC Quest -> teleport tức thì tới đúng NPC Quest theo cấp
                             local npcPos = findQuestNpcPositionForLevel(tonumber(bestInfo.Level) or myLvl)
                             if npcPos then
                                 local dest = npcPos + Vector3.new(0, 6, 0)
-                                setFlightTarget(dest, npcPos, (dest - hrp.Position).Magnitude > 1600, 52)
+                                setFlightTarget(dest, npcPos, true, 52)
                                 if (hrp.Position - npcPos).Magnitude <= 30 then
                                     pcall(function() qRemote:InvokeServer("take", bestName) end)
                                 end
@@ -3997,14 +4041,11 @@ end)
                     end
                 end
 
-                -- 2. Skill Direction Aimbot (Bổ sung đồng bộ trạng thái & hướng mục tiêu Boss/Quái/Sea Event)
-                if hubState.skillAimbot ~= false and genv.PlayerAimbotEnabled ~= false then
-                    local aimRange = tonumber(genv.PlayerAimRange) or 450
-                    local tModel, tRoot = getBestCombatTarget(aimRange)
-                    if tModel and tRoot then
-                        local aimPos = getAimPoint(tModel, tRoot)
-                        _G.MouseHit = CFrame.new(aimPos)
-                    end
+                -- 2. Skill Direction Aimbot (Luôn cập nhật _G.MouseHit vào tâm Quái / Boss / Sea Event thời gian thực)
+                local tModel, tRoot = getBestCombatTarget(650)
+                if tModel and tRoot then
+                    local aimPos = getAimPoint(tModel, tRoot)
+                    _G.MouseHit = CFrame.new(aimPos)
                 end
 
                 -- 3. Predictive Boss AOE Teleport Dodge (Né bằng Teleport + Hover Lock, dự đoán tầm chiêu Boss, KHÔNG dùng Q Dash)

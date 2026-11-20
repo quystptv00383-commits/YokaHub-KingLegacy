@@ -284,7 +284,7 @@
         local AimSection = SkillTab:CreateSection("🎯 Auto Aim & Tự Né Chiêu Boss Bằng Teleport")
         AimSection:CreateToggle({
             Name = "🎯 Auto Aim Khóa Mục Tiêu (Quái / Boss / Sea Event)",
-            Description = "Tự động khóa tâm chiêu & hướng đánh chính xác vào Quái, Boss Đảo và Sea Event đang giao tranh",
+            Description = "Tự động khóa 100% tâm chiêu & hướng mặt vào Boss, Quái, Sea Event (Mặc định luôn tự aim khi chiến đấu)",
             CurrentValue = hubState.skillAimbot ~= false,
             Callback = function(Value: boolean)
                 hubState.skillAimbot = Value
@@ -292,7 +292,7 @@
                 pcall(function()
                     genv.PlayerAimbotEnabled = Value
                     genv.PlayerAimMode = "Skill Direction"
-                    genv.PlayerAimRange = 450
+                    genv.PlayerAimRange = 650
                 end)
             end,
         }, "SkillAimbotToggle")

@@ -12,7 +12,7 @@
         local LevelSection = FarmTab:CreateSection("🌾 Cày Cấp Độ Tự Động (Level 1 - Max)")
         local AutoLevelToggle = LevelSection:CreateToggle({
             Name = "🌾 Bật Farm Level Tự Động",
-            Description = "Tự bay đến NPC nhận quest theo cấp, gom quái và đánh dọn sạch",
+            Description = "Tự teleport tức thì đến NPC nhận quest theo cấp, gom quái và đánh dọn sạch (Teleport Farm)",
             CurrentValue = hubState.autoLevel,
             Callback = function(Value: boolean)
                 if syncingLocalToggles then return end
@@ -56,7 +56,7 @@
         }, "SafeDistanceToggle")
 
         LevelSection:CreateSlider({
-            Name = "🚀 Tốc Độ Bay Khi Farm & Đánh Boss (Fly Speed)",
+            Name = "🚀 Tốc Độ Bay Khi Khám Phá & Đánh Boss (Fly Speed)",
             Range = { 200, 650 },
             Increment = 10,
             Suffix = " studs/s",
