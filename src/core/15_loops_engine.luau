@@ -684,10 +684,12 @@
                     end)
                 end
 
-                pcall(function() tool:Activate() end)
+                if tool.Parent == player.Character then
+                    pcall(function() tool:Activate() end)
+                end
             end
 
-            if vu then
+            if tool.Parent == player.Character and vu then
                 pcall(function()
                     vu:CaptureController()
                     vu:ClickButton1(Vector2.zero)
@@ -714,8 +716,7 @@
     end
 
     local m1CycleIndex = 1
-    local lastM1CycleClock = 0
-    local m1HitsOnCurrentTool = 0
+    local lastM1FireClock = 0
 
     local function equipAndFireSelectedM1(char: Model, hum: Humanoid): Tool?
         -- CHỈ ĐÁNH KHI CÓ MỤC TIÊU SỐNG TRONG TẦM
@@ -729,41 +730,63 @@
         end
 
         local now = os.clock()
-        -- Tự động luân chuyển vũ khí mượt mà theo nhịp burst siêu tốc (~0.28s hoặc sau 4 nhát đánh)
-        if #cats > 1 then
-            if (now - lastM1CycleClock) >= 0.28 or m1HitsOnCurrentTool >= 4 then
-                lastM1CycleClock = now
-                m1HitsOnCurrentTool = 0
-                m1CycleIndex = (m1CycleIndex % #cats) + 1
-            elseif m1CycleIndex > #cats then
-                m1CycleIndex = 1
+        if (now - lastM1FireClock) < 0.018 then return nil end
+        lastM1FireClock = now
+
+        -- 1. GIỮ YÊN 1 VŨ KHÍ TRÊN TAY / GIAO DIỆN GAME (KHÔNG ĐỔI LIÊN TỤC TRÊN GIAO DIỆN)
+        local curHeldTool = char:FindFirstChildOfClass("Tool")
+        local curCat = curHeldTool and classifyKingLegacyTool(curHeldTool) or nil
+        local mode = hubState.toolMode or "Auto Mode"
+
+        local desiredCat: string? = nil
+        if mode == "Sword" then desiredCat = "sword"
+        elseif mode == "Melee" then desiredCat = "melee"
+        elseif mode == "Fruit" then desiredCat = "fruit"
+        end
+
+        local isCurValid = (curCat ~= nil and table.find(cats, curCat) ~= nil)
+        if desiredCat and curCat ~= desiredCat then
+            isCurValid = false
+        end
+
+        local visualTool = curHeldTool
+        if not isCurValid or not visualTool or visualTool.Parent ~= char then
+            -- Chỉ trang bị lại 1 lần duy nhất khi tay đang trống hoặc đổi mode vũ khí cố định
+            local targetCat = desiredCat or (cats[1] or "sword")
+            visualTool = findToolByCategory(targetCat)
+            if not visualTool then
+                for _, c in ipairs(cats) do
+                    visualTool = findToolByCategory(c)
+                    if visualTool then break end
+                end
             end
+            if visualTool and visualTool.Parent == player.Backpack then
+                pcall(function() hum:EquipTool(visualTool) end)
+            end
+        end
+
+        -- 2. ĐÁNH NGẦM PHÍA DƯỚI GIAO DIỆN (LUÂN CHUYỂN CÁC VŨ KHÍ ĐÃ TÍCH CHỌN GIỐNG BẢN WUKONG)
+        if #cats > 1 then
+            m1CycleIndex = (m1CycleIndex % #cats) + 1
         else
             m1CycleIndex = 1
         end
 
         local chosenCat = cats[m1CycleIndex] or cats[1]
-        local targetTool = findToolByCategory(chosenCat)
-        if not targetTool then
-            for _, fallbackCat in ipairs(cats) do
-                targetTool = findToolByCategory(fallbackCat)
-                if targetTool then
-                    chosenCat = fallbackCat
-                    break
-                end
-            end
+        local bgTool = findToolByCategory(chosenCat)
+
+        -- Kích hoạt đòn đánh phía dưới giao diện cho vũ khí luân phiên (Remote & Client Module ngầm)
+        if bgTool then
+            triggerKingLegacyM1(bgTool, chosenCat)
         end
 
-        if targetTool then
-            if targetTool.Parent == player.Backpack then
-                hum:EquipTool(targetTool)
-            end
-            triggerKingLegacyM1(targetTool, chosenCat)
-            m1HitsOnCurrentTool += 1
-            return targetTool
+        -- Đồng thời duy trì đòn đánh cho vũ khí đang cầm trên tay (nếu khác danh mục ngầm)
+        if visualTool and visualTool.Parent == char and visualTool ~= bgTool then
+            local vCat = curCat or classifyKingLegacyTool(visualTool) or "sword"
+            triggerKingLegacyM1(visualTool, vCat)
         end
 
-        return nil
+        return visualTool
     end
 
     -- ========================================================
@@ -1172,8 +1195,9 @@
                 end
 
                 -- Trả lại ngay vũ khí chính để M1 đánh liên hoàn không gián đoạn
-                if switchedAway and (mode ~= "Auto Mode" or #m1Cats == 1) then
-                    local mainTool = findToolByCategory(primaryCat)
+                if switchedAway then
+                    local targetCat = primaryCat or (m1Cats[1] or "sword")
+                    local mainTool = findToolByCategory(targetCat)
                     if mainTool and mainTool.Parent == player.Backpack then
                         pcall(function() hum:EquipTool(mainTool) end)
                     end

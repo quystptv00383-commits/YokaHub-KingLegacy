@@ -1213,10 +1213,10 @@
             if not (smartWin and smartWin:IsA("GuiObject")) then return end
 
             smartWin.ClipsDescendants = true
-            smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
+            smartWin.AnchorPoint = Vector2.new(0, 0)
             local shadow = lunaGui:FindFirstChild("ShadowHolder")
             if shadow and shadow:IsA("GuiObject") then
-                shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+                shadow.AnchorPoint = Vector2.new(0, 0)
             end
             setCorner(smartWin, 12)
             smartWin.BackgroundColor3 = THEME.sidebarBg
@@ -1666,25 +1666,40 @@
         local shadow = lunaGui:FindFirstChild("ShadowHolder")
         if not (smartWin and smartWin:IsA("GuiObject")) then return end
 
-        smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
+        smartWin.AnchorPoint = Vector2.new(0, 0)
         if shadow and shadow:IsA("GuiObject") then
-            shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-        end
-        if smartWin.Position.X.Scale == 0 and smartWin.Position.Y.Scale == 0 then
-            smartWin.Position = UDim2.fromScale(0.5, 0.5)
-            if shadow and shadow:IsA("GuiObject") then shadow.Position = UDim2.fromScale(0.5, 0.5) end
+            shadow.AnchorPoint = Vector2.new(0, 0)
         end
 
         syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
 
         local newSize = UDim2.fromOffset(finalW, finalH)
+        local posX = math.floor((vp.X - (finalW * scaleFactor)) / 2)
+        local posY = math.floor((vp.Y - (finalH * scaleFactor)) / 2)
+        local curPos = smartWin.Position
+        local absX = smartWin.AbsolutePosition.X
+        local absY = smartWin.AbsolutePosition.Y
+        local curScaledW = finalW * scaleFactor
+        local curScaledH = finalH * scaleFactor
+        local minX, maxX = 8, math.max(8, vp.X - curScaledW - 8)
+        local minY, maxY = 8, math.max(8, vp.Y - curScaledH - 8)
+
+        local targetPos = curPos
+        if absX < minX or absX > maxX or absY < minY or absY > maxY or (curPos.X.Scale == 0 and curPos.X.Offset == 0) then
+            targetPos = UDim2.fromOffset(math.clamp(posX, minX, maxX), math.clamp(posY, minY, maxY))
+        end
+
         local twInfo = TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
         if smooth then
-            tweenService:Create(smartWin, twInfo, { Size = newSize }):Play()
-            if shadow and shadow:IsA("GuiObject") then tweenService:Create(shadow, twInfo, { Size = newSize }):Play() end
+            tweenService:Create(smartWin, twInfo, { Size = newSize, Position = targetPos }):Play()
+            if shadow and shadow:IsA("GuiObject") then tweenService:Create(shadow, twInfo, { Size = newSize, Position = targetPos }):Play() end
         else
             smartWin.Size = newSize
-            if shadow and shadow:IsA("GuiObject") then shadow.Size = newSize end
+            smartWin.Position = targetPos
+            if shadow and shadow:IsA("GuiObject") then
+                shadow.Size = newSize
+                shadow.Position = targetPos
+            end
         end
         if updateTopBarResponsive then updateTopBarResponsive(finalW) end
     end
@@ -1709,13 +1724,17 @@
             local curW = smartWin.Size.X.Offset
             local curH = smartWin.Size.Y.Offset
             if curW >= (effMaxW - 24) or curH >= (effMaxH - 24) then
-                preFullW, preFullH, preFullPos = 720, 450, UDim2.fromScale(0.5, 0.5)
+                local defPosX = math.floor((vp.X - (720 * scaleFactor)) / 2)
+                local defPosY = math.floor((vp.Y - (450 * scaleFactor)) / 2)
+                preFullW, preFullH, preFullPos = 720, 450, UDim2.fromOffset(defPosX, defPosY)
             else
                 preFullW, preFullH, preFullPos = curW, curH, smartWin.Position
             end
 
             local fullSz = UDim2.fromOffset(effMaxW, effMaxH)
-            local centerPos = UDim2.fromScale(0.5, 0.5)
+            local fullPosX = math.floor((vp.X - (effMaxW * scaleFactor)) / 2)
+            local fullPosY = math.floor((vp.Y - (effMaxH * scaleFactor)) / 2)
+            local centerPos = UDim2.fromOffset(fullPosX, fullPosY)
 
             tweenService:Create(smartWin, twInfo, { Size = fullSz, Position = centerPos }):Play()
             if shadow and shadow:IsA("GuiObject") then
@@ -1729,7 +1748,9 @@
             local backW = math.clamp(preFullW, 380, effMaxW)
             local backH = math.clamp(preFullH, 260, effMaxH)
             local backSz = UDim2.fromOffset(backW, backH)
-            local backPos = preFullPos or UDim2.fromScale(0.5, 0.5)
+            local backPosX = math.floor((vp.X - (backW * scaleFactor)) / 2)
+            local backPosY = math.floor((vp.Y - (backH * scaleFactor)) / 2)
+            local backPos = preFullPos or UDim2.fromOffset(backPosX, backPosY)
             tweenService:Create(smartWin, twInfo, { Size = backSz, Position = backPos }):Play()
             if shadow and shadow:IsA("GuiObject") then
                 tweenService:Create(shadow, twInfo, { Size = backSz, Position = backPos }):Play()
@@ -1952,11 +1973,8 @@
             local dragMaxH = math.max(dragMinH, effVpY)
             local newW = math.clamp(math.floor(rStartW + delta.X), dragMinW, dragMaxW)
             local newH = math.clamp(math.floor(rStartH + delta.Y), dragMinH, dragMaxH)
-            local ddx = (newW - rStartW) * 0.5 * scaleFactor
-            local ddy = (newH - rStartH) * 0.5 * scaleFactor
-
             smartWin.Size = UDim2.fromOffset(newW, newH)
-            smartWin.Position = UDim2.new(rStartPos.X.Scale, rStartPos.X.Offset + ddx, rStartPos.Y.Scale, rStartPos.Y.Offset + ddy)
+            smartWin.Position = rStartPos
             if shadow and shadow:IsA("GuiObject") then
                 shadow.Size = smartWin.Size
                 shadow.Position = smartWin.Position
@@ -1982,12 +2000,8 @@
                 local smartWin = lunaGui:FindFirstChild("SmartWindow")
                 local shadow = lunaGui:FindFirstChild("ShadowHolder")
                 if smartWin and smartWin:IsA("GuiObject") then
-                    smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
-                    if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0.5, 0.5) end
-                    if smartWin.Position.X.Scale == 0 and smartWin.Position.Y.Scale == 0 then
-                        smartWin.Position = UDim2.fromScale(0.5, 0.5)
-                        if shadow and shadow:IsA("GuiObject") then shadow.Position = UDim2.fromScale(0.5, 0.5) end
-                    end
+                    smartWin.AnchorPoint = Vector2.new(0, 0)
+                    if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0, 0) end
                 end
             end
             if attachCornerResizer then attachCornerResizer() end
@@ -2007,18 +2021,21 @@
                     local smartWin = lunaGui:FindFirstChild("SmartWindow")
                     local shadow = lunaGui:FindFirstChild("ShadowHolder")
                     if smartWin and smartWin:IsA("GuiObject") then
-                        smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
-                        if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0.5, 0.5) end
+                        smartWin.AnchorPoint = Vector2.new(0, 0)
+                        if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0, 0) end
                         syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
                         local effMaxW = math.max(380, math.floor((vp.X - 16) / scaleFactor))
                         local effMaxH = math.max(260, math.floor((vp.Y - 16) / scaleFactor))
                         if isFullscreen then
                             local fullSz = UDim2.fromOffset(effMaxW, effMaxH)
+                            local fullPosX = math.floor((vp.X - (effMaxW * scaleFactor)) / 2)
+                            local fullPosY = math.floor((vp.Y - (effMaxH * scaleFactor)) / 2)
+                            local fullPos = UDim2.fromOffset(fullPosX, fullPosY)
                             smartWin.Size = fullSz
-                            smartWin.Position = UDim2.fromScale(0.5, 0.5)
+                            smartWin.Position = fullPos
                             if shadow and shadow:IsA("GuiObject") then
                                 shadow.Size = fullSz
-                                shadow.Position = UDim2.fromScale(0.5, 0.5)
+                                shadow.Position = fullPos
                             end
                         else
                             local curW = smartWin.Size.X.Offset
