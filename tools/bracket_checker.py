@@ -17,6 +17,15 @@ for lnum, line in enumerate(lines, 1):
     i = 0
     while i < len(line):
         ch = line[i]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == '\\':
+                escaped = True
+            elif ch == in_string:
+                in_string = None
+            i += 1
+            continue
         if in_comment:
             if line[i:i+2] == ']]':
                 in_comment = False
@@ -30,21 +39,11 @@ for lnum, line in enumerate(lines, 1):
             continue
         if line[i:i+2] == '--':
             break
-        if in_string:
-            if escaped:
-                escaped = False
-            elif ch == '\\':
-                escaped = True
-            elif ch == in_string:
-                in_string = None
-            i += 1
-            continue
-        else:
-            if ch in ('"', "'"):
-                in_string = ch
-            elif ch in ('(', '[', '{'):
-                stack.append((ch, lnum))
-            elif ch in (')', ']', '}'):
+        if ch in ('"', "'"):
+            in_string = ch
+        elif ch in ('(', '[', '{'):
+            stack.append((ch, lnum))
+        elif ch in (')', ']', '}'):
                 if not stack:
                     errors.append(f'Extra closing {ch} at line {lnum}')
                 else:

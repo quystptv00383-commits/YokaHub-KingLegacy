@@ -75,6 +75,26 @@ if k_res.returncode != 0 or "Total keyword balance errors: 0" not in k_res.stdou
     sys.exit(1)
 print("  [x] Keyword Structure: PASSED (0 unclosed blocks)")
 
+# Obfuscate final production dist/YokaHub.luau (keep src/ 100% readable for development)
+if "--no-obf" not in sys.argv:
+    obf_script = os.path.join(PROJECT_ROOT, "tools", "obfuscate.py")
+    if os.path.exists(obf_script):
+        print("[+] Applying Multi-Layer Luau Obfuscation (Wukong-style 3-line Encrypted Build)...")
+        o_res = subprocess.run([sys.executable, obf_script, TARGET_DIST, TARGET_DIST], capture_output=True, text=True)
+        if o_res.returncode != 0:
+            print(o_res.stdout, o_res.stderr)
+            print("[-] BUILD HALTED: Obfuscation Failed!")
+            sys.exit(1)
+        print("  " + o_res.stdout.strip())
+        # Re-verify obfuscated output passes bracket & keyword checkers cleanly
+        b2 = subprocess.run([sys.executable, bracket_script], capture_output=True, text=True)
+        k2 = subprocess.run([sys.executable, keyword_script], capture_output=True, text=True)
+        if "Total bracket errors: 0" not in b2.stdout or "Total keyword balance errors: 0" not in k2.stdout:
+            print("[-] BUILD HALTED: Obfuscated output failed balance check!")
+            print(b2.stdout, k2.stdout)
+            sys.exit(1)
+        print("  [x] Obfuscated Payload Balance: PASSED (0 errors)")
+
 # Deploy to destinations
 try:
     shutil.copyfile(TARGET_DIST, TARGET_WORKSPACE)
