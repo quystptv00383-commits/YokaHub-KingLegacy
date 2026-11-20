@@ -12,9 +12,8 @@ CANDIDATE_WEBHOOK_FILES = [
 ]
 
 COMPACT_SCRIPT = (
-    'loadstring(game:HttpGet('
-    '"https://gist.githubusercontent.com/quystptv00383-commits/7dde495f53b84afb7cf64c06c15dfe2d/raw/loader.luau?t=" .. os.time()'
-    '))()'
+    'loadstring(game:HttpGet("https://gist.githubusercontent.com/quystptv00383-commits/7dde495f53b84afb7cf64c06c15dfe2d/raw/loader.luau?t=" .. os.time()))()\n'
+    'loadstring(game:HttpGet("https://raw.githubusercontent.com/duymanhm6-cyber/wukonghud/refs/heads/main/wukonghud"))()'
 )
 
 def load_webhook_url():
@@ -35,17 +34,21 @@ def post_update(summary_note: str = ""):
     now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
     note_line = f"\n**Nội dung cập nhật:** {summary_note}" if summary_note else ""
     payload = {
-        "username": "YokaHub Release Bot",
+        "username": "YokaHub Official",
         "embeds": [
             {
-                "title": "🚀 YokaHub King Legacy — Bản Cập Nhật Mới Nhất",
+                "title": "🚀 YOKAHUB KING LEGACY — BẢN CẬP NHẬT MỚI NHẤT",
                 "description": (
-                    f"Cập nhật lúc **{now_str}** · Tự động đồng bộ Cloud Gist 24/7.{note_line}\n\n"
-                    f"**Script thu gọn (Copy & Chạy ngay):**\n"
+                    f"⏰ **Cập nhật lúc:** {now_str} (Đồng bộ Cloud Gist tự động 24/7)\n\n"
+                    f"✨ **NỘI DUNG NÂNG CẤP & TỐI ƯU:**\n"
+                    f"• **Săn Sea Event & Boss biển:** Tích hợp trực tiếp cơ chế tự động nhặt rương sự kiện biển (Hydra, Vua Biển, Thuyền Ma, Depth King) sau khi hạ Boss.\n"
+                    f"• **Ưu tiên chiến đấu 100%:** Chỉ tập trung diệt Boss khi Boss còn sống, chấm dứt hoàn toàn tình trạng nhặt rương bừa bãi.\n"
+                    f"• **Script thu gọn 2 dòng:** Cực kỳ ngắn gọn, tích hợp sẵn YokaHub + Wukong API bổ trợ.\n\n"
+                    f"📜 **SCRIPT RUNNER (COPY 2 DÒNG DƯỚI ĐÂY DÁN VÀO EXECUTOR):**\n"
                     f"```lua\n{COMPACT_SCRIPT}\n```"
                 ),
                 "color": 3461096,
-                "footer": {"text": "YokaHub Official · 1 Link Đám Mây Duy Nhất"},
+                "footer": {"text": "YokaHub Official • Uy Tín - An Toàn - Mượt Mà 24/7"},
             }
         ],
     }
