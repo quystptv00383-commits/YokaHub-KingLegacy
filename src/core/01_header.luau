@@ -20,6 +20,7 @@ task.spawn(function()
     if not players.LocalPlayer then return end
 
     local genv: any = getgenv()
+    genv._YokaHub_IsEmbedded = true
     local httpService = game:GetService("HttpService")
     local teleportService = game:GetService("TeleportService")
     local userInputService = game:GetService("UserInputService")

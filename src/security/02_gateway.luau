@@ -654,7 +654,7 @@
                 task.wait(0.35)
                 ScreenGui:Destroy()
         
-                if typeof(getgenv()._LaunchYokaHub) == "function" then
+                if typeof(getgenv()._LaunchYokaHub) == "function" and not getgenv()._YokaHub_IsEmbedded then
                     pcall(getgenv()._LaunchYokaHub)
                 end
             else
@@ -948,7 +948,7 @@
 
     genv._YokaHub_LaunchGateway = launchGatewayUI
 
-    if typeof(genv._LaunchYokaHub) ~= "function" then
+    if typeof(genv._LaunchYokaHub) ~= "function" and not genv._YokaHub_IsEmbedded then
         genv._LaunchYokaHub = function()
             if genv._YokaHub_Running then return end
             genv._YokaHub_Running = true

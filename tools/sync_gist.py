@@ -19,12 +19,18 @@ if not token:
 gist_id = "7dde495f53b84afb7cf64c06c15dfe2d"
 
 files_to_sync = {
+    "loader.luau": os.path.join(PROJECT_ROOT, "dist", "loader.luau"),
     "YokaHub.luau": os.path.join(PROJECT_ROOT, "dist", "YokaHub.luau"),
     "YokaHub_Keys.json": r"C:\Users\THIS PC\AppData\Local\Real\workspace\YokaHub_Keys.json",
-    "YokaHub_KeySystem.luau": r"C:\Users\THIS PC\AppData\Local\Real\scripts\YokaHub_KeySystem.luau",
-    "YokaHub_Commercial_Loader.luau": r"C:\Users\THIS PC\AppData\Local\Real\scripts\YokaHub_Commercial_Loader.luau",
     "YokaHub_Donators.json": r"C:\Users\THIS PC\AppData\Local\Real\workspace\YokaHub_Donators.json",
 }
+
+# Files to remove from Gist to keep only 1 unified script
+files_to_remove = [
+    "YokaHub_Commercial_Loader.luau",
+    "YokaHub_KeySystem.luau",
+    "donators.json"
+]
 
 payload_files = {}
 
@@ -32,6 +38,9 @@ for name, path in files_to_sync.items():
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             payload_files[name] = {"content": f.read()}
+
+for name in files_to_remove:
+    payload_files[name] = None
 
 req = urllib.request.Request(
     f"https://api.github.com/gists/{gist_id}",
@@ -46,6 +55,6 @@ req = urllib.request.Request(
 
 try:
     resp = urllib.request.urlopen(req)
-    print("GitHub Gist updated successfully with Loader! Status:", resp.status)
+    print("[+] GitHub Gist updated successfully! Status:", resp.status)
 except Exception as e:
     print("[-] Cloud sync error:", e)
