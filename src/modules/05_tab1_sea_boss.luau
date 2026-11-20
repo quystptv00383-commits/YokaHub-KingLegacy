@@ -31,13 +31,30 @@
         end
 
         -- Top 2: Drakenfyr the Inferno King / Dragon / Sea Dragon (Sea 3) - Ưu tiên số 2 (8 điểm)
-        if (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "dragon", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil and string.find(nm, "depth", 1, true) == nil and string.find(nm, "tyrant", 1, true) == nil then
+        local isDragonMatch = (src == "sea_event" and (string.find(nm, "dragon", 1, true) ~= nil or string.find(nm, "drakenfyr", 1, true) ~= nil))
+            or string.find(nm, "drakenfyr", 1, true) ~= nil
+            or string.find(nm, "inferno king", 1, true) ~= nil
+            or string.find(nm, "sea dragon", 1, true) ~= nil
+            or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil)
+        local notDragonOther = string.find(nm, "abyssal", 1, true) == nil
+            and string.find(nm, "tyrant", 1, true) == nil
+            and string.find(nm, "depth", 1, true) == nil
+            and string.find(src, "abyssal", 1, true) == nil
+            and string.find(src, "depth", 1, true) == nil
+        if isDragonMatch and notDragonOther then
             if hubState.fightSea3Dragon == false then return 0 end
             return 8
         end
 
         -- Top 3: Abyssal Tyrant (Sea 3) - Ưu tiên số 3 (6 điểm)
-        if (string.find(nm, "abyssal tyrant", 1, true) ~= nil or nm == "abyssaltyrant" or (string.find(nm, "abyssal", 1, true) ~= nil and string.find(nm, "tyrant", 1, true) ~= nil)) and string.find(nm, "depth", 1, true) == nil then
+        local isAbyssalMatch = (src == "abyssal" or src == "tyrant" or string.find(src, "abyssal", 1, true) ~= nil or string.find(src, "tyrant", 1, true) ~= nil)
+            or string.find(nm, "abyssal", 1, true) ~= nil
+            or string.find(nm, "tyrant", 1, true) ~= nil
+        local notAbyssalOther = string.find(nm, "depth", 1, true) == nil
+            and string.find(nm, "swordsman", 1, true) == nil
+            and string.find(nm, "dragon", 1, true) == nil
+            and string.find(src, "depth", 1, true) == nil
+        if isAbyssalMatch and notAbyssalOther then
             if hubState.fightSea3Abyssal == false then return 0 end
             return 6
         end
@@ -150,6 +167,7 @@
     local SoloToggle: any = nil
     local Sea3Toggle: any = nil
     local Sea2Toggle: any = nil
+    local MasterAutoFightToggle: any = nil
 
     local function applyMode(newMode: string, notifyUser: boolean)
         if newMode == "depth_king" then
@@ -208,6 +226,9 @@
         end
         if Sea2Toggle and typeof(Sea2Toggle.Set) == "function" then
             pcall(function() Sea2Toggle:Set({ CurrentValue = (newMode == "sea2") }) end)
+        end
+        if MasterAutoFightToggle and typeof(MasterAutoFightToggle.Set) == "function" then
+            pcall(function() MasterAutoFightToggle:Set({ CurrentValue = hubState.autoFightMaster }) end)
         end
         syncingToggles = false
 
@@ -375,7 +396,7 @@
     -- BẢNG 1: BẢNG CHUNG - TỰ ĐỘNG ĐÁNH TỔNG HỢP SEA EVENT & BOSS
     -- ========================================================
     local MasterFightSection = HopTab:CreateSection("🌟 BẢNG CHUNG: TỰ ĐỘNG ĐÁNH TỔNG HỢP SEA EVENT & BOSS")
-    MasterFightSection:CreateToggle({
+    MasterAutoFightToggle = MasterFightSection:CreateToggle({
         Name = "⚔️ Bật Tự Động Đánh Mọi Sea Event & Boss Khi Thấy (Master Auto Fight)",
         Description = "Tự động bay đến, né chiêu trên không và tiêu diệt bất kỳ Boss biển nào xuất hiện trong phòng",
         CurrentValue = hubState.autoFightMaster,
@@ -563,20 +584,33 @@
             return a < b
         end)
         if #list == 0 then
-            list = {
-                "Smoky [Lv. 20]",
-                "Tashi [Lv. 30]",
-                "Shark Man [Lv. 230]",
-                "King Snow [Lv. 450]",
-                "Rumble Man [Lv. 950]",
-                "Leader [Lv. 1100]",
-                "Quake Woman [Lv. 1925]",
-                "Gazelle Man [Lv. 2350]",
-                "Kitsune Samurai [Lv. 2650]",
-                "Flame User [Lv. 3200]",
-                "Sunken Vessel [Lv. 3225]",
-                "Ryu [Lv. 3975]",
-            }
+            if game.PlaceId == SEA3_PLACE then
+                list = {
+                    "Hephaestus [Lv. 4025]",
+                    "Dark Beard [Lv. 4250]",
+                    "Gryphon [Lv. 4500]",
+                    "Lucidus [Lv. 4750]",
+                    "Ghost Ship Captain [Lv. 5000]",
+                }
+            elseif game.PlaceId == SEA2_PLACE then
+                list = {
+                    "Gazelle Man [Lv. 2350]",
+                    "Kitsune Samurai [Lv. 2650]",
+                    "Flame User [Lv. 3200]",
+                    "Sunken Vessel [Lv. 3225]",
+                    "Ryu [Lv. 3975]",
+                }
+            else
+                list = {
+                    "Smoky [Lv. 20]",
+                    "Tashi [Lv. 30]",
+                    "Shark Man [Lv. 230]",
+                    "King Snow [Lv. 450]",
+                    "Rumble Man [Lv. 950]",
+                    "Leader [Lv. 1100]",
+                    "Quake Woman [Lv. 1925]",
+                }
+            end
         end
         return list
     end
@@ -631,6 +665,7 @@
             "Drakenfyr the Inferno King / Dragon (Sea 3)",
             "Abyssal Tyrant (Sea 3)",
             "Kraken (Sea 3)",
+            "Cua Biển / Crab (Sea 3)",
             "Rương Hydra (Sea 2)",
             "Hydra (Sea 2)",
             "Rương Vua Biển (Sea 2)",
@@ -655,18 +690,36 @@
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
         if target == "Drakenfyr the Inferno King / Dragon (Sea 3)" or target == "Rồng Biển / Dragon (Sea 3)" then
-            return pid == SEA3_PLACE and (src == "sea_event" and (string.find(nm, "dragon") ~= nil or string.find(nm, "drakenfyr") ~= nil) or string.find(nm, "drakenfyr") ~= nil or string.find(nm, "inferno king") ~= nil or string.find(nm, "sea dragon") ~= nil) and string.find(nm, "abyssal") == nil and string.find(nm, "depth") == nil
+            local isDragonMatch = (src == "sea_event" and (string.find(nm, "dragon", 1, true) ~= nil or string.find(nm, "drakenfyr", 1, true) ~= nil))
+                or string.find(nm, "drakenfyr", 1, true) ~= nil
+                or string.find(nm, "inferno king", 1, true) ~= nil
+                or string.find(nm, "sea dragon", 1, true) ~= nil
+                or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil)
+            local notDragonOther = string.find(nm, "abyssal", 1, true) == nil
+                and string.find(nm, "tyrant", 1, true) == nil
+                and string.find(nm, "depth", 1, true) == nil
+                and string.find(src, "abyssal", 1, true) == nil
+                and string.find(src, "depth", 1, true) == nil
+            return pid == SEA3_PLACE and isDragonMatch and notDragonOther
         elseif target == "Abyssal Tyrant (Sea 3)" then
-            return pid == SEA3_PLACE and (string.find(nm, "abyssal tyrant") ~= nil or (string.find(nm, "abyssal") ~= nil and string.find(nm, "swordsman") == nil) or string.find(nm, "tyrant") ~= nil) and string.find(nm, "dragon") == nil and string.find(nm, "depth") == nil
+            local isAbyssalMatch = (src == "abyssal" or src == "tyrant" or string.find(src, "abyssal", 1, true) ~= nil or string.find(src, "tyrant", 1, true) ~= nil)
+                or string.find(nm, "abyssal", 1, true) ~= nil
+                or string.find(nm, "tyrant", 1, true) ~= nil
+            local notAbyssalOther = string.find(nm, "depth", 1, true) == nil
+                and string.find(nm, "swordsman", 1, true) == nil
+                and string.find(nm, "dragon", 1, true) == nil
+                and string.find(src, "depth", 1, true) == nil
+            return pid == SEA3_PLACE and isAbyssalMatch and notAbyssalOther
         elseif target == "Depth King (Sea 3)" then
             return pid == SEA3_PLACE and (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil and string.find(nm, "tyrant", 1, true) == nil
-        elseif target == "Kraken (Sea 3)" then return pid == SEA3_PLACE and src == "sea_event" and string.find(nm, "kraken") ~= nil
-        elseif target == "Rương Hydra (Sea 2)" then return pid == SEA2_PLACE and src == "sk_hd_chest" and string.find(nm, "hydra") ~= nil
-        elseif target == "Hydra (Sea 2)" then return pid == SEA2_PLACE and src == "hydra"
-        elseif target == "Rương Vua Biển (Sea 2)" then return pid == SEA2_PLACE and src == "sk_hd_chest" and (string.find(nm, "sea king") ~= nil or string.find(nm, "seaking") ~= nil)
-        elseif target == "Vua Biển / Sea King (Sea 2)" then return pid == SEA2_PLACE and src == "sea_king"
-        elseif target == "Thuyền Ma / Ghost Ship (Sea 2)" then return pid == SEA2_PLACE and (src == "ghost_ship" or string.find(nm, "ghost") ~= nil)
-        elseif target == "Rắn Biển / Serpent (Sea 2 & 3)" then return src == "serpent"
+        elseif target == "Kraken (Sea 3)" then return pid == SEA3_PLACE and src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil)
+        elseif target == "Cua Biển / Crab (Sea 3)" then return pid == SEA3_PLACE and (string.find(nm, "crab", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "crab", 1, true) ~= nil))
+        elseif target == "Rương Hydra (Sea 2)" then return pid == SEA2_PLACE and src == "sk_hd_chest" and string.find(nm, "hydra", 1, true) ~= nil
+        elseif target == "Hydra (Sea 2)" then return pid == SEA2_PLACE and (src == "hydra" or string.find(nm, "hydra", 1, true) ~= nil)
+        elseif target == "Rương Vua Biển (Sea 2)" then return pid == SEA2_PLACE and src == "sk_hd_chest" and (string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil)
+        elseif target == "Vua Biển / Sea King (Sea 2)" then return pid == SEA2_PLACE and (src == "sea_king" or string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil)
+        elseif target == "Thuyền Ma / Ghost Ship (Sea 2)" then return pid == SEA2_PLACE and (src == "ghost_ship" or string.find(nm, "ghost", 1, true) ~= nil)
+        elseif target == "Rắn Biển / Serpent (Sea 2 & 3)" then return (src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil)
         end
         return false
     end
@@ -689,9 +742,11 @@
                     done(); return
                 end
                 local reqPlace = nil
-                if string.find(snipeTarget, "Sea 2") ~= nil then
+                if string.find(snipeTarget, "Serpent", 1, true) ~= nil then
+                    reqPlace = (game.PlaceId == SEA2_PLACE) and SEA2_PLACE or SEA3_PLACE
+                elseif string.find(snipeTarget, "Sea 2", 1, true) ~= nil and string.find(snipeTarget, "Sea 3", 1, true) == nil then
                     reqPlace = SEA2_PLACE
-                elseif string.find(snipeTarget, "Sea 3") ~= nil then
+                elseif string.find(snipeTarget, "Sea 3", 1, true) ~= nil and string.find(snipeTarget, "Sea 2", 1, true) == nil then
                     reqPlace = SEA3_PLACE
                 end
                 if reqPlace and game.PlaceId ~= reqPlace then
@@ -727,15 +782,9 @@
                     end
                 end
                 if #list == 0 then
-                    local reqPlace = SEA3_PLACE
-                    if string.find(snipeTarget, "Sea 2") ~= nil then reqPlace = SEA2_PLACE end
-                    if game.PlaceId ~= reqPlace then
-                        ensureCorrectSea(reqPlace, snipeTarget, "Chưa có phòng trên API", snipeTarget)
-                        done(); return
-                    end
                     local msg = fullCount > 0
                         and string.format("%s đang có %d phòng nhưng đều đầy 12/12! Thử chọn Boss khác.", snipeTarget, fullCount)
-                        or ("Hiện chưa có phòng nào cho " .. snipeTarget)
+                        or ("Hiện chưa có phòng nào trên API cho " .. snipeTarget)
                     setStatus(msg)
                     safeNotify("YokaHub", msg, "info")
                     done(); return

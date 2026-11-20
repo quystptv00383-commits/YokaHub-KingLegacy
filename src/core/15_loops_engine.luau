@@ -184,13 +184,16 @@
     local function isDragonBoss(n: string): boolean
         if isIslandMobName(n) then return false end
         if string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "depth", 1, true) ~= nil or string.find(n, "tyrant", 1, true) ~= nil then return false end
-        return string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno king", 1, true) ~= nil or string.find(n, "sea dragon", 1, true) ~= nil or (string.find(n, "dragon", 1, true) ~= nil and string.find(n, "fruit", 1, true) == nil and string.find(n, "claw", 1, true) == nil and string.find(n, "orb", 1, true) == nil)
+        return string.find(n, "drakenfyr", 1, true) ~= nil
+            or string.find(n, "inferno king", 1, true) ~= nil
+            or string.find(n, "sea dragon", 1, true) ~= nil
+            or (string.find(n, "dragon", 1, true) ~= nil and string.find(n, "fruit", 1, true) == nil and string.find(n, "claw", 1, true) == nil and string.find(n, "orb", 1, true) == nil)
     end
 
     local function isAbyssalBoss(n: string): boolean
         if isIslandMobName(n) then return false end
-        if string.find(n, "depth", 1, true) ~= nil then return false end
-        return string.find(n, "abyssal tyrant", 1, true) ~= nil or n == "abyssaltyrant" or (string.find(n, "tyrant", 1, true) ~= nil and string.find(n, "abyssal", 1, true) ~= nil)
+        if string.find(n, "depth", 1, true) ~= nil or string.find(n, "swordsman", 1, true) ~= nil then return false end
+        return string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "tyrant", 1, true) ~= nil
     end
 
     local function isKrakenBoss(n: string): boolean
@@ -1214,11 +1217,13 @@
         if typeof(genv.WK_SeaEvent) == "table" and typeof(genv.WK_SeaEvent.GetState) == "function" then
             local okS, st = pcall(genv.WK_SeaEvent.GetState)
             if okS and typeof(st) == "table" and st.phase and st.phase ~= "inactive" then
-                local ek = string.lower(tostring(st.eventKey or ""))
-                if isIslandWanted(ek, soloKey, mode) then
-                    local rawPos = st.position or st.targetPos or (typeof(st.cframe) == "CFrame" and st.cframe.Position)
+                local ek = string.lower(tostring(st.eventKey or st.eventName or st.name or st.phase or ""))
+                if isIslandWanted(ek, soloKey, mode) or string.find(ek, "sea", 1, true) ~= nil or string.find(ek, "event", 1, true) ~= nil then
+                    local rawPos = st.position or st.Position or st.targetPos or st.TargetPos or st.spawnPos or st.SpawnPos
+                        or (typeof(st.cframe) == "CFrame" and st.cframe.Position)
+                        or (typeof(st.CFrame) == "CFrame" and st.CFrame.Position)
                     if typeof(rawPos) == "Vector3" then
-                        return rawPos, tostring(st.eventKey or "SeaEvent")
+                        return rawPos, tostring(st.eventKey or st.eventName or "SeaEvent")
                     end
                 end
             end
@@ -1253,7 +1258,7 @@
         while genv._YokaHubToken == myToken do
             task.wait(0.16)
             local busyOtherMode = hubState.autoFish
-                or (currentMode == "off" and (hubState.autoLevel or hubState.autoKillSelectedMob or hubState.autoDungeon or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat))
+                or (currentMode == "off" and not hubState.autoFightMaster and (hubState.autoLevel or hubState.autoKillSelectedMob or hubState.autoDungeon or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat))
             local bossFightActive = (currentMode ~= "off") or hubState.autoFightMaster or hubState.autoFightIslandBoss
             if bossFightActive and not busyOtherMode and genv._YokaHubToken == myToken then
                 pcall(function()
@@ -1559,13 +1564,30 @@
         end
 
         -- Top 2: Drakenfyr the Inferno King / Dragon / Sea Dragon (Sea 3) - Ưu tiên số 2 (8 điểm)
-        if (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "dragon", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil and string.find(nm, "depth", 1, true) == nil and string.find(nm, "tyrant", 1, true) == nil then
+        local isDragonMatch = (src == "sea_event" and (string.find(nm, "dragon", 1, true) ~= nil or string.find(nm, "drakenfyr", 1, true) ~= nil))
+            or string.find(nm, "drakenfyr", 1, true) ~= nil
+            or string.find(nm, "inferno king", 1, true) ~= nil
+            or string.find(nm, "sea dragon", 1, true) ~= nil
+            or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil)
+        local notDragonOther = string.find(nm, "abyssal", 1, true) == nil
+            and string.find(nm, "tyrant", 1, true) == nil
+            and string.find(nm, "depth", 1, true) == nil
+            and string.find(src, "abyssal", 1, true) == nil
+            and string.find(src, "depth", 1, true) == nil
+        if isDragonMatch and notDragonOther then
             if hubState.fightSea3Dragon == false then return 0 end
             return 8
         end
 
         -- Top 3: Abyssal Tyrant (Sea 3) - Ưu tiên số 3 (6 điểm)
-        if (string.find(nm, "abyssal tyrant", 1, true) ~= nil or nm == "abyssaltyrant" or (string.find(nm, "abyssal", 1, true) ~= nil and string.find(nm, "tyrant", 1, true) ~= nil)) and string.find(nm, "depth", 1, true) == nil then
+        local isAbyssalMatch = (src == "abyssal" or src == "tyrant" or string.find(src, "abyssal", 1, true) ~= nil or string.find(src, "tyrant", 1, true) ~= nil)
+            or string.find(nm, "abyssal", 1, true) ~= nil
+            or string.find(nm, "tyrant", 1, true) ~= nil
+        local notAbyssalOther = string.find(nm, "depth", 1, true) == nil
+            and string.find(nm, "swordsman", 1, true) == nil
+            and string.find(nm, "dragon", 1, true) == nil
+            and string.find(src, "depth", 1, true) == nil
+        if isAbyssalMatch and notAbyssalOther then
             if hubState.fightSea3Abyssal == false then return 0 end
             return 6
         end
@@ -1633,15 +1655,31 @@
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
         if soloKey == "dragon" then
-            if pid == SEA3_PLACE and (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil)) then
-                -- Tuyệt đối loại bỏ nếu tên phòng có chữ abyssal hoặc depth hoặc tyrant
-                if string.find(nm, "abyssal", 1, true) == nil and string.find(nm, "tyrant", 1, true) == nil and string.find(nm, "depth", 1, true) == nil then
+            if pid == SEA3_PLACE then
+                local isDragonMatch = (src == "sea_event" and (string.find(nm, "dragon", 1, true) ~= nil or string.find(nm, "drakenfyr", 1, true) ~= nil))
+                    or string.find(nm, "drakenfyr", 1, true) ~= nil
+                    or string.find(nm, "inferno king", 1, true) ~= nil
+                    or string.find(nm, "sea dragon", 1, true) ~= nil
+                    or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil)
+                local notOther = string.find(nm, "abyssal", 1, true) == nil
+                    and string.find(nm, "tyrant", 1, true) == nil
+                    and string.find(nm, "depth", 1, true) == nil
+                    and string.find(src, "abyssal", 1, true) == nil
+                    and string.find(src, "depth", 1, true) == nil
+                if isDragonMatch and notOther then
                     return (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil) and 2 or 1
                 end
             end
         elseif soloKey == "abyssal_tyrant" then
-            if pid == SEA3_PLACE and (string.find(nm, "abyssal tyrant", 1, true) ~= nil or nm == "abyssaltyrant" or (string.find(nm, "abyssal", 1, true) ~= nil and string.find(nm, "tyrant", 1, true) ~= nil)) then
-                if string.find(nm, "dragon", 1, true) == nil and string.find(nm, "depth", 1, true) == nil then
+            if pid == SEA3_PLACE then
+                local isAbyssalMatch = (src == "abyssal" or src == "tyrant" or string.find(src, "abyssal", 1, true) ~= nil or string.find(src, "tyrant", 1, true) ~= nil)
+                    or string.find(nm, "abyssal", 1, true) ~= nil
+                    or string.find(nm, "tyrant", 1, true) ~= nil
+                local notOther = string.find(nm, "swordsman", 1, true) == nil
+                    and string.find(nm, "dragon", 1, true) == nil
+                    and string.find(nm, "depth", 1, true) == nil
+                    and string.find(src, "depth", 1, true) == nil
+                if isAbyssalMatch and notOther then
                     return 2
                 end
             end
@@ -2060,9 +2098,25 @@
                 genv.hopSerpent = false
                 genv.hopSerpentApi = false
                 genv.AutoHop = false
+                genv.PlayerAutoHop = false
+                genv.AutoHopConquest = false
+                genv.HalloweenHopBoss = false
+                genv.HopJackOLantern = false
+                genv.HopJackOLanternPremium = false
+                genv.AutoHop = false
+                genv.PlayerAutoHop = false
+                genv.AutoHopConquest = false
+                genv.HalloweenHopBoss = false
+                genv.HopJackOLantern = false
+                genv.HopJackOLanternPremium = false
                 genv.autoskillsea = true
-                if soloKey == "depth_king" or soloKey == "abyssal_tyrant" then
+                if soloKey == "depth_king" then
                     genv.AutoDepthKing = true
+                    genv.SeaEvent = false
+                    genv.utienSeaEvent = false
+                elseif soloKey == "abyssal_tyrant" then
+                    genv.AutoDepthKing = false
+                    genv.SeaEvent = true
                     genv.utienSeaEvent = true
                 elseif soloKey == "dragon" or soloKey == "kraken" or soloKey == "crab" or soloKey == "sea3_events" then
                     genv.AutoDepthKing = false
@@ -2200,7 +2254,7 @@
             end
             pcall(function()
                 genv.AutoDepthKing = (hubState.fightSea3DepthKing ~= false)
-                genv.SeaEvent = (hubState.fightSea3Dragon ~= false or hubState.fightSea3Kraken ~= false or hubState.fightSea3Crab ~= false or hubState.fightSea3Events == true)
+                genv.SeaEvent = (hubState.fightSea3Dragon ~= false or hubState.fightSea3Abyssal ~= false or hubState.fightSea3Kraken ~= false or hubState.fightSea3Crab ~= false or hubState.fightSea3Events == true)
                 genv.Serpent = (hubState.fightSea2Serpent ~= false)
                 genv.utienSeaEvent = true
                 genv.autoskillsea = true
@@ -2209,6 +2263,18 @@
                 genv.HopDepthKingApi = false
                 genv.hopSerpent = false
                 genv.hopSerpentApi = false
+                genv.AutoHop = false
+                genv.PlayerAutoHop = false
+                genv.AutoHopConquest = false
+                genv.HalloweenHopBoss = false
+                genv.HopJackOLantern = false
+                genv.HopJackOLanternPremium = false
+                genv.AutoHop = false
+                genv.PlayerAutoHop = false
+                genv.AutoHopConquest = false
+                genv.HalloweenHopBoss = false
+                genv.HopJackOLantern = false
+                genv.HopJackOLanternPremium = false
             end)
             local active, targetName = checkSea3Server()
             if active then
@@ -2287,6 +2353,12 @@
                 genv.HopDepthKingApi = false
                 genv.hopSerpent = false
                 genv.hopSerpentApi = false
+                genv.AutoHop = false
+                genv.PlayerAutoHop = false
+                genv.AutoHopConquest = false
+                genv.HalloweenHopBoss = false
+                genv.HopJackOLantern = false
+                genv.HopJackOLanternPremium = false
             end)
             local state, detail = checkSea2Server()
             if state == "boss" then
