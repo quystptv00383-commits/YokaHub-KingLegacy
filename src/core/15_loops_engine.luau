@@ -328,20 +328,17 @@
                 local delta = targetPos - curPos
                 local dist = delta.Magnitude
 
-                if activeFlightTarget.instant or dist > 1800 then
+                -- Tất cả di chuyển đều dùng teleport tức thì, không bay đường dài
+                if dist > 20 or activeFlightTarget.instant then
                     hrp.CFrame = orientAt(targetPos)
                     activeFlightTarget.instant = false
-                elseif dist > 14 then
-                    local speed = math.clamp(tonumber(hubState.flySpeed or genv.YokaFlySpeed) or 420, 200, 650)
-                    local step = math.min(dist, speed * math.clamp(dt, 0.005, 0.08))
-                    local nextPos = curPos + (delta.Unit * step)
-                    hrp.CFrame = orientAt(nextPos)
                 else
+                    -- Tại khu vực đánh (farm mob hoặc săn boss): Bay tại chỗ (hover lock) giữ vững độ cao
                     hrp.CFrame = orientAt(targetPos)
-                    -- Nếu là chuyến bay Dịch Chuyển Đảo 1 lần (priority == 70): tới nơi thì tự nhả bay để đứng bình thường
-                    if activeFlightTarget.priority == 70 then
-                        clearFlightTarget(999)
-                    end
+                end
+
+                if activeFlightTarget.priority == 70 and dist <= 20 then
+                    clearFlightTarget(999)
                 end
             else
                 local bv = hrp:FindFirstChild("YokaHoverBV")
@@ -581,12 +578,11 @@
 
     local function triggerKingLegacyM1(tool: Tool, cat: string)
         if not tool or not tool.Parent then return end
+        local tModel, tRoot = getBestCombatTarget(150)
+        if not tModel or not tRoot then return end
         pcall(function()
-            local tModel, tRoot = getBestCombatTarget(420)
-            if tModel and tRoot then
-                local aimPt = getAimPoint(tModel, tRoot)
-                _G.MouseHit = CFrame.new(aimPt)
-            end
+            local aimPt = getAimPoint(tModel, tRoot)
+            _G.MouseHit = CFrame.new(aimPt)
 
             local modTbl = getClientSkillModule(tool.Name, cat)
             local sa = getSkillActionRemote()
@@ -647,6 +643,10 @@
     local m1HitsOnCurrentTool = 0
 
     local function equipAndFireSelectedM1(char: Model, hum: Humanoid): Tool?
+        -- CHỈ ĐÁNH KHI CÓ MỤC TIÊU TRONG TẦM
+        local tModel, tRoot = getBestCombatTarget(150)
+        if not tModel or not tRoot then return nil end
+
         local cats = getAvailableM1Categories()
         if #cats == 0 then
             local curHeld = char:FindFirstChildOfClass("Tool")
@@ -716,13 +716,16 @@
                 or (hubState.farmSea3Mat == true) or (hubState.farmSea2Mat == true) or (hubState.farmSea1Mat == true)
 
             if (hasAnyM1 or inCombat) and not hubState.autoFish and not isHoldingSkill and os.clock() >= dodgeUntilClock then
-                pcall(function()
-                    local char = player.Character
-                    local hum = char and char:FindFirstChildOfClass("Humanoid")
-                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                    if not (char and hum and hrp and hum.Health > 0) then return end
-                    equipAndFireSelectedM1(char, hum)
-                end)
+                local tModel, _ = getBestCombatTarget(150)
+                if tModel then
+                    pcall(function()
+                        local char = player.Character
+                        local hum = char and char:FindFirstChildOfClass("Humanoid")
+                        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                        if not (char and hum and hrp and hum.Health > 0) then return end
+                        equipAndFireSelectedM1(char, hum)
+                    end)
+                end
             end
         end
     end)
@@ -2184,10 +2187,18 @@ end)
         return math.clamp(tonumber(hubState.mobBringRange or genv.MobBringRange) or 800, 100, 1200)
     end
 
+    local lastGlobalBringClock = 0
+    local mobLastBrought: { [Model]: number } = {}
+
     local function bringMobsToPosition(anchorPos: Vector3, maxRange: number, maxCount: number, filterName: string?, includeDungeon: boolean?)
+        local now = os.clock()
+        if (now - lastGlobalBringClock) < 0.35 then
+            return
+        end
+        lastGlobalBringClock = now
+
         local mobFolders = getAliveMobFolders(false, false, includeDungeon == true)
         local brought = 0
-        local targetCf = CFrame.new(anchorPos)
         for _, fld in ipairs(mobFolders) do
             for _, otherMob in ipairs(fld:GetChildren()) do
                 if brought >= maxCount then break end
@@ -2196,14 +2207,21 @@ end)
                     local oHum = otherMob:FindFirstChildOfClass("Humanoid")
                     if oRoot and oHum and oHum.Health > 0 then
                         local dist = (oRoot.Position - anchorPos).Magnitude
-                        if dist <= maxRange then
-                            pcall(function()
-                                oRoot.CanCollide = false
-                                oRoot.AssemblyLinearVelocity = Vector3.zero
-                                oRoot.AssemblyAngularVelocity = Vector3.zero
-                                oRoot.CFrame = targetCf
-                            end)
-                            brought += 1
+                        -- CHỈ BRING KHI QUÁI Ở XA (> 5.5 studs) ĐỂ KHÔNG SPAM CFRAME GÂY LỖI DAMAGE
+                        if dist > 5.5 and dist <= maxRange then
+                            local lastB = mobLastBrought[otherMob] or 0
+                            if (now - lastB) >= 0.5 then
+                                mobLastBrought[otherMob] = now
+                                pcall(function()
+                                    oRoot.CanCollide = false
+                                    oRoot.AssemblyLinearVelocity = Vector3.zero
+                                    oRoot.AssemblyAngularVelocity = Vector3.zero
+                                    local rx = math.random(-15, 15) * 0.08
+                                    local rz = math.random(-15, 15) * 0.08
+                                    oRoot.CFrame = CFrame.new(anchorPos.X + rx, anchorPos.Y, anchorPos.Z + rz)
+                                end)
+                                brought += 1
+                            end
                         end
                     end
                 end
@@ -2215,7 +2233,7 @@ end)
     -- Luồng độc lập giữ quái gom chặt tại vị trí nhân vật (phạm vi cả đảo, chạy cả Auto Farm & đánh tay)
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.08)
+            task.wait(0.35)
             if hubState.fastMobBring ~= false and not hubState.autoFish and os.clock() >= dodgeUntilClock then
                 pcall(function()
                     local char = player.Character
