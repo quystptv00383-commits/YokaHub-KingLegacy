@@ -140,7 +140,6 @@
     local Sea3Toggle: any = nil
     local Sea2Toggle: any = nil
     local MasterAutoFightToggle: any = nil
-    local AutoCollectChestToggle: any = nil
     local bossToggles: { [string]: any } = {}
 
     local function getActiveBossSummary(): (string, string)
@@ -230,9 +229,6 @@
 
         if MasterAutoFightToggle and typeof(MasterAutoFightToggle.Set) == "function" then
             pcall(function() MasterAutoFightToggle:Set({ CurrentValue = hubState.autoFightMaster }) end)
-        end
-        if AutoCollectChestToggle and typeof(AutoCollectChestToggle.Set) == "function" then
-            pcall(function() AutoCollectChestToggle:Set({ CurrentValue = hubState.autoCollectChest }) end)
         end
 
         if newMode == "sea3" then
@@ -486,31 +482,21 @@
     -- ========================================================
     -- BẢNG 1: CÀI ĐẶT CHIẾN ĐẤU BOSS & NHẶT RƯƠNG
     -- ========================================================
-    local MasterFightSection = HopTab:CreateSection("🌟 CÀI ĐẶT CHIẾN ĐẤU BOSS & NHẶT RƯƠNG")
+    local MasterFightSection = HopTab:CreateSection("🌟 CÀI ĐẶT CHIẾN ĐẤU BOSS & SEA EVENT")
     MasterAutoFightToggle = MasterFightSection:CreateToggle({
-        Name = "⚔️ Tự Động Đánh Boss & Sea Event Khi Thấy (Master Auto Fight)",
-        Description = "Tự động bay đến, né chiêu trên không và tiêu diệt bất kỳ Boss biển nào xuất hiện trong phòng",
+        Name = "⚔️ Tự Động Đánh Boss & Săn Sea Event (Master Auto Fight)",
+        Description = "Tự động bay đến diệt Boss biển, né chiêu trên không và tích hợp tự động nhặt rương sự kiện biển (Hydra, Vua Biển, Depth King...)",
         CurrentValue = hubState.autoFightMaster,
         Callback = function(Value: boolean)
             hubState.autoFightMaster = Value
             saveState(hubState)
             if Value then
-                safeNotify("YokaHub Boss", "Đã bật Master Auto Fight Boss & Sea Event!", "flash_on")
+                safeNotify("YokaHub Boss", "Đã bật Master Auto Fight & Săn Sea Event!", "flash_on")
             else
                 safeNotify("YokaHub Boss", "Đã tắt Auto Fight Boss.", "info")
             end
         end,
     }, "MasterAutoFightToggle")
-
-    AutoCollectChestToggle = MasterFightSection:CreateToggle({
-        Name = "🎁 Tự Động Nhặt Rương Báu Sau Khi Diệt Boss (Auto Collect Chests)",
-        Description = "Tự động bay đến vị trí rương rơi ra mở rương nhận thưởng (Rương Vua Biển, Hydra, Depth King...)",
-        CurrentValue = hubState.autoCollectChest,
-        Callback = function(Value: boolean)
-            hubState.autoCollectChest = Value
-            saveState(hubState)
-        end,
-    }, "AutoCollectChestToggle")
 
     MasterFightSection:CreateSlider({
         Name = "🕊️ Độ Cao Bay An Toàn Khi Đánh Boss",
