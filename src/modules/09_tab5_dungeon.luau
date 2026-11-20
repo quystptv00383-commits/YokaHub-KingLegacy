@@ -16,21 +16,22 @@
             CurrentValue = hubState.autoDungeon,
             Callback = function(Value: boolean)
                 hubState.autoDungeon = Value
-                if Value and currentMode ~= "off" then
-                    applyMode("off", false)
-                    setStatus("Đang vượt Dungeon — Tạm dừng Săn Boss.")
+                if Value then
+                    deactivateOtherLocalModes("autoDungeon")
+                    if currentMode ~= "off" then
+                        applyMode("off", false)
+                        setStatus("Đang vượt Dungeon — Tạm dừng Săn Boss.")
+                    end
                 end
                 saveState(hubState)
                 pcall(function()
-                    genv.autodungeon = Value
-                    genv.start = Value
                     if Value then
-                        genv.DungeonCameraLock = hubState.dungeonCameraLock ~= false
-                        genv.DungeonAutoScepterHeal = hubState.dungeonAutoHeal ~= false
+                        genv.DungeonCameraLock = (hubState.dungeonCameraLock == true)
+                        genv.DungeonAutoScepterHeal = (hubState.dungeonAutoHeal ~= false)
                         genv.dungeonmode = string.match(hubState.dungeonMode or "Easy", "^(%a+)") or "Easy"
                     end
                 end)
-                if Value then safeNotify("YokaHub Dungeon", "Đã bật tự động vượt Dungeon (Đã dừng Hop Boss).", "castle") end
+                if Value then safeNotify("YokaHub Dungeon", "Đã bật tự động vượt Dungeon (Đã dừng các chế độ khác).", "castle") end
             end,
         }, "AutoDungeonToggle")
 
@@ -117,8 +118,8 @@
 
         ExtraDungSection:CreateToggle({
             Name = "🎥 Khóa Góc Nhìn Camera Vào Quái Dungeon",
-            Description = "Cố định camera góc nhìn chuẩn giúp xả skill chính xác tuyệt đối",
-            CurrentValue = hubState.dungeonCameraLock ~= false,
+            Description = "Cố định camera góc nhìn chuẩn giúp xả skill chính xác (mặc định tắt để tránh giật góc nhìn)",
+            CurrentValue = hubState.dungeonCameraLock == true,
             Callback = function(Value: boolean)
                 hubState.dungeonCameraLock = Value
                 saveState(hubState)

@@ -17,9 +17,7 @@
             Callback = function(Value: boolean)
                 hubState.farmSea3Mat = Value
                 if Value then
-                    hubState.farmSea2Mat = false
-                    hubState.farmSea1Mat = false
-                    pcall(function() genv.farmMaterialsea2 = false; genv.farmMaterialsea1 = false end)
+                    deactivateOtherLocalModes("farmSea3Mat")
                     if currentMode ~= "off" then
                         applyMode("off", false)
                         setStatus("Đang cày nguyên liệu Sea 3 — Tạm dừng Săn Boss.")
@@ -27,8 +25,6 @@
                 end
                 saveState(hubState)
                 pcall(function()
-                    genv.farmMaterialsea3 = Value
-                    genv.start = Value
                     if Value then
                         local rawMat = string.match(hubState.nguyenlieuSea3 or "", "^([%w%s%']+)") or "Coral"
                         rawMat = string.gsub(rawMat, "%s+$", "")
@@ -74,9 +70,7 @@
             Callback = function(Value: boolean)
                 hubState.farmSea2Mat = Value
                 if Value then
-                    hubState.farmSea3Mat = false
-                    hubState.farmSea1Mat = false
-                    pcall(function() genv.farmMaterialsea3 = false; genv.farmMaterialsea1 = false end)
+                    deactivateOtherLocalModes("farmSea2Mat")
                     if currentMode ~= "off" then
                         applyMode("off", false)
                         setStatus("Đang cày nguyên liệu Sea 2 — Tạm dừng Săn Boss.")
@@ -84,8 +78,6 @@
                 end
                 saveState(hubState)
                 pcall(function()
-                    genv.farmMaterialsea2 = Value
-                    genv.start = Value
                     if Value then
                         local rawMat = string.match(hubState.nguyenlieuSea2 or "", "^([%w%s%']+)") or "Iron Ingot"
                         rawMat = string.gsub(rawMat, "%s+$", "")
@@ -130,9 +122,7 @@
             Callback = function(Value: boolean)
                 hubState.farmSea1Mat = Value
                 if Value then
-                    hubState.farmSea3Mat = false
-                    hubState.farmSea2Mat = false
-                    pcall(function() genv.farmMaterialsea3 = false; genv.farmMaterialsea2 = false end)
+                    deactivateOtherLocalModes("farmSea1Mat")
                     if currentMode ~= "off" then
                         applyMode("off", false)
                         setStatus("Đang cày nguyên liệu Sea 1 — Tạm dừng Săn Boss.")
@@ -140,8 +130,6 @@
                 end
                 saveState(hubState)
                 pcall(function()
-                    genv.farmMaterialsea1 = Value
-                    genv.start = Value
                     if Value then
                         local rawMat = string.match(hubState.nguyenlieuSea1 or "", "^([%w%s%']+)") or "Leather"
                         rawMat = string.gsub(rawMat, "%s+$", "")

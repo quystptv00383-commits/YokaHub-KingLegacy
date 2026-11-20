@@ -971,6 +971,31 @@
                         local rawIsl = string.match(hubState.islandBossTarget, "^([^(]+)") or hubState.islandBossTarget
                         rawIsl = string.gsub(rawIsl, "%s+[Bb]oss%s*$", "")
                         islandKeyword = string.lower(string.gsub(rawIsl, "%s+$", ""))
+                        -- Tự nhận đúng Quest Boss Đảo chuẩn King Legacy nếu bật Auto Take Boss Quest
+                        if hubState.autoTakeBossQuest and islandKeyword ~= "" then
+                            local curQ = player:FindFirstChild("CurrentQuest")
+                            if not curQ or curQ.Value == "" or curQ.Value == "None" then
+                                pcall(function()
+                                    local chest = sharedRS:FindFirstChild("Chest")
+                                    local qmMod = chest and chest:FindFirstChild("Modules") and chest.Modules:FindFirstChild("QuestManager")
+                                    local qRem = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions") and chest.Remotes.Functions:FindFirstChild("Quest")
+                                    if qmMod and qRem then
+                                        local okQ, qTbl = pcall(require, qmMod)
+                                        if okQ and typeof(qTbl) == "table" then
+                                            for qName, qInfo in pairs(qTbl) do
+                                                if typeof(qName) == "string" and typeof(qInfo) == "table" and not qInfo.DailyQuest then
+                                                    local mobLow = string.lower(tostring(qInfo.Mob or ""))
+                                                    if string.find(mobLow, islandKeyword, 1, true) or string.find(string.lower(qName), islandKeyword, 1, true) then
+                                                        qRem:InvokeServer("take", qName)
+                                                        break
+                                                    end
+                                                end
+                                            end
+                                        end
+                                    end
+                                end)
+                            end
+                        end
                     end
 
                     local function isBossWanted(rawName: string, folderName: string?): boolean
@@ -1454,14 +1479,6 @@
     local prevSoloKey = ""
     while genv._YokaHubToken == myToken do
         local mode: string = hubState.mode or currentMode
-        if hubState.autoTakeBossQuest and (hubState.islandBossTarget or genv.bossTarget) then
-            pcall(function()
-                local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
-                if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Quest") then
-                    rem.Functions.Quest:InvokeServer("Take", hubState.islandBossTarget or genv.bossTarget)
-                end
-            end)
-        end
         if mode ~= prevMode then
             wasInEvent, lastActiveClock, chestFirstSeenClock, lastSea3Target = false, 0, 0, ""
             prevMode = mode
@@ -1508,12 +1525,10 @@
                 if soloKey == "depth_king" or soloKey == "abyssal_tyrant" then
                     genv.AutoDepthKing = true
                     genv.utienSeaEvent = true
-                    genv.opeskill = true
                 elseif soloKey == "dragon" or soloKey == "kraken" or soloKey == "crab" or soloKey == "sea3_events" then
                     genv.AutoDepthKing = false
                     genv.SeaEvent = true
                     genv.utienSeaEvent = true
-                    genv.opeskill = true
                 elseif soloKey == "hydra" then
                     genv.HydraSeaKing = true
                     genv.autoskhd = true
@@ -1532,7 +1547,6 @@
                     genv.Serpent = true
                     genv.AutoSerpent = true
                     genv.serpent = true
-                    genv.opeskill = true
                 end
             end)
 
@@ -1641,7 +1655,6 @@
                 genv.Serpent = true
                 genv.utienSeaEvent = true
                 genv.autoskillsea = true
-                genv.opeskill = true
                 genv.autoskhdhop = false
                 genv.HopDepthKing = false
                 genv.HopDepthKingApi = false
@@ -1985,7 +1998,8 @@ end)
             for _, c in ipairs(allNpc:GetChildren()) do
                 local lmin = tonumber(c:GetAttribute("LevelMin"))
                 local lmax = tonumber(c:GetAttribute("LevelMax"))
-                if lmin ~= nil and lmax ~= nil then
+                -- Bỏ qua NPC đặc biệt không có mốc cấp thực (như QuestKioru [0-0] ở Sea 2)
+                if lmin ~= nil and lmax ~= nil and not (lmin == 0 and lmax == 0) then
                     local p = c:IsA("BasePart") and c or (c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))
                     if p then
                         table.insert(list, { name = c.Name, minLv = lmin, maxLv = lmax, pos = p.Position })
@@ -2027,7 +2041,10 @@ end)
         if not qm then return nil, nil end
         local ranges = getSeaQuestNpcRanges()
         local hasRanges = #ranges > 0
+        local seaMinBound = (game.PlaceId == SEA3_PLACE and 4000) or (game.PlaceId == SEA2_PLACE and 2250) or 0
+        local seaMaxBound = (game.PlaceId == SEA1_PLACE and 2200) or (game.PlaceId == SEA2_PLACE and 3999) or 999999
         local function inCurrentSea(qLv: number): boolean
+            if qLv < seaMinBound or qLv > seaMaxBound then return false end
             if not hasRanges then return true end
             for _, r in ipairs(ranges) do
                 if qLv >= r.minLv and qLv <= r.maxLv then
@@ -2449,7 +2466,7 @@ end)
                                 local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
                                 bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, nil, true)
                             end
-                            if hubState.dungeonCameraLock ~= false then
+                            if hubState.dungeonCameraLock == true then
                                 pcall(function()
                                     workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, aimPos)
                                 end)
@@ -2489,15 +2506,11 @@ end)
                     end
                 end
 
-                -- 2. Tự Động Cất Trái Vào Kho Rương (Store Fruit)
+                -- 2. Tự Động Cất Trái Vào Kho Rương (Store Fruit — chỉ cất trái vật lý, không chạm Trái Power đang ăn!)
                 if hubState.storeFruits or genv.AutoStoreFruit then
                     local function checkAndStore(tool: Tool)
-                        if tool and string.find(string.lower(tool.Name), "fruit") then
-                            local net = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
-                            if net and net:FindFirstChild("Functions") and net.Functions:FindFirstChild("StoreFruit") then
-                                net.Functions.StoreFruit:InvokeServer(tool.Name)
-                            end
-                            local chest = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
+                        if tool and tool.ToolTip ~= "Fruit Power" and string.find(string.lower(tool.Name), "fruit") then
+                            local chest = sharedRS:FindFirstChild("Chest")
                             local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
                             if remFuncs and remFuncs:FindFirstChild("DealFruit") then
                                 pcall(function() remFuncs.DealFruit:InvokeServer(tool.Name, "Store") end)
@@ -2593,12 +2606,13 @@ end)
         end))
     end)
 
-    -- 3. Click Teleport (Bấm chuột dịch chuyển)
+    -- 3. Click Teleport (Giữ Ctrl + Click chuột trái để dịch chuyển, không bấm nhầm khi đánh hoặc bấm UI)
     pcall(function()
+        local uis = game:GetService("UserInputService")
         local mouse = player:GetMouse()
         trackConn(mouse.Button1Down:Connect(function()
             if genv._YokaHubToken ~= myToken then return end
-            if (hubState.clickTeleport or genv.clickTeleportEnabled) and player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            if (hubState.clickTeleport or genv.clickTeleportEnabled) and uis:IsKeyDown(Enum.KeyCode.LeftControl) and player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                 local hit = mouse.Hit
                 if hit then
                     player.Character.HumanoidRootPart.CFrame = CFrame.new(hit.Position + Vector3.new(0, 3, 0))
@@ -2686,11 +2700,29 @@ end)
             task.wait(1.5)
             if hubState.autoDailyQuest or genv.autoalldailyquest then
                 pcall(function()
-                    local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
-                    if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("DailyQuest") then
-                        rem.Functions.DailyQuest:InvokeServer("ClaimAll")
-                        task.wait(0.5)
-                        rem.Functions.DailyQuest:InvokeServer("AcceptAll")
+                    local curQ = player:FindFirstChild("CurrentQuest")
+                    if not curQ or curQ.Value == "" or curQ.Value == "None" then
+                        local qm = getQuestManagerTable()
+                        local chest = sharedRS:FindFirstChild("Chest")
+                        local qRem = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions") and chest.Remotes.Functions:FindFirstChild("Quest")
+                        local ps = player:FindFirstChild("PlayerStats")
+                        local myLvl = ps and ps:FindFirstChild("lvl") and tonumber(ps.lvl.Value) or 1
+                        if qm and qRem then
+                            local bestDq: string? = nil
+                            local bestLv = -1
+                            for qName, qInfo in pairs(qm) do
+                                if typeof(qName) == "string" and typeof(qInfo) == "table" and qInfo.DailyQuest == true then
+                                    local ql = tonumber(qInfo.Level) or 0
+                                    if ql <= myLvl and ql > bestLv then
+                                        bestLv = ql
+                                        bestDq = qName
+                                    end
+                                end
+                            end
+                            if bestDq then
+                                pcall(function() qRem:InvokeServer("take", bestDq) end)
+                            end
+                        end
                     end
                 end)
             end

@@ -136,17 +136,19 @@
     }, "BlackScreenToggle")
 
     PerfSection:CreateToggle({
-        Name = "⚡ Fast Mode (Xóa Texture thừa & Giảm tải)",
-        Description = "Giảm độ phân giải mặt cỏ, cây cối để tăng tốc độ xử lý",
+        Name = "⚡ Fast Mode (Xóa Hiệu Ứng Thừa & Giảm Tải GPU)",
+        Description = "Hạ chất lượng đồ họa, tắt bóng đổ và hiệu ứng hạt thừa ngay lập tức để tăng FPS",
         CurrentValue = hubState.fastMode,
         Callback = function(Value: boolean)
             hubState.fastMode = Value
             saveState(hubState)
+            applyFastModeSetting(Value)
             pcall(function()
                 genv.fastMode = Value
                 genv.lowTextureMap = Value
                 genv.removeEffects = Value
             end)
+            safeNotify("Fast Mode", Value and "Đã bật chế độ siêu mượt (tắt bóng & giảm tải GPU)!" or "Đã khôi phục đồ họa mặc định.", "speed")
         end,
     }, "FastModeToggle")
 
@@ -187,6 +189,28 @@
             pcall(function() genv.InfiniteJumpEnabled = Value end)
         end,
     }, "InfiniteJumpToggle")
+
+    MoveSection:CreateToggle({
+        Name = "🏃 Tăng Tốc Độ Chạy (Speed Boost)",
+        Description = "Tăng tốc độ chạy lên 65 (tự động trả về 16 chuẩn khi tắt)",
+        CurrentValue = hubState.speedBoost == true,
+        Callback = function(Value: boolean)
+            hubState.speedBoost = Value
+            saveState(hubState)
+            pcall(function() genv.PlayerSpeedEnabled = Value end)
+        end,
+    }, "SpeedBoostToggle")
+
+    MoveSection:CreateToggle({
+        Name = "🖱️ Dịch Chuyển Bằng Chuột (Giữ Ctrl + Click)",
+        Description = "Giữ phím Ctrl rồi bấm chuột trái để dịch chuyển ngay tới vị trí con trỏ (không bấm nhầm khi đánh)",
+        CurrentValue = hubState.clickTeleport == true,
+        Callback = function(Value: boolean)
+            hubState.clickTeleport = Value
+            saveState(hubState)
+            pcall(function() genv.clickTeleportEnabled = Value end)
+        end,
+    }, "ClickTeleportToggle")
 
     MoveSection:CreateToggle({
         Name = "🤝 Tự Động Gửi & Nhận Đồng Minh (Auto Ally)",
@@ -241,13 +265,6 @@
     }, "WhDropToggle")
 
     local WinSection = UtilTab:CreateSection("🖥️ Cửa sổ YokaHub")
-    WinSection:CreateButton({
-        Name = "🚪 Thoát ra Trang Get Key",
-        Description = "Đăng xuất khỏi YokaHub và quay trở lại màn hình Gateway/Get Key",
-        Callback = function()
-            doExitToGateway()
-        end,
-    })
     WinSection:CreateButton({
         Name = "🔄 Đưa cửa sổ & nút nổi về mặc định",
         Description = "Đặt lại kích thước chuẩn 720×450 và góc nút nổi",

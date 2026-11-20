@@ -16,9 +16,12 @@
             CurrentValue = hubState.autoFish,
             Callback = function(Value: boolean)
                 hubState.autoFish = Value
-                if Value and currentMode ~= "off" then
-                    applyMode("off", false)
-                    setStatus("Đang câu cá — Tạm dừng Săn Boss.")
+                if Value then
+                    deactivateOtherLocalModes("autoFish")
+                    if currentMode ~= "off" then
+                        applyMode("off", false)
+                        setStatus("Đang câu cá — Tạm dừng Săn Boss.")
+                    end
                 end
                 saveState(hubState)
                 pcall(function()

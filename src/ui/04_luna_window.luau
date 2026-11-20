@@ -2,13 +2,62 @@
     local session = loadSession()
     local currentMode: string = hubState.mode
 
-    -- Tu dong dong bo cai dat YokaHub khi khoi dong (khong danh nhau voi loop Farm cu cua Wukong)
-    pcall(function()
-        if hubState.autoLevel or hubState.autoKillSelectedMob then
+    -- Helper khử xung đột: chỉ cho phép 1 chế độ cày cục bộ chạy tại 1 thời điểm (không bao giờ kéo giật nhân vật giữa 2 luồng!)
+    local function deactivateOtherLocalModes(keepKey: string)
+        local keys = { "autoLevel", "autoKillSelectedMob", "farmSea3Mat", "farmSea2Mat", "farmSea1Mat", "autoDungeon", "autoFish", "autoFightIslandBoss" }
+        for _, k in ipairs(keys) do
+            if k ~= keepKey then
+                (hubState :: any)[k] = false
+            end
+        end
+        pcall(function()
             genv.Famlevel = false
             genv.Autokillmob = false
+            genv.farmMaterialsea3 = false
+            genv.farmMaterialsea2 = false
+            genv.farmMaterialsea1 = false
+            genv.autodungeon = false
+            genv.AutoFish = (keepKey == "autoFish")
+            genv.start = false
+        end)
+    end
+
+    -- Helper bật/tắt Fast Mode trực tiếp trên Roblox Rendering & Lighting
+    local function applyFastModeSetting(enabled: boolean)
+        pcall(function()
+            if enabled then
+                settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+                lighting.GlobalShadows = false
+                lighting.FogEnd = 9e9
+                for _, d in ipairs(workspace:GetDescendants()) do
+                    if d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam") then
+                        d.Enabled = false
+                    elseif d:IsA("Explosion") then
+                        d.BlastPressure = 1
+                        d.BlastRadius = 1
+                    end
+                end
+            else
+                settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+                lighting.GlobalShadows = true
+            end
+        end)
+    end
+
+    -- Tu dong dong bo cai dat YokaHub khi khoi dong (khong danh nhau voi loop Farm cu cua Wukong)
+    pcall(function()
+        if hubState.autoLevel or hubState.autoKillSelectedMob or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat or hubState.autoDungeon then
+            genv.Famlevel = false
+            genv.Autokillmob = false
+            genv.farmMaterialsea3 = false
+            genv.farmMaterialsea2 = false
+            genv.farmMaterialsea1 = false
+            genv.autodungeon = false
             genv.start = false
         end
+        if hubState.fastMode then applyFastModeSetting(true) end
+        genv.PlayerSpeedEnabled = (hubState.speedBoost == true)
+        genv.clickTeleportEnabled = (hubState.clickTeleport == true)
         genv.chonmod = hubState.selectedMob or "Elite Skeleton [Lv. 3100]"
         genv.autocat = (hubState.fastMobBring ~= false)
         genv.MobBringRange = hubState.mobBringRange or 800
@@ -21,11 +70,7 @@
         genv.PlayerAimRange = 450
         genv.autoDodgeEnabled = (hubState.autoDodge ~= false)
         if hubState.safeDistance then genv.nequaikill = true; genv.tamxanekillquai = 250; genv.docaokillquai = 18 end
-        if hubState.farmSea3Mat then genv.farmMaterialsea3 = true end
-        if hubState.farmSea2Mat then genv.farmMaterialsea2 = true end
-        if hubState.farmSea1Mat then genv.farmMaterialsea1 = true end
         genv.MaterialQuantityTracker = (hubState.materialQuantityTracker == true)
-        if hubState.autoDungeon then genv.autodungeon = true end
         if hubState.dungeonMode then genv.dungeonmode = string.match(hubState.dungeonMode, "^(%a+)") or "Easy" end
         if hubState.bringFruits then genv.BringDroppedFruit = true end
         if hubState.storeFruits then genv.AutoStoreFruit = true end

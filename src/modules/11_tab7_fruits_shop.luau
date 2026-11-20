@@ -87,6 +87,8 @@
             Name = "⚡ Chọn Nhanh Top 5 Trái Meta Hot Nhất",
             Description = "Thiết lập mua ngay: Dragon, Phoenix, Gate, Dough, Erebus",
             Callback = function()
+                hubState.snipeFruit = "⭐ Toàn Bộ Trái Thần Thoại & Cực Hiếm (Mythic + Legendary)"
+                saveState(hubState)
                 pcall(function()
                     genv.shopSniperFruits = {"Dragon", "Phoenix", "Gate", "Dough", "Erebus"}
                     safeNotify("Shop Sniper", "Đã cấu hình mua Top 5 trái Meta: Dragon, Phoenix, Gate, Dough, Erebus!", "verified")
@@ -111,28 +113,51 @@
         local InventoryActionsSection = FruitTab:CreateSection("📤 Thao Tác Trái Kho Đồ")
         InventoryActionsSection:CreateButton({
             Name = "📦 Lấy Toàn Bộ Trái Ra Khỏi Rương (Unstore All)",
-            Description = "Rút tất cả trái ác quỷ trong rương đồ ra balo cá nhân",
+            Description = "Rút tất cả trái ác quỷ trong rương đồ ra balo cá nhân qua DealFruit chính thức",
             Callback = function()
-                pcall(function()
-                    local net = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
-                    if net and net:FindFirstChild("Functions") and net.Functions:FindFirstChild("UnstoreFruit") then
-                        net.Functions.UnstoreFruit:InvokeServer("All")
+                task.spawn(function()
+                    local unstored = 0
+                    pcall(function()
+                        local chest = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
+                        local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                        local dealFruit = remFuncs and remFuncs:FindFirstChild("DealFruit")
+                        local ps = player:FindFirstChild("PlayerStats")
+                        local fsObj = ps and ps:FindFirstChild("FruitStore")
+                        if dealFruit and fsObj and typeof(fsObj.Value) == "string" and #fsObj.Value > 2 then
+                            local okDec, tbl = pcall(function() return httpService:JSONDecode(fsObj.Value) end)
+                            if okDec and typeof(tbl) == "table" then
+                                for fruitName, qty in pairs(tbl) do
+                                    if (tonumber(qty) or 0) > 0 then
+                                        pcall(function() dealFruit:InvokeServer(tostring(fruitName), "Unstore") end)
+                                        unstored += 1
+                                        task.wait(0.12)
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                    if unstored > 0 then
+                        safeNotify("YokaHub Kho Đồ", "Đã rút " .. tostring(unstored) .. " loại trái ác quỷ từ rương ra balo!", "inventory")
+                    else
+                        safeNotify("YokaHub Kho Đồ", "Không thấy trái nào trong rương (FruitStore trống).", "info")
                     end
-                    safeNotify("YokaHub Kho Đồ", "Đã gửi yêu cầu rút toàn bộ trái từ kho rương!", "inventory")
                 end)
             end,
         })
 
         InventoryActionsSection:CreateButton({
             Name = "⚠️ Thả Trái Rơi Ra Đất (Drop Fruit)",
-            Description = "Thả trái trên tay rơi ra đất cho đồng đội nhặt",
+            Description = "Thả trái vật lý trên tay hoặc trong balo ra đất (tự bảo vệ không thả nhầm Trái đang ăn)",
             Callback = function()
                 pcall(function()
                     local char = player.Character
                     local held = char and char:FindFirstChildOfClass("Tool")
+                    if held and (held.ToolTip == "Fruit Power" or not string.find(string.lower(held.Name), "fruit")) then
+                        held = nil
+                    end
                     if not held then
                         for _, t in ipairs(player.Backpack:GetChildren()) do
-                            if t:IsA("Tool") and string.find(string.lower(t.Name), "fruit") then
+                            if t:IsA("Tool") and t.ToolTip ~= "Fruit Power" and string.find(string.lower(t.Name), "fruit") then
                                 held = t
                                 if char and char:FindFirstChildOfClass("Humanoid") then
                                     char.Humanoid:EquipTool(t)
@@ -142,16 +167,15 @@
                             end
                         end
                     end
-                    if held and string.find(string.lower(held.Name), "fruit") then
+                    if held then
                         local chest = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
                         local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
                         if remFuncs and remFuncs:FindFirstChild("DealFruit") then
                             pcall(function() remFuncs.DealFruit:InvokeServer(held.Name, "Drop") end)
                         end
-                        held.Parent = workspace
                         safeNotify("YokaHub", "Đã thả trái [" .. held.Name .. "] ra đất!", "file_download")
                     else
-                        safeNotify("YokaHub", "Không tìm thấy trái trên tay hoặc trong túi đồ!", "warning")
+                        safeNotify("YokaHub", "Không tìm thấy trái vật lý nào trong túi đồ để thả!", "warning")
                     end
                 end)
             end,

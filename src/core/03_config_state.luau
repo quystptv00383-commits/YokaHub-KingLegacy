@@ -259,6 +259,8 @@
         fastMode: boolean?,
         walkOnWater: boolean?,
         infiniteJump: boolean?,
+        speedBoost: boolean?,
+        clickTeleport: boolean?,
         autoAlly: boolean?,
         autoDailyQuest: boolean?,
         autoRaceRoll: boolean?,
@@ -360,6 +362,8 @@
             fastMode = false,
             walkOnWater = true,
             infiniteJump = false,
+            speedBoost = false,
+            clickTeleport = false,
             autoAlly = true,
             autoDailyQuest = false,
             autoRaceRoll = false,
@@ -383,7 +387,7 @@
             nguyenlieuSea1 = "Leather (Da Thuộc)",
             dungeonTactics = "🛡️ Safe Mode (Khoảng Cách An Toàn 260m + Hồi Máu)",
             dungeonAutoHeal = true,
-            dungeonCameraLock = true,
+            dungeonCameraLock = false,
             snipeFruit = "⭐ Toàn Bộ Trái Thần Thoại & Cực Hiếm (Mythic + Legendary)",
             snipeDelay = 5,
             autoClickPlay = true,
@@ -463,6 +467,8 @@
             if typeof(d.fastMode) == "boolean" then st.fastMode = d.fastMode end
             if typeof(d.walkOnWater) == "boolean" then st.walkOnWater = d.walkOnWater end
             if typeof(d.infiniteJump) == "boolean" then st.infiniteJump = d.infiniteJump end
+            if typeof(d.speedBoost) == "boolean" then st.speedBoost = d.speedBoost end
+            if typeof(d.clickTeleport) == "boolean" then st.clickTeleport = d.clickTeleport end
             if typeof(d.autoAlly) == "boolean" then st.autoAlly = d.autoAlly end
             if typeof(d.autoDailyQuest) == "boolean" then st.autoDailyQuest = d.autoDailyQuest end
             if typeof(d.autoRaceRoll) == "boolean" then st.autoRaceRoll = d.autoRaceRoll end

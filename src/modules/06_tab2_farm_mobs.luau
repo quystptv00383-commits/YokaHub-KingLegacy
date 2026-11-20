@@ -16,23 +16,22 @@
             CurrentValue = hubState.autoLevel,
             Callback = function(Value: boolean)
                 hubState.autoLevel = Value
-                if Value and currentMode ~= "off" then
-                    applyMode("off", false)
-                    setStatus("Đang cày cấp độ trong phòng hiện tại — Tạm dừng Săn Boss.")
+                if Value then
+                    deactivateOtherLocalModes("autoLevel")
+                    if currentMode ~= "off" then
+                        applyMode("off", false)
+                        setStatus("Đang cày cấp độ trong phòng hiện tại — Tạm dừng Săn Boss.")
+                    end
                 end
                 saveState(hubState)
                 pcall(function()
-                    -- Tắt luồng farm trùng của Wukong để YokaHub toàn quyền bay mượt & gom quái không bị giật
-                    genv.Famlevel = false
-                    genv.Autokillmob = false
-                    genv.start = false
                     if Value then
                         genv.autocat = hubState.fastMobBring ~= false
                         genv.haki = hubState.autoHaki ~= false
                     end
                 end)
                 if Value then
-                    safeNotify("YokaHub Farm", "Đã bật Farm Level tự động (Đã dừng Hop Boss để tập trung cày cấp).", "agriculture")
+                    safeNotify("YokaHub Farm", "Đã bật Farm Level tự động (Đã tự tắt các chế độ cày trùng lặp).", "agriculture")
                 else
                     safeNotify("YokaHub Farm", "Đã tắt Farm Level.", "pause_circle")
                 end
@@ -134,17 +133,46 @@
         }, "StatPointsSlider")
 
         local MobSection = FarmTab:CreateSection("🎯 Farm Quái Chọn Lọc (Select Mob Farm)")
-        local mobOptions = {
-            "Elite Skeleton [Lv. 3100]",
-            "Ocean Gladiator [Lv. 4500]",
-            "Sea Soldier [Lv. 2250]",
-            "Fishman Raider [Lv. 1500]",
-            "Pirate Guard [Lv. 500]",
-            "Desert Bandit [Lv. 100]",
-        }
+        local function scanCurrentSeaMobOptions(): { string }
+            local list: { string } = {}
+            local seen: { [string]: boolean } = {}
+            local mon = workspace:FindFirstChild("Monster")
+            if mon then
+                for _, subName in ipairs({ "Mon", "Boss" }) do
+                    local sub = mon:FindFirstChild(subName)
+                    if sub then
+                        for _, m in ipairs(sub:GetChildren()) do
+                            if m:IsA("Model") and not seen[m.Name] then
+                                seen[m.Name] = true
+                                table.insert(list, m.Name)
+                            end
+                        end
+                    end
+                end
+            end
+            table.sort(list, function(a, b)
+                local la = tonumber(string.match(a, "[Ll][Vv]%.?%s*(%d+)")) or 999999
+                local lb = tonumber(string.match(b, "[Ll][Vv]%.?%s*(%d+)")) or 999999
+                if la ~= lb then return la < lb end
+                return a < b
+            end)
+            if #list == 0 then
+                list = {
+                    "Elite Skeleton [Lv. 3100]",
+                    "Ocean Gladiator [Lv. 4500]",
+                    "Sea Soldier [Lv. 2250]",
+                    "Fishman Raider [Lv. 1500]",
+                    "Pirate Guard [Lv. 500]",
+                    "Desert Bandit [Lv. 100]",
+                }
+            end
+            return list
+        end
+
+        local mobOptions = scanCurrentSeaMobOptions()
         local defaultSelectedMob = table.find(mobOptions, hubState.selectedMob) and hubState.selectedMob or mobOptions[1]
-        MobSection:CreateDropdown({
-            Name = "👾 Chọn Quái Muốn Cày",
+        local SelectMobDropdownObj = MobSection:CreateDropdown({
+            Name = "👾 Chọn Quái Muốn Cày (Tự quét đúng Sea hiện tại)",
             Options = mobOptions,
             CurrentOption = { defaultSelectedMob },
             MultipleOptions = false,
@@ -158,21 +186,37 @@
             end,
         }, "SelectMobDropdown")
 
+        MobSection:CreateButton({
+            Name = "🔄 Tải Lại Danh Sách Quái Trong Sea Này",
+            Description = "Quét lại toàn bộ quái & boss đảo đang có mặt trong server hiện tại",
+            Callback = function()
+                local fresh = scanCurrentSeaMobOptions()
+                pcall(function()
+                    if SelectMobDropdownObj and typeof(SelectMobDropdownObj.Set) == "function" then
+                        SelectMobDropdownObj:Set({ Options = fresh, CurrentOption = { fresh[1] } })
+                    end
+                end)
+                hubState.selectedMob = fresh[1]
+                saveState(hubState)
+                safeNotify("YokaHub Farm", "Đã cập nhật " .. tostring(#fresh) .. " loại quái trong Sea hiện tại!", "refresh")
+            end,
+        })
+
         MobSection:CreateToggle({
             Name = "⚔️ Bật Cày Quái Đã Chọn",
             Description = "Tập trung đánh loại quái được chọn ở dropdown trên",
             CurrentValue = hubState.autoKillSelectedMob == true,
             Callback = function(Value: boolean)
                 hubState.autoKillSelectedMob = Value
-                if Value and currentMode ~= "off" then
-                    applyMode("off", false)
-                    setStatus("Đang cày quái chọn lọc — Tạm dừng Săn Boss.")
+                if Value then
+                    deactivateOtherLocalModes("autoKillSelectedMob")
+                    if currentMode ~= "off" then
+                        applyMode("off", false)
+                        setStatus("Đang cày quái chọn lọc — Tạm dừng Săn Boss.")
+                    end
                 end
                 saveState(hubState)
                 pcall(function()
-                    genv.Famlevel = false
-                    genv.Autokillmob = false
-                    genv.start = false
                     if Value then
                         genv.chonmod = hubState.selectedMob or defaultSelectedMob
                         genv.autocat = hubState.fastMobBring ~= false

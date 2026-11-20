@@ -483,6 +483,12 @@
         CurrentValue = hubState.autoFightIslandBoss,
         Callback = function(Value: boolean)
             hubState.autoFightIslandBoss = Value
+            if Value then
+                deactivateOtherLocalModes("autoFightIslandBoss")
+                if currentMode ~= "off" then
+                    applyMode("off", false)
+                end
+            end
             saveState(hubState)
             if Value then
                 safeNotify("YokaHub Island Boss", "Đang tự động săn Boss đảo: " .. tostring(hubState.islandBossTarget or "Hephaestus"), "my_location")
