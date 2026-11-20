@@ -10,11 +10,12 @@
         })
 
         local MainDungSection = DungTab:CreateSection("🏰 Tự Động Vượt Phó Bản (Auto Dungeon / Raid)")
-        MainDungSection:CreateToggle({
+        local AutoDungeonToggle = MainDungSection:CreateToggle({
             Name = "🏰 Bật Tự Động Leo Dungeon (Auto Dungeon)",
             Description = "Tự vào vòng tròn Dungeon, bay lên không trung dọn dẹp các đợt quái (Waves)",
             CurrentValue = hubState.autoDungeon,
             Callback = function(Value: boolean)
+                if syncingLocalToggles then return end
                 hubState.autoDungeon = Value
                 if Value then
                     deactivateOtherLocalModes("autoDungeon")
@@ -34,6 +35,7 @@
                 if Value then safeNotify("YokaHub Dungeon", "Đã bật tự động vượt Dungeon (Đã dừng các chế độ khác).", "castle") end
             end,
         }, "AutoDungeonToggle")
+        registerLocalModeToggle("autoDungeon", AutoDungeonToggle)
 
         MainDungSection:CreateParagraph({
             Title = "ℹ️ Cách Thức Vận Hành Dungeon",

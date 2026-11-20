@@ -10,11 +10,12 @@
         })
 
         local LevelSection = FarmTab:CreateSection("🌾 Cày Cấp Độ Tự Động (Level 1 - Max)")
-        LevelSection:CreateToggle({
+        local AutoLevelToggle = LevelSection:CreateToggle({
             Name = "🌾 Bật Farm Level Tự Động",
             Description = "Tự bay đến NPC nhận quest theo cấp, gom quái và đánh dọn sạch",
             CurrentValue = hubState.autoLevel,
             Callback = function(Value: boolean)
+                if syncingLocalToggles then return end
                 hubState.autoLevel = Value
                 if Value then
                     deactivateOtherLocalModes("autoLevel")
@@ -37,6 +38,7 @@
                 end
             end,
         }, "AutoLevelToggle")
+        registerLocalModeToggle("autoLevel", AutoLevelToggle)
 
         LevelSection:CreateToggle({
             Name = "🕊️ Bay Lơ Lửng An Toàn Trên Không (Hover Lock + NoClip)",
@@ -149,6 +151,12 @@
                         end
                     end
                 end
+                for _, m in ipairs(mon:GetChildren()) do
+                    if m:IsA("Model") and not seen[m.Name] and m.Name ~= "Mon" and m.Name ~= "Boss" then
+                        seen[m.Name] = true
+                        table.insert(list, m.Name)
+                    end
+                end
             end
             table.sort(list, function(a, b)
                 local la = tonumber(string.match(a, "[Ll][Vv]%.?%s*(%d+)")) or 999999
@@ -157,14 +165,35 @@
                 return a < b
             end)
             if #list == 0 then
-                list = {
-                    "Elite Skeleton [Lv. 3100]",
-                    "Ocean Gladiator [Lv. 4500]",
-                    "Sea Soldier [Lv. 2250]",
-                    "Fishman Raider [Lv. 1500]",
-                    "Pirate Guard [Lv. 500]",
-                    "Desert Bandit [Lv. 100]",
-                }
+                if game.PlaceId == SEA3_PLACE then
+                    list = {
+                        "Elite Skeleton [Lv. 3100]",
+                        "High-class Soldier [Lv. 4000]",
+                        "Sea King Warrior [Lv. 4200]",
+                        "Ocean Gladiator [Lv. 4500]",
+                    }
+                elseif game.PlaceId == SEA2_PLACE then
+                    list = {
+                        "Fishman Raider [Lv. 1500]",
+                        "Quake Woman [Lv. 1925]",
+                        "Sea Soldier [Lv. 2250]",
+                        "Gazelle Man [Lv. 2350]",
+                        "Kitsune Samurai [Lv. 2650]",
+                        "Flame User [Lv. 3200]",
+                        "Sunken Vessel [Lv. 3225]",
+                        "Ryu [Lv. 3975]",
+                    }
+                else
+                    list = {
+                        "Smoky [Lv. 20]",
+                        "Tashi [Lv. 30]",
+                        "Desert Bandit [Lv. 100]",
+                        "Shark Man [Lv. 230]",
+                        "Pirate Guard [Lv. 500]",
+                        "Rumble Man [Lv. 950]",
+                        "Leader [Lv. 1100]",
+                    }
+                end
             end
             return list
         end
@@ -202,11 +231,12 @@
             end,
         })
 
-        MobSection:CreateToggle({
+        local AutoKillSelectedMobToggle = MobSection:CreateToggle({
             Name = "⚔️ Bật Cày Quái Đã Chọn",
             Description = "Tập trung đánh loại quái được chọn ở dropdown trên",
             CurrentValue = hubState.autoKillSelectedMob == true,
             Callback = function(Value: boolean)
+                if syncingLocalToggles then return end
                 hubState.autoKillSelectedMob = Value
                 if Value then
                     deactivateOtherLocalModes("autoKillSelectedMob")
@@ -225,6 +255,7 @@
                 end)
             end,
         }, "AutoKillSelectedMobToggle")
+        registerLocalModeToggle("autoKillSelectedMob", AutoKillSelectedMobToggle)
 
         MobSection:CreateToggle({
             Name = "⚡ Gom Quái Nhanh Về Vị Trí Mình (Fast Mob Bring)",
@@ -270,9 +301,24 @@
             end,
         }, "AutoDailyQuestToggle")
 
-        QuestSection:CreateToggle({
+        local RACE_OPTIONS = { "Cyborg", "Fishman", "Mink", "Skypiean", "Human" }
+        local defaultRace = table.find(RACE_OPTIONS, hubState.targetRace) and hubState.targetRace or RACE_OPTIONS[1]
+        QuestSection:CreateDropdown({
+            Name = "🧬 Chọn Tộc Muốn Quay (Target Race)",
+            Options = RACE_OPTIONS,
+            CurrentOption = { defaultRace },
+            MultipleOptions = false,
+            Callback = function(opt: any)
+                local val = pickDropdownValue(opt)
+                hubState.targetRace = val
+                saveState(hubState)
+                safeNotify("YokaHub Tộc", "Đã chọn tộc mục tiêu: " .. val, "dna")
+            end,
+        }, "TargetRaceDropdown")
+
+        local AutoRaceRollToggle = QuestSection:CreateToggle({
             Name = "🧬 Tự Động Roll Tộc Mong Muốn (Auto Race Roll)",
-            Description = "Tự động quay tộc bằng Gems cho đến khi ra tộc mong muốn",
+            Description = "Tự động quay tộc bằng Gems cho đến khi ra tộc mong muốn đã chọn",
             CurrentValue = hubState.autoRaceRoll,
             Callback = function(Value: boolean)
                 hubState.autoRaceRoll = Value
@@ -283,4 +329,5 @@
                 end)
             end,
         }, "AutoRaceRollToggle")
+        genv._YokaRaceRollToggle = AutoRaceRollToggle
     end

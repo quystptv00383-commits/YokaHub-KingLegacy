@@ -178,28 +178,8 @@
         -- Khử xung đột: Khi chuyển sang Săn Boss, tự động bật Master Auto Fight và tắt các chế độ cày cục bộ
         if newMode ~= "off" then
             hubState.autoFightMaster = true
-            local hadConflict = false
-            if hubState.autoLevel or hubState.autoKillSelectedMob or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat or hubState.autoDungeon or hubState.autoFish or hubState.autoFightIslandBoss then
-                hadConflict = true
-                hubState.autoLevel = false
-                hubState.autoKillSelectedMob = false
-                hubState.farmSea3Mat = false
-                hubState.farmSea2Mat = false
-                hubState.farmSea1Mat = false
-                hubState.autoDungeon = false
-                hubState.autoFish = false
-                hubState.autoFightIslandBoss = false
-                pcall(function()
-                    genv.Famlevel = false
-                    genv.Autokillmob = false
-                    genv.farmMaterialsea3 = false
-                    genv.farmMaterialsea2 = false
-                    genv.farmMaterialsea1 = false
-                    genv.autodungeon = false
-                    genv.AutoFish = false
-                    genv.start = false
-                end)
-            end
+            local hadConflict = hubState.autoLevel or hubState.autoKillSelectedMob or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat or hubState.autoDungeon or hubState.autoFish or hubState.autoFightIslandBoss
+            deactivateOtherLocalModes("none")
             if hadConflict then
                 safeNotify("YokaHub", "Đã ưu tiên Săn Boss Biển (Tạm dừng các chế độ cày quái/câu cá/dungeon).", "info")
             end
@@ -545,11 +525,12 @@
     -- BẢNG 4: BẢNG RIÊNG 3 - SĂN BOSS TRÊN ĐẢO (ISLAND BOSSES)
     -- ========================================================
     local IslandFightSection = HopTab:CreateSection("🏝️ BẢNG RIÊNG 3: SĂN BOSS TRÊN ĐẢO (WORLD BOSSES)")
-    IslandFightSection:CreateToggle({
+    local AutoFightIslandBossToggle = IslandFightSection:CreateToggle({
         Name = "⚔️ Bật Tự Động Săn Boss Đảo (Auto Farm Island Bosses)",
         Description = "Tự động bay đến hòn đảo có Boss mục tiêu, nhận quest và tiêu diệt",
         CurrentValue = hubState.autoFightIslandBoss,
         Callback = function(Value: boolean)
+            if syncingLocalToggles then return end
             hubState.autoFightIslandBoss = Value
             if Value then
                 deactivateOtherLocalModes("autoFightIslandBoss")
@@ -563,6 +544,7 @@
             end
         end,
     }, "AutoFightIslandBossToggle")
+    registerLocalModeToggle("autoFightIslandBoss", AutoFightIslandBossToggle)
 
     local function scanCurrentSeaBossOptions(): { string }
         local list: { string } = {}

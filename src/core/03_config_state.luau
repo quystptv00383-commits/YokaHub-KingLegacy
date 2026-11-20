@@ -278,6 +278,7 @@
         autoAlly: boolean?,
         autoDailyQuest: boolean?,
         autoRaceRoll: boolean?,
+        targetRace: string?,
         webhookUrl: string?,
         whFruit: boolean?,
         whDrop: boolean?,
@@ -386,6 +387,7 @@
             autoAlly = true,
             autoDailyQuest = false,
             autoRaceRoll = false,
+            targetRace = "Cyborg",
             webhookUrl = "",
             whFruit = false,
             whDrop = false,
@@ -496,6 +498,7 @@
             if typeof(d.autoAlly) == "boolean" then st.autoAlly = d.autoAlly end
             if typeof(d.autoDailyQuest) == "boolean" then st.autoDailyQuest = d.autoDailyQuest end
             if typeof(d.autoRaceRoll) == "boolean" then st.autoRaceRoll = d.autoRaceRoll end
+            if typeof(d.targetRace) == "string" and d.targetRace ~= "" then st.targetRace = d.targetRace end
             if typeof(d.webhookUrl) == "string" then st.webhookUrl = d.webhookUrl end
             if typeof(d.whFruit) == "boolean" then st.whFruit = d.whFruit end
             if typeof(d.whDrop) == "boolean" then st.whDrop = d.whDrop end

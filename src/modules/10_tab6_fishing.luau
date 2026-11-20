@@ -10,11 +10,12 @@
         })
 
         local MainFishSection = FishTab:CreateSection("🎣 Tự Động Câu Cá (Auto Fishing Master)")
-        MainFishSection:CreateToggle({
+        local AutoFishToggle = MainFishSection:CreateToggle({
             Name = "🎣 Bật Tự Động Câu Cá (Auto Fishing)",
             Description = "Tự cầm cần câu/kiếm câu cá, bay ra mặt biển đứng nổi, quăng mồi và kéo cá",
             CurrentValue = hubState.autoFish,
             Callback = function(Value: boolean)
+                if syncingLocalToggles then return end
                 hubState.autoFish = Value
                 if Value then
                     deactivateOtherLocalModes("autoFish")
@@ -32,6 +33,7 @@
                 if Value then safeNotify("YokaHub Câu Cá", "Đã bật Auto Fishing hoàn chỉnh!", "phishing") end
             end,
         }, "AutoFishToggle")
+        registerLocalModeToggle("autoFish", AutoFishToggle)
 
         MainFishSection:CreateParagraph({
             Title = "🐟 Cơ Chế Vận Hành Rảnh Tay",

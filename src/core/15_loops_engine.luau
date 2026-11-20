@@ -2819,6 +2819,7 @@ end)
     end
 
     local questMobLastPos: { [string]: Vector3 } = {}
+    local selectedMobLastPos: { [string]: Vector3 } = {}
 
     task.spawn(function()
         while genv._YokaHubToken == myToken do
@@ -2843,8 +2844,10 @@ end)
                     local selectedMobName = hubState.selectedMob or genv.chonmod or ""
                     local rawSelLower = ""
                     if isSelectMode and selectedMobName ~= "" then
-                        local rawSel = string.match(selectedMobName, "^([%w%s%']+)") or selectedMobName
-                        rawSelLower = string.lower(string.gsub(rawSel, "%s+$", ""))
+                        local rawSel = string.match(selectedMobName, "^(.-)%s*%[") or selectedMobName
+                        rawSel = string.gsub(rawSel, "^%s+", "")
+                        rawSel = string.gsub(rawSel, "%s+$", "")
+                        rawSelLower = string.lower(rawSel)
                     end
 
                     local questMobExact, questAmount = nil, nil
@@ -2917,6 +2920,9 @@ end)
                         local mHum = targetMob:FindFirstChildOfClass("Humanoid")
                         if mRoot and mHum and mHum.Health > 0 then
                             setCurrentCombatTarget(targetMob)
+                            if isSelectMode and rawSelLower ~= "" then
+                                selectedMobLastPos[rawSelLower] = mRoot.Position
+                            end
                             if questMobExact then
                                 questMobLastPos[questMobExact] = mRoot.Position
                             end
@@ -2937,6 +2943,19 @@ end)
                             if (hrp.Position - hoverPos).Magnitude <= 28 then
                                 castConfiguredSkills(char, hum, targetMob)
                             end
+                        end
+                    elseif isSelectMode and rawSelLower ~= "" then
+                        -- StreamingEnabled fallback cho Quái Chọn Lọc: Nếu quái chưa load ở quanh nhân vật -> bay tới vị trí spawn của quái
+                        local waitAnchor = selectedMobLastPos[rawSelLower]
+                        if not waitAnchor then
+                            local sLv = parseMobLevel(selectedMobName)
+                            if sLv then
+                                waitAnchor = findQuestNpcPositionForLevel(sLv)
+                            end
+                        end
+                        if waitAnchor and (waitAnchor - hrp.Position).Magnitude > 60 then
+                            local safeWaitPos = waitAnchor + Vector3.new(0, 24, 0)
+                            setFlightTarget(safeWaitPos, waitAnchor, (safeWaitPos - hrp.Position).Magnitude > 1600, 44)
                         end
                     elseif questMobExact then
                         -- Quái / Boss nhiệm vụ vừa chết đang hồi sinh -> Bay lên cao (+36 studs) đứng chờ an toàn ngay bãi spawn như trong video
@@ -3370,9 +3389,27 @@ end)
             end
             if hubState.autoRaceRoll or genv.AutoGetAutoRollRace then
                 pcall(function()
-                    local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
-                    if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Race") then
-                        rem.Functions.Race:InvokeServer("Roll")
+                    local ps = player:FindFirstChild("PlayerStats")
+                    local curRace = ps and ps:FindFirstChild("Race") and tostring(ps.Race.Value) or ""
+                    if curRace == "" then
+                        local rObj = player:FindFirstChild("Race")
+                        curRace = rObj and tostring(rObj.Value) or ""
+                    end
+                    local targetRace = hubState.targetRace or "Cyborg"
+                    if curRace ~= "" and string.lower(curRace) == string.lower(targetRace) then
+                        hubState.autoRaceRoll = false
+                        genv.AutoGetAutoRollRace = false
+                        genv.toc = false
+                        saveState(hubState)
+                        if genv._YokaRaceRollToggle and typeof(genv._YokaRaceRollToggle.Set) == "function" then
+                            pcall(function() genv._YokaRaceRollToggle:Set({ CurrentValue = false }) end)
+                        end
+                        safeNotify("YokaHub Tộc", "Chúc mừng! Bạn đã quay trúng tộc mong muốn: " .. curRace .. "!", "check_circle")
+                    else
+                        local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                        if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Race") then
+                            rem.Functions.Race:InvokeServer("Roll")
+                        end
                     end
                 end)
             end
@@ -3400,6 +3437,10 @@ end)
                 local chestFuncs = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
                 local remFuncs = chestFuncs and chestFuncs:FindFirstChild("Remotes") and chestFuncs.Remotes:FindFirstChild("Functions")
                 local upRemote = remFuncs and remFuncs:FindFirstChild("Upgrade")
+                if not upRemote then
+                    local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                    upRemote = rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Upgrade")
+                end
 
                 local targets = {}
                 if hubState.statMelee then table.insert(targets, "Melee") end

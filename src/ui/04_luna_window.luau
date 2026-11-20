@@ -2,14 +2,26 @@
     local session = loadSession()
     local currentMode: string = hubState.mode
 
-    -- Helper khử xung đột: chỉ cho phép 1 chế độ cày cục bộ chạy tại 1 thời điểm (không bao giờ kéo giật nhân vật giữa 2 luồng!)
+    -- Helper khử xung đột & đồng bộ UI: chỉ cho phép 1 chế độ cày cục bộ chạy tại 1 thời điểm (không bao giờ kéo giật nhân vật giữa 2 luồng!)
+    local localModeToggles: { [string]: any } = {}
+    local syncingLocalToggles = false
+    local function registerLocalModeToggle(key: string, toggleObj: any)
+        localModeToggles[key] = toggleObj
+    end
+
     local function deactivateOtherLocalModes(keepKey: string)
         local keys = { "autoLevel", "autoKillSelectedMob", "farmSea3Mat", "farmSea2Mat", "farmSea1Mat", "autoDungeon", "autoFish", "autoFightIslandBoss" }
+        syncingLocalToggles = true
         for _, k in ipairs(keys) do
             if k ~= keepKey then
                 (hubState :: any)[k] = false
+                local tObj = localModeToggles[k]
+                if tObj and typeof(tObj.Set) == "function" then
+                    pcall(function() tObj:Set({ CurrentValue = false }) end)
+                end
             end
         end
+        syncingLocalToggles = false
         pcall(function()
             genv.Famlevel = false
             genv.Autokillmob = false

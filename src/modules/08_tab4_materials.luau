@@ -10,11 +10,12 @@
         })
 
         local Sea3MatSection = MatTab:CreateSection("🌊 Nguyên Liệu Sea 3 (Cực Hiếm)")
-        Sea3MatSection:CreateToggle({
+        local FarmSea3MatToggle = Sea3MatSection:CreateToggle({
             Name = "📦 Bật Cày Nguyên Liệu Sea 3",
             Description = "Tự động di chuyển đến bãi farm nguyên liệu tương ứng ở Sea 3",
             CurrentValue = hubState.farmSea3Mat,
             Callback = function(Value: boolean)
+                if syncingLocalToggles then return end
                 hubState.farmSea3Mat = Value
                 if Value then
                     deactivateOtherLocalModes("farmSea3Mat")
@@ -36,6 +37,7 @@
                 if Value then safeNotify("YokaHub Nguyên Liệu", "Đang cày nguyên liệu Sea 3: " .. tostring(hubState.nguyenlieuSea3), "layers") end
             end,
         }, "FarmSea3MatToggle")
+        registerLocalModeToggle("farmSea3Mat", FarmSea3MatToggle)
 
         local sea3Options = {
             "Coral (San Hô)",
@@ -63,11 +65,12 @@
         }, "Sea3MatDropdown")
 
         local Sea2MatSection = MatTab:CreateSection("🔱 Nguyên Liệu Sea 2")
-        Sea2MatSection:CreateToggle({
+        local FarmSea2MatToggle = Sea2MatSection:CreateToggle({
             Name = "📦 Bật Cày Nguyên Liệu Sea 2",
             Description = "Tự động di chuyển đến bãi farm nguyên liệu tương ứng ở Sea 2",
             CurrentValue = hubState.farmSea2Mat,
             Callback = function(Value: boolean)
+                if syncingLocalToggles then return end
                 hubState.farmSea2Mat = Value
                 if Value then
                     deactivateOtherLocalModes("farmSea2Mat")
@@ -89,6 +92,7 @@
                 if Value then safeNotify("YokaHub Nguyên Liệu", "Đang cày nguyên liệu Sea 2: " .. tostring(hubState.nguyenlieuSea2), "layers") end
             end,
         }, "FarmSea2MatToggle")
+        registerLocalModeToggle("farmSea2Mat", FarmSea2MatToggle)
 
         local sea2Options = {
             "Iron Ingot (Sắt Thỏi)",
@@ -115,11 +119,12 @@
         }, "Sea2MatDropdown")
 
         local Sea1MatSection = MatTab:CreateSection("⛵ Nguyên Liệu Sea 1")
-        Sea1MatSection:CreateToggle({
+        local FarmSea1MatToggle = Sea1MatSection:CreateToggle({
             Name = "📦 Bật Cày Nguyên Liệu Sea 1",
             Description = "Tự động di chuyển đến bãi farm nguyên liệu tương ứng ở Sea 1",
             CurrentValue = hubState.farmSea1Mat,
             Callback = function(Value: boolean)
+                if syncingLocalToggles then return end
                 hubState.farmSea1Mat = Value
                 if Value then
                     deactivateOtherLocalModes("farmSea1Mat")
@@ -141,6 +146,7 @@
                 if Value then safeNotify("YokaHub Nguyên Liệu", "Đang cày nguyên liệu Sea 1: " .. tostring(hubState.nguyenlieuSea1), "layers") end
             end,
         }, "FarmSea1MatToggle")
+        registerLocalModeToggle("farmSea1Mat", FarmSea1MatToggle)
 
         local sea1Options = {
             "Leather (Da Thuộc)",
