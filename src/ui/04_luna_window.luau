@@ -303,36 +303,2024 @@
         end
     end)
 
-    -- 5. Tai Luna Interface Suite (vo hieu hoa BlurModule, sua loi Icon Notification, chuan hoa chieu cao Dropdown & bao ve Dropdown khong vang loi)
-    genv.ConfirmLuna = true
-    local okLuna, Luna: any = pcall(function()
-        local rawSrc = game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/master/source.lua")
-        local patchedSrc = string.gsub(rawSrc, "local function BlurModule%(Frame%)", "local function BlurModule(Frame) if true then return end", 1)
-        patchedSrc = string.gsub(patchedSrc, "newNotification%.Icon%.Visible = false", "if newNotification and newNotification:FindFirstChild(\"Icon\") then newNotification.Icon.Visible = false end", 1)
-        patchedSrc = string.gsub(patchedSrc, "closedsize = 38", "closedsize = 44", 1)
-        patchedSrc = string.gsub(patchedSrc, "return sourceicon%[icon%]", "return (sourceicon[icon] or \"http://www.roblox.com/asset/?id=6026568195\")", 1)
-        patchedSrc = string.gsub(patchedSrc, "Dropdown%.List%[name%]", "(Dropdown.List:FindFirstChild(tostring(name)) or Dropdown.List.Template)")
-        patchedSrc = string.gsub(patchedSrc, "Dropdown%.List%[bleh%]", "(Dropdown.List:FindFirstChild(tostring(bleh)) or Dropdown.List.Template)")
-        patchedSrc = string.gsub(patchedSrc, "Dropdown%.List%[v%]", "(Dropdown.List:FindFirstChild(tostring(v)) or Dropdown.List.Template)")
-        local fn = loadstring(patchedSrc)
-        return fn and fn() or nil
+
+    -- ========================================================
+    -- YOKAUI v3 · THƯ VIỆN GIAO DIỆN RIÊNG CỦA YOKAHUB (thay thế Luna)
+    -- API tương thích Luna: CreateTab / CreateSection / CreateToggle / CreateButton /
+    -- CreateSlider / CreateDropdown / CreateParagraph / CreateInput / Notification
+    -- Tính năng: sidebar nhóm tab · tìm kiếm tính năng (không dấu) · đếm tính năng đang bật ·
+    -- section thu gọn · dropdown popup có ô tìm · toast thông báo · kéo/resize/phóng to · PC + mobile
+    -- ========================================================
+    local YokaUI: any = (function()
+        local TweenService = game:GetService("TweenService")
+        local UserInputService = game:GetService("UserInputService")
+        local PlayersService = game:GetService("Players")
+
+        local Lib: any = {}
+        Lib.__index = Lib
+
+        local RGB = Color3.fromRGB
+        local P = {
+            bg = RGB(13, 15, 21),
+            panel = RGB(19, 22, 30),
+            card = RGB(26, 30, 41),
+            card2 = RGB(33, 38, 51),
+            hover = RGB(38, 44, 59),
+            stroke = RGB(42, 48, 64),
+            strokeSoft = RGB(34, 39, 53),
+            text = RGB(238, 242, 248),
+            sub = RGB(148, 158, 178),
+            mute = RGB(96, 106, 126),
+            accent = RGB(52, 211, 153),
+            accent2 = RGB(45, 190, 222),
+            accentDark = RGB(8, 24, 20),
+            danger = RGB(244, 86, 100),
+            warn = RGB(251, 191, 36),
+            info = RGB(96, 165, 250),
+            off = RGB(52, 59, 77),
+            knobOff = RGB(176, 186, 206),
+        }
+        Lib.Palette = P
+
+        local FONT = Enum.Font.Gotham
+        local FONT_M = Enum.Font.GothamMedium
+        local FONT_B = Enum.Font.GothamBold
+        local EASE = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local EASE_SLOW = TweenInfo.new(0.30, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        local XL, XR, XC = Enum.TextXAlignment.Left, Enum.TextXAlignment.Right, Enum.TextXAlignment.Center
+        local AUTO_Y, AUTO_X = Enum.AutomaticSize.Y, Enum.AutomaticSize.X
+
+        local DEFAULT_W, DEFAULT_H = 760, 480
+        local MIN_W, MIN_H = 520, 340
+
+        local orderCounter = 0
+        local function nextOrder(): number
+            orderCounter += 10
+            return orderCounter
+        end
+
+        local function tw(obj: any, props: any, info: TweenInfo?)
+            if not obj then return nil end
+            local t = TweenService:Create(obj, info or EASE, props)
+            t:Play()
+            return t
+        end
+
+        local function mk(class: string, defaults: any, props: any?, parent: Instance?): any
+            local o = Instance.new(class)
+            for k, v in pairs(defaults) do o[k] = v end
+            if props then for k, v in pairs(props) do o[k] = v end end
+            if parent then o.Parent = parent end
+            return o
+        end
+
+        local function Frame(props: any?, parent: Instance?): any
+            return mk("Frame", { BorderSizePixel = 0, BackgroundColor3 = P.card }, props, parent)
+        end
+        local function Label(props: any?, parent: Instance?): any
+            return mk("TextLabel", {
+                BorderSizePixel = 0, BackgroundTransparency = 1, Font = FONT, TextSize = 13, TextColor3 = P.text,
+                TextXAlignment = XL, TextYAlignment = Enum.TextYAlignment.Center, Text = "", RichText = false,
+            }, props, parent)
+        end
+        local function Button(props: any?, parent: Instance?): any
+            return mk("TextButton", {
+                BorderSizePixel = 0, BackgroundTransparency = 1, AutoButtonColor = false, Text = "",
+                Font = FONT, TextSize = 13, TextColor3 = P.text,
+            }, props, parent)
+        end
+        local function Box(props: any?, parent: Instance?): any
+            return mk("TextBox", {
+                BorderSizePixel = 0, BackgroundTransparency = 1, Font = FONT_M, TextSize = 12.5, TextColor3 = P.text,
+                PlaceholderColor3 = P.mute, ClearTextOnFocus = false, Text = "", TextXAlignment = XL,
+            }, props, parent)
+        end
+        local function Image(props: any?, parent: Instance?): any
+            return mk("ImageLabel", { BorderSizePixel = 0, BackgroundTransparency = 1 }, props, parent)
+        end
+        local function Round(o: Instance, r: any): any
+            return mk("UICorner", { CornerRadius = (r == "full") and UDim.new(1, 0) or UDim.new(0, r) }, nil, o)
+        end
+        local function Stroke(o: Instance, color: Color3, thick: number?, trans: number?): any
+            return mk("UIStroke", {
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = color,
+                Thickness = thick or 1, Transparency = trans or 0,
+            }, nil, o)
+        end
+        local function Pad(o: Instance, t: number, r: number, b: number, l: number): any
+            return mk("UIPadding", {
+                PaddingTop = UDim.new(0, t), PaddingRight = UDim.new(0, r),
+                PaddingBottom = UDim.new(0, b), PaddingLeft = UDim.new(0, l),
+            }, nil, o)
+        end
+        local function List(o: Instance, gap: number, horizontal: boolean?): any
+            return mk("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, gap),
+                FillDirection = horizontal and Enum.FillDirection.Horizontal or Enum.FillDirection.Vertical,
+            }, nil, o)
+        end
+        local function Grad(o: Instance, c0: Color3, c1: Color3, rot: number?): any
+            return mk("UIGradient", { Color = ColorSequence.new(c0, c1), Rotation = rot or 0 }, nil, o)
+        end
+
+        -- ------------------------------------------------------------
+        -- Chuẩn hoá chuỗi tìm kiếm: bỏ dấu tiếng Việt + chữ thường
+        -- ------------------------------------------------------------
+        local FOLD: { [number]: string } = {}
+        local function addFold(base: string, chars: string)
+            for _, cp in utf8.codes(chars) do FOLD[cp] = base end
+        end
+        addFold("a", "àáạảãâầấậẩẫăằắặẳẵÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ")
+        addFold("e", "èéẹẻẽêềếệểễÈÉẸẺẼÊỀẾỆỂỄ")
+        addFold("i", "ìíịỉĩÌÍỊỈĨ")
+        addFold("o", "òóọỏõôồốộổỗơờớợởỡÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ")
+        addFold("u", "ùúụủũưừứựửữÙÚỤỦŨƯỪỨỰỬỮ")
+        addFold("y", "ỳýỵỷỹỲÝỴỶỸ")
+        addFold("d", "đĐ")
+        local function fold(s: string): string
+            local ok, res = pcall(function()
+                local out = {}
+                for _, cp in utf8.codes(s) do
+                    out[#out + 1] = FOLD[cp] or utf8.char(cp)
+                end
+                return table.concat(out)
+            end)
+            return string.lower(ok and res or s)
+        end
+
+        local function splitEmoji(name: string): (string?, string)
+            local first, rest = string.match(name, "^(%S+)%s+(.+)$")
+            if first and not string.find(first, "%a") and string.byte(first, 1) >= 128 then
+                return first, rest
+            end
+            return nil, name
+        end
+
+        local ICONMAP = {
+            public = "🌊", fitness_center = "🌾", flash_on = "⚔️", all_inbox = "📦", explore = "🏰",
+            waves = "🎣", spa = "🍎", speed = "👁️", bolt = "⚡", volunteer_activism = "💖", logout = "🚪",
+        }
+
+        local TAB_META: { [string]: { group: string, label: string?, emoji: string? } } = {
+            ["🌊 Săn Boss Biển"] = { group = "Chiến Đấu & Cày", label = "Săn Boss Biển", emoji = "🌊" },
+            ["🌾 Cày Cấp & Quái"] = { group = "Chiến Đấu & Cày", label = "Cày Cấp & Quái", emoji = "🌾" },
+            ["⚔️ Xả Chiêu & Haki"] = { group = "Chiến Đấu & Cày", label = "Xả Chiêu & Haki", emoji = "⚔️" },
+            ["📦 Gom Nguyên Liệu"] = { group = "Phó Bản & Vật Phẩm", label = "Gom Nguyên Liệu", emoji = "📦" },
+            ["🏰 Vượt Phó Bản"] = { group = "Phó Bản & Vật Phẩm", label = "Vượt Phó Bản", emoji = "🏰" },
+            ["🎣 Câu Cá Tự Động"] = { group = "Phó Bản & Vật Phẩm", label = "Câu Cá Tự Động", emoji = "🎣" },
+            ["🍎 Trái & Cửa Hàng"] = { group = "Phó Bản & Vật Phẩm", label = "Trái & Cửa Hàng", emoji = "🍎" },
+            ["👁️ ESP & Thống Kê"] = { group = "Hệ Thống & Tiện Ích", label = "ESP & Thống Kê", emoji = "👁️" },
+            ["Tiện ích"] = { group = "Hệ Thống & Tiện Ích", label = "Tối Ưu & Tiện Ích", emoji = "⚡" },
+            ["Ủng hộ"] = { group = "Hệ Thống & Tiện Ích", label = "Ủng Hộ Yoka", emoji = "💖" },
+            ["🚪 Thoát Key"] = { group = "Hệ Thống & Tiện Ích", label = "Thoát / Đổi Key", emoji = "🚪" },
+        }
+
+        local KIND_COLOR = { ok = P.accent, warn = P.warn, err = P.danger, info = P.info }
+        local KIND_OF = {
+            check_circle = "ok", favorite = "ok", done = "ok", agriculture = "ok", task_alt = "ok",
+            warning = "warn", report = "warn", priority_high = "warn", flight_takeoff = "warn",
+            error = "err", cancel = "err", block = "err",
+        }
+
+        local function isPress(input: InputObject): boolean
+            return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+        end
+        local function isMove(input: InputObject): boolean
+            return input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch
+        end
+
+        -- ============================================================
+        -- WINDOW
+        -- ============================================================
+        local TabMT: any = {}
+        local SectionMT: any = {}
+
+        function Lib.new(o: any): any
+            o = o or {}
+            local self: any = setmetatable({}, Lib)
+            self.conns = {}
+            self.tabs = {}
+            self.tabList = {}
+            self.CurrentTab = nil
+            self.compact = false
+            self.scale = 1
+            self.W, self.H = o.Width or DEFAULT_W, o.Height or DEFAULT_H
+            self.fullscreen = false
+            self.query = ""
+            self.destroyed = false
+            self.statusText = "Sẵn sàng"
+            self.statusColor = P.mute
+            self.lastGroup = nil
+            self.exitArmed = false
+            self.OnClose = o.OnClose
+            self.OnExit = o.OnExit
+            self.OnResize = o.OnResize
+            self.toastRecent = {}
+
+            local gui = mk("ScreenGui", {
+                Name = "Luna UI", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+                DisplayOrder = o.DisplayOrder or 1000010, IgnoreGuiInset = true,
+            }, nil, o.Parent)
+            self.Gui = gui
+
+            -- Root (SmartWindow): giữ kích thước + vị trí + UIScale responsive. Window + ShadowHolder nằm trong Root.
+            local root = Frame({
+                Name = "SmartWindow", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.fromOffset(self.W, self.H), BackgroundTransparency = 1, Visible = false,
+            }, gui)
+            self.Root = root
+            self.Scaler = mk("UIScale", { Name = "Scaler" }, nil, root)
+
+            local shadow = Frame({
+                Name = "ShadowHolder", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.new(1, 8, 1, 8), BackgroundColor3 = RGB(0, 0, 0), BackgroundTransparency = 0.55,
+                ZIndex = 0,
+            }, root)
+            Round(shadow, 17)
+            Stroke(shadow, P.accent, 1, 0.78)
+            self.Shadow = shadow
+
+            local win = Frame({
+                Name = "Window", Size = UDim2.fromScale(1, 1), BackgroundColor3 = P.bg, Active = true, ZIndex = 1,
+            }, root)
+            Round(win, 14)
+            Stroke(win, P.stroke, 1, 0.1)
+            self.Window = win
+            self.Pop = mk("UIScale", { Name = "Pop", Scale = 1 }, nil, win)
+
+            -- ---------------- TOPBAR ----------------
+            local top = Frame({ Name = "Topbar", Size = UDim2.new(1, 0, 0, 54), BackgroundTransparency = 1 }, win)
+            self.Topbar = top
+            Frame({
+                Name = "Line", AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1),
+                Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = P.strokeSoft,
+            }, top)
+
+            local logo = Frame({
+                Name = "Logo", Position = UDim2.fromOffset(16, 11), Size = UDim2.fromOffset(32, 32),
+                BackgroundColor3 = Color3.new(1, 1, 1),
+            }, top)
+            Round(logo, 9)
+            Grad(logo, P.accent, P.accent2, 45)
+            self.LogoText = Label({
+                Name = "Y", Size = UDim2.fromScale(1, 1), Text = "Y", Font = FONT_B, TextSize = 19,
+                TextColor3 = P.accentDark, TextXAlignment = XC,
+            }, logo)
+            self.LogoImage = Image({
+                Name = "Img", Size = UDim2.fromScale(1, 1), ScaleType = Enum.ScaleType.Crop, Visible = false,
+            }, logo)
+            Round(self.LogoImage, 9)
+
+            local titleHolder = Frame({
+                Name = "TitleHolder", Position = UDim2.fromOffset(58, 8), Size = UDim2.fromOffset(0, 18),
+                AutomaticSize = AUTO_X, BackgroundTransparency = 1,
+            }, top)
+            mk("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder, FillDirection = Enum.FillDirection.Horizontal,
+                Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Center,
+            }, nil, titleHolder)
+            Label({
+                Name = "Title", LayoutOrder = 1, Text = o.Name or "YokaHub", Font = FONT_B, TextSize = 16,
+                Size = UDim2.fromOffset(0, 18), AutomaticSize = AUTO_X,
+            }, titleHolder)
+            local pro = Frame({
+                Name = "Pro", LayoutOrder = 2, Size = UDim2.fromOffset(0, 15), AutomaticSize = AUTO_X,
+                BackgroundColor3 = P.accent, BackgroundTransparency = 0.82,
+            }, titleHolder)
+            Round(pro, 5)
+            Pad(pro, 0, 6, 0, 6)
+            Label({
+                Name = "T", Text = "PRO", Font = FONT_B, TextSize = 9, TextColor3 = P.accent,
+                Size = UDim2.fromOffset(0, 15), AutomaticSize = AUTO_X,
+            }, pro)
+            self.Subtitle = Label({
+                Name = "Subtitle", Position = UDim2.fromOffset(58, 28), Size = UDim2.new(0, 220, 0, 14),
+                Text = o.Subtitle or "", Font = FONT, TextSize = 11, TextColor3 = P.sub, TextTruncate = Enum.TextTruncate.AtEnd,
+            }, top)
+
+            local right = Frame({
+                Name = "Right", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0),
+                Size = UDim2.fromOffset(0, 32), AutomaticSize = AUTO_X, BackgroundTransparency = 1,
+            }, top)
+            mk("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder, FillDirection = Enum.FillDirection.Horizontal,
+                Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Center,
+                HorizontalAlignment = Enum.HorizontalAlignment.Right,
+            }, nil, right)
+
+            -- Status pill
+            local pill = Frame({
+                Name = "Status", LayoutOrder = 1, Size = UDim2.fromOffset(0, 28), AutomaticSize = AUTO_X,
+                BackgroundColor3 = P.card,
+            }, right)
+            Round(pill, "full")
+            Stroke(pill, P.strokeSoft, 1, 0)
+            Pad(pill, 0, 12, 0, 10)
+            mk("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder, FillDirection = Enum.FillDirection.Horizontal,
+                Padding = UDim.new(0, 7), VerticalAlignment = Enum.VerticalAlignment.Center,
+            }, nil, pill)
+            self.StatusDot = Frame({ Name = "Dot", LayoutOrder = 1, Size = UDim2.fromOffset(8, 8), BackgroundColor3 = P.mute }, pill)
+            Round(self.StatusDot, "full")
+            self.StatusLabel = Label({
+                Name = "Text", LayoutOrder = 2, Text = "Sẵn sàng", Font = FONT_M, TextSize = 11.5, TextColor3 = P.sub,
+                Size = UDim2.fromOffset(0, 28), AutomaticSize = AUTO_X,
+            }, pill)
+            self.StatusPill = pill
+
+            -- Search
+            local search = Frame({
+                Name = "Search", LayoutOrder = 2, Size = UDim2.fromOffset(200, 32), BackgroundColor3 = P.card,
+            }, right)
+            Round(search, 9)
+            self.SearchStroke = Stroke(search, P.strokeSoft, 1, 0)
+            local mg = Frame({
+                Name = "Glass", Position = UDim2.fromOffset(11, 10), Size = UDim2.fromOffset(10, 10),
+                BackgroundTransparency = 1,
+            }, search)
+            Round(mg, "full")
+            Stroke(mg, P.sub, 1.6, 0)
+            Frame({
+                Name = "Handle", Position = UDim2.fromOffset(19, 19), Size = UDim2.fromOffset(5, 1.6),
+                BackgroundColor3 = P.sub, Rotation = 45,
+            }, search)
+            local sbox = Box({
+                Name = "Input", Position = UDim2.fromOffset(32, 0), Size = UDim2.new(1, -58, 1, 0),
+                PlaceholderText = "Tìm tính năng…", TextSize = 12.5, TextTruncate = Enum.TextTruncate.AtEnd,
+            }, search)
+            self.SearchBox = sbox
+            local sclear = Button({
+                Name = "Clear", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -6, 0.5, 0),
+                Size = UDim2.fromOffset(20, 20), Text = "×", Font = FONT_B, TextSize = 16, TextColor3 = P.sub,
+                Visible = false,
+            }, search)
+            self.SearchFrame = search
+
+            -- Window buttons
+            local function iconButton(name: string, order: number, red: boolean?): any
+                local b = Button({
+                    Name = name, LayoutOrder = order, Size = UDim2.fromOffset(32, 32),
+                    BackgroundColor3 = red and P.danger or P.card2, BackgroundTransparency = 1,
+                }, right)
+                Round(b, 9)
+                b.MouseEnter:Connect(function()
+                    tw(b, { BackgroundTransparency = red and 0.1 or 0.2 })
+                end)
+                b.MouseLeave:Connect(function()
+                    tw(b, { BackgroundTransparency = 1 })
+                end)
+                return b
+            end
+            local fsBtn = iconButton("Fullscreen", 3)
+            local fsBox = Frame({
+                Name = "Box", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.fromOffset(12, 12), BackgroundTransparency = 1,
+            }, fsBtn)
+            Round(fsBox, 3)
+            self.FsStroke = Stroke(fsBox, P.sub, 1.6, 0)
+            self.FsBox = fsBox
+            local closeBtn = iconButton("Close", 4, true)
+            for _, rot in ipairs({ 45, -45 }) do
+                Frame({
+                    Name = "X", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+                    Size = UDim2.fromOffset(14, 1.8), Rotation = rot, BackgroundColor3 = P.sub,
+                }, closeBtn)
+            end
+
+            -- ---------------- SIDEBAR ----------------
+            local side = Frame({
+                Name = "Sidebar", Position = UDim2.fromOffset(0, 54), Size = UDim2.new(0, 200, 1, -54),
+                BackgroundTransparency = 1, ClipsDescendants = true,
+            }, win)
+            self.Sidebar = side
+            local tabScroll = mk("ScrollingFrame", {
+                Name = "Tabs", BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, 0, 1, -84),
+                CanvasSize = UDim2.new(), AutomaticCanvasSize = AUTO_Y, ScrollBarThickness = 3,
+                ScrollBarImageColor3 = P.stroke, ScrollBarImageTransparency = 0.25,
+                ScrollingDirection = Enum.ScrollingDirection.Y, ElasticBehavior = Enum.ElasticBehavior.Never,
+            }, nil, side)
+            Pad(tabScroll, 6, 8, 6, 8)
+            List(tabScroll, 2)
+            self.TabScroll = tabScroll
+
+            -- Footer sidebar (người dùng + đăng xuất)
+            local foot = Frame({
+                Name = "Footer", AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1),
+                Size = UDim2.new(1, 0, 0, 84), BackgroundTransparency = 1,
+            }, side)
+            self.SideFooter = foot
+            Frame({ Name = "Line", Size = UDim2.new(1, -20, 0, 1), Position = UDim2.fromOffset(10, 0), BackgroundColor3 = P.strokeSoft }, foot)
+            local avatar = Frame({
+                Name = "Avatar", Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(34, 34), BackgroundColor3 = P.card2,
+            }, foot)
+            Round(avatar, "full")
+            Stroke(avatar, P.accent, 1.5, 0.35)
+            self.AvatarImg = Image({ Name = "Img", Size = UDim2.fromScale(1, 1) }, avatar)
+            Round(self.AvatarImg, "full")
+            local lp = PlayersService.LocalPlayer
+            self.UserName = Label({
+                Name = "UserName", Position = UDim2.fromOffset(54, 11), Size = UDim2.new(1, -66, 0, 18),
+                Text = o.UserName or (lp and lp.DisplayName) or "Player", Font = FONT_B, TextSize = 12.5,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+            }, foot)
+            self.UserSub = Label({
+                Name = "UserSub", Position = UDim2.fromOffset(54, 29), Size = UDim2.new(1, -66, 0, 16),
+                Text = o.UserSub or "", Font = FONT, TextSize = 11, TextColor3 = P.accent,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+            }, foot)
+            if lp then
+                task.spawn(function()
+                    local ok, img = pcall(function()
+                        return PlayersService:GetUserThumbnailAsync(lp.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+                    end)
+                    if ok and not self.destroyed then self.AvatarImg.Image = img end
+                end)
+            end
+            local exitBtn = Button({
+                Name = "Exit", Position = UDim2.new(0, 10, 0, 52), Size = UDim2.new(1, -20, 0, 26),
+                BackgroundColor3 = P.danger, BackgroundTransparency = 0.88, Text = "🚪  Đăng xuất / Đổi Key",
+                Font = FONT_M, TextSize = 11.5, TextColor3 = RGB(255, 150, 160),
+            }, foot)
+            Round(exitBtn, 8)
+            self.ExitStroke = Stroke(exitBtn, P.danger, 1, 0.65)
+            self.ExitBtn = exitBtn
+
+            -- ---------------- PANEL NỘI DUNG ----------------
+            local panel = Frame({
+                Name = "Panel", Position = UDim2.fromOffset(200, 54), Size = UDim2.new(1, -210, 1, -64),
+                BackgroundColor3 = P.panel,
+            }, win)
+            Round(panel, 12)
+            Stroke(panel, P.strokeSoft, 1, 0)
+            self.Panel = panel
+
+            local head = Frame({ Name = "Header", Size = UDim2.new(1, 0, 0, 62), BackgroundTransparency = 1 }, panel)
+            self.HeadTitle = Label({
+                Name = "Title", Position = UDim2.fromOffset(18, 11), Size = UDim2.new(1, -150, 0, 24),
+                Text = "", Font = FONT_B, TextSize = 18, TextTruncate = Enum.TextTruncate.AtEnd,
+            }, head)
+            self.HeadSub = Label({
+                Name = "Sub", Position = UDim2.fromOffset(18, 35), Size = UDim2.new(1, -150, 0, 16),
+                Text = "", Font = FONT, TextSize = 12, TextColor3 = P.sub, TextTruncate = Enum.TextTruncate.AtEnd,
+            }, head)
+            local collapseBtn = Button({
+                Name = "CollapseAll", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 17),
+                Size = UDim2.fromOffset(104, 28), BackgroundColor3 = P.card, BackgroundTransparency = 0,
+                Text = "Thu gọn tất cả", Font = FONT_M, TextSize = 11.5, TextColor3 = P.sub,
+            }, head)
+            Round(collapseBtn, 8)
+            Stroke(collapseBtn, P.strokeSoft, 1, 0)
+            self.CollapseBtn = collapseBtn
+            Frame({
+                Name = "Line", AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1),
+                Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = P.strokeSoft,
+            }, head)
+
+            local pages = Frame({
+                Name = "Pages", Position = UDim2.fromOffset(0, 62), Size = UDim2.new(1, 0, 1, -62 - 28),
+                BackgroundTransparency = 1, ClipsDescendants = true,
+            }, panel)
+            self.Pages = pages
+
+            local pfoot = Frame({
+                Name = "Footer", AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1),
+                Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1,
+            }, panel)
+            Frame({ Name = "Line", Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = P.strokeSoft }, pfoot)
+            self.Hint = Label({
+                Name = "Hint", Position = UDim2.fromOffset(16, 1), Size = UDim2.new(1, -60, 1, -1),
+                Text = o.Hint or "", Font = FONT, TextSize = 10.5, TextColor3 = P.mute, TextTruncate = Enum.TextTruncate.AtEnd,
+            }, pfoot)
+
+            local grip = Button({
+                Name = "ResizeGrip", AnchorPoint = Vector2.new(1, 1), Position = UDim2.fromScale(1, 1),
+                Size = UDim2.fromOffset(28, 28), ZIndex = 5,
+            }, panel)
+            for i, w in ipairs({ 12, 7 }) do
+                Frame({
+                    Name = "Bar", Size = UDim2.fromOffset(w, 1.6), Position = UDim2.fromOffset(i == 1 and 9 or 14, i == 1 and 15 or 18),
+                    Rotation = -45, BackgroundColor3 = P.mute,
+                }, grip)
+            end
+
+            -- Overlay toast
+            local toasts = Frame({
+                Name = "Toasts", AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -16, 1, -16),
+                Size = UDim2.new(0, 310, 1, -32), BackgroundTransparency = 1, ZIndex = 1,
+            }, gui)
+            mk("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8),
+                VerticalAlignment = Enum.VerticalAlignment.Bottom, HorizontalAlignment = Enum.HorizontalAlignment.Right,
+            }, nil, toasts)
+            self.ToastScale = mk("UIScale", {}, nil, toasts)
+            self.Toasts = toasts
+
+            -- ======== Sự kiện ========
+            local function conn(sig: RBXScriptSignal, fn: (...any) -> ()): RBXScriptConnection
+                local c = sig:Connect(fn)
+                table.insert(self.conns, c)
+                return c
+            end
+            self._conn = conn
+
+            -- Tìm kiếm
+            conn(sbox:GetPropertyChangedSignal("Text"), function()
+                sclear.Visible = sbox.Text ~= ""
+                self.searchToken = (self.searchToken or 0) + 1
+                local my = self.searchToken
+                task.delay(0.12, function()
+                    if my == self.searchToken and not self.destroyed then self:_applySearch(sbox.Text) end
+                end)
+            end)
+            conn(sbox.Focused, function() tw(self.SearchStroke, { Color = P.accent }) end)
+            conn(sbox.FocusLost, function() tw(self.SearchStroke, { Color = P.strokeSoft }) end)
+            conn(sclear.MouseButton1Click, function() sbox.Text = "" end)
+
+            -- Nút cửa sổ
+            conn(closeBtn.MouseButton1Click, function()
+                if self.OnClose then pcall(self.OnClose) else self:SetVisible(false) end
+            end)
+            conn(fsBtn.MouseButton1Click, function() self:ToggleFullscreen() end)
+            conn(collapseBtn.MouseButton1Click, function() self:_toggleCollapseAll() end)
+
+            -- Đăng xuất (bấm 2 lần để xác nhận)
+            conn(exitBtn.MouseButton1Click, function()
+                if not self.exitArmed then
+                    self.exitArmed = true
+                    exitBtn.Text = self.compact and "?" or "Bấm lần nữa để xác nhận"
+                    tw(exitBtn, { BackgroundTransparency = 0.45 })
+                    tw(exitBtn, { TextColor3 = RGB(255, 255, 255) })
+                    task.delay(2.6, function()
+                        if self.destroyed or not self.exitArmed then return end
+                        self.exitArmed = false
+                        exitBtn.Text = self.compact and "🚪" or "🚪  Đăng xuất / Đổi Key"
+                        tw(exitBtn, { BackgroundTransparency = 0.88, TextColor3 = RGB(255, 150, 160) })
+                    end)
+                else
+                    self.exitArmed = false
+                    if self.OnExit then pcall(self.OnExit) end
+                end
+            end)
+
+            -- Kéo cửa sổ
+            local dragging, dragStart, dragPos = false, Vector3.zero, root.Position
+            conn(top.InputBegan, function(input: InputObject)
+                if isPress(input) then
+                    dragging = true
+                    dragStart = input.Position
+                    dragPos = root.Position
+                end
+            end)
+            conn(UserInputService.InputChanged, function(input: InputObject)
+                if dragging and isMove(input) and not self.fullscreen then
+                    local d = input.Position - dragStart
+                    root.Position = UDim2.new(dragPos.X.Scale, dragPos.X.Offset + d.X, dragPos.Y.Scale, dragPos.Y.Offset + d.Y)
+                end
+            end)
+            conn(UserInputService.InputEnded, function(input: InputObject)
+                if dragging and isPress(input) then
+                    dragging = false
+                    self:_clampPosition()
+                end
+            end)
+
+            -- Kéo góc để đổi kích thước
+            local resizing, rStart, rW, rH, rPos = false, Vector3.zero, 0, 0, root.Position
+            conn(grip.InputBegan, function(input: InputObject)
+                if isPress(input) then
+                    resizing = true
+                    self.fullscreen = false
+                    self:_syncFsIcon()
+                    rStart = input.Position
+                    rW, rH = self.W, self.H
+                    rPos = root.Position
+                end
+            end)
+            conn(UserInputService.InputChanged, function(input: InputObject)
+                if resizing and isMove(input) then
+                    local d = (input.Position - rStart) / self.scale
+                    local nw, nh = self:_clampSize(rW + d.X, rH + d.Y)
+                    self.W, self.H = nw, nh
+                    root.Size = UDim2.fromOffset(nw, nh)
+                    root.Position = UDim2.new(
+                        rPos.X.Scale, rPos.X.Offset + (nw - rW) * 0.5 * self.scale,
+                        rPos.Y.Scale, rPos.Y.Offset + (nh - rH) * 0.5 * self.scale
+                    )
+                    self:_layout()
+                end
+            end)
+            conn(UserInputService.InputEnded, function(input: InputObject)
+                if resizing and isPress(input) then
+                    resizing = false
+                    if self.OnResize then pcall(self.OnResize, self.W, self.H) end
+                end
+            end)
+
+            -- Responsive theo màn hình
+            local cam = workspace.CurrentCamera
+            if cam then
+                conn(cam:GetPropertyChangedSignal("ViewportSize"), function() self:_refreshScale(true) end)
+            end
+            self:_refreshScale(false)
+            self:_layout()
+            return self
+        end
+
+        -- ------------------------------------------------------------
+        -- Layout / kích thước / responsive
+        -- ------------------------------------------------------------
+        function Lib:_viewport(): Vector2
+            local cam = workspace.CurrentCamera
+            return cam and cam.ViewportSize or Vector2.new(1280, 720)
+        end
+
+        function Lib:_calcScale(): number
+            local vp = self:_viewport()
+            return math.clamp(math.min(vp.X / (DEFAULT_W + 60), vp.Y / (DEFAULT_H + 70)), 0.55, 1.2)
+        end
+
+        function Lib:_clampSize(w: number, h: number): (number, number)
+            local vp = self:_viewport()
+            local availW = math.max(MIN_W, math.floor((vp.X - 16) / self.scale))
+            local availH = math.max(MIN_H, math.floor((vp.Y - 16) / self.scale))
+            return math.clamp(math.floor(w + 0.5), math.min(MIN_W, availW), availW),
+                math.clamp(math.floor(h + 0.5), math.min(MIN_H, availH), availH)
+        end
+
+        function Lib:_refreshScale(animate: boolean)
+            self.scale = self:_calcScale()
+            self.Scaler.Scale = self.scale
+            self.ToastScale.Scale = math.clamp(self:_viewport().X / 700, 0.7, 1)
+            if self.fullscreen then
+                self:_applyFullscreen(false)
+            else
+                local nw, nh = self:_clampSize(self.W, self.H)
+                self.W, self.H = nw, nh
+                self.Root.Size = UDim2.fromOffset(nw, nh)
+                self:_layout()
+                self:_clampPosition()
+            end
+        end
+
+        function Lib:_clampPosition()
+            local root = self.Root
+            local vp = self:_viewport()
+            local half = Vector2.new(self.W, self.H) * self.scale * 0.5
+            local cx = vp.X * root.Position.X.Scale + root.Position.X.Offset
+            local cy = vp.Y * root.Position.Y.Scale + root.Position.Y.Offset
+            local minX, maxX = math.min(half.X, vp.X / 2) , math.max(vp.X - half.X, vp.X / 2)
+            local minY, maxY = math.min(half.Y, vp.Y / 2), math.max(vp.Y - half.Y, vp.Y / 2)
+            -- cho phép kéo lệch ra ngoài nhưng luôn chừa thanh tiêu đề trong màn hình
+            minX = math.min(minX, 80 + 0) - (half.X - 140)
+            maxX = maxX + (half.X - 140)
+            minY = math.min(minY, 0) + half.Y - 0
+            local nx = math.clamp(cx, math.min(minX, vp.X / 2), math.max(maxX, vp.X / 2))
+            local ny = math.clamp(cy, math.min(minY, vp.Y / 2), math.max(maxY, vp.Y / 2))
+            if nx ~= cx or ny ~= cy then
+                tw(root, { Position = UDim2.fromOffset(nx, ny) }, EASE_SLOW)
+            end
+        end
+
+        function Lib:_layout()
+            local compact = self.W < 640
+            self.compact = compact
+            local sw = compact and 64 or 200
+            self.Sidebar.Size = UDim2.new(0, sw, 1, -54)
+            self.Panel.Position = UDim2.fromOffset(sw, 54)
+            self.Panel.Size = UDim2.new(1, -(sw + 10), 1, -64)
+            self.StatusPill.Visible = self.W >= 700
+            self.SearchFrame.Size = UDim2.fromOffset(self.W >= 700 and 210 or (self.W >= 600 and 170 or 140), 32)
+            self.Subtitle.Visible = self.W >= 560
+            self.CollapseBtn.Size = UDim2.fromOffset(compact and 84 or 104, 28)
+            self.CollapseBtn.Text = self:_allCollapsed() and "Mở rộng tất cả" or "Thu gọn tất cả"
+            self.SideFooter.Size = UDim2.new(1, 0, 0, compact and 62 or 84)
+            self.TabScroll.Size = UDim2.new(1, 0, 1, compact and -62 or -84)
+            self.UserName.Visible = not compact
+            self.UserSub.Visible = not compact
+            self.AvatarImg.Parent.Position = compact and UDim2.new(0.5, -17, 0, 10) or UDim2.fromOffset(12, 12)
+            self.ExitBtn.Position = compact and UDim2.new(0.5, -17, 0, 48) or UDim2.new(0, 10, 0, 52)
+            self.ExitBtn.Size = compact and UDim2.fromOffset(34, 0) or UDim2.new(1, -20, 0, 26)
+            if compact then
+                self.ExitBtn.Size = UDim2.fromOffset(34, 0)
+                self.ExitBtn.Visible = false
+            else
+                self.ExitBtn.Visible = true
+            end
+            self.ExitBtn.Text = self.exitArmed and "Bấm lần nữa để xác nhận" or "🚪  Đăng xuất / Đổi Key"
+            for _, tab in ipairs(self.tabList) do tab:_applyCompact(compact) end
+        end
+
+        function Lib:SetSize(w: number, h: number, smooth: boolean?, silent: boolean?)
+            self.fullscreen = false
+            self:_syncFsIcon()
+            local nw, nh = self:_clampSize(w, h)
+            self.W, self.H = nw, nh
+            if smooth then
+                tw(self.Root, { Size = UDim2.fromOffset(nw, nh) }, EASE_SLOW)
+            else
+                self.Root.Size = UDim2.fromOffset(nw, nh)
+            end
+            self:_layout()
+            if not silent and self.OnResize then pcall(self.OnResize, nw, nh) end
+        end
+
+        function Lib:_syncFsIcon()
+            if not self.FsBox then return end
+            self.FsBox.Size = self.fullscreen and UDim2.fromOffset(9, 9) or UDim2.fromOffset(12, 12)
+        end
+
+        function Lib:_applyFullscreen(animate: boolean)
+            local vp = self:_viewport()
+            local w = math.max(MIN_W, math.floor((vp.X - 16) / self.scale))
+            local h = math.max(MIN_H, math.floor((vp.Y - 16) / self.scale))
+            self.W, self.H = w, h
+            if animate then
+                tw(self.Root, { Size = UDim2.fromOffset(w, h), Position = UDim2.fromScale(0.5, 0.5) }, EASE_SLOW)
+            else
+                self.Root.Size = UDim2.fromOffset(w, h)
+                self.Root.Position = UDim2.fromScale(0.5, 0.5)
+            end
+            self:_layout()
+        end
+
+        function Lib:ToggleFullscreen()
+            if not self.fullscreen then
+                self.preFull = { w = self.W, h = self.H, pos = self.Root.Position }
+                self.fullscreen = true
+                self:_applyFullscreen(true)
+            else
+                self.fullscreen = false
+                local pre = self.preFull or { w = DEFAULT_W, h = DEFAULT_H, pos = UDim2.fromScale(0.5, 0.5) }
+                local nw, nh = self:_clampSize(pre.w, pre.h)
+                self.W, self.H = nw, nh
+                tw(self.Root, { Size = UDim2.fromOffset(nw, nh), Position = pre.pos }, EASE_SLOW)
+                self:_layout()
+            end
+            self:_syncFsIcon()
+        end
+
+        function Lib:ResetWindow()
+            self.fullscreen = false
+            self:_syncFsIcon()
+            self.Root.Position = UDim2.fromScale(0.5, 0.5)
+            self:SetSize(DEFAULT_W, DEFAULT_H, true, false)
+        end
+
+        function Lib:IsVisible(): boolean
+            return self.Root.Visible
+        end
+
+        function Lib:SetVisible(visible: boolean)
+            self:_closeDropdown()
+            self.visToken = (self.visToken or 0) + 1
+            local my = self.visToken
+            if visible then
+                self.Root.Visible = true
+                self.Pop.Scale = 0.95
+                self.Shadow.BackgroundTransparency = 1
+                tw(self.Pop, { Scale = 1 }, EASE_SLOW)
+                tw(self.Shadow, { BackgroundTransparency = 0.55 }, EASE_SLOW)
+            else
+                tw(self.Shadow, { BackgroundTransparency = 1 }, EASE)
+                local t = tw(self.Pop, { Scale = 0.95 }, EASE)
+                if t then
+                    t.Completed:Once(function()
+                        if my == self.visToken and not self.destroyed then
+                            self.Root.Visible = false
+                            self.Pop.Scale = 1
+                        end
+                    end)
+                end
+            end
+        end
+
+        function Lib:SetSubtitle(text: string)
+            self.Subtitle.Text = text
+        end
+
+        function Lib:SetUserInfo(name: string?, sub: string?)
+            if name then self.UserName.Text = name end
+            if sub then self.UserSub.Text = sub end
+        end
+
+        function Lib:SetLogo(image: string)
+            if typeof(image) == "string" and image ~= "" then
+                self.LogoImage.Image = image
+                self.LogoImage.Visible = true
+                self.LogoText.Visible = false
+            end
+        end
+
+        function Lib:SetHint(text: string)
+            self.Hint.Text = text
+        end
+
+        function Lib:SetStatus(text: string, color: Color3?)
+            self.statusText = text
+            self.statusColor = color or P.mute
+            self:_refreshStatus()
+        end
+
+        function Lib:_refreshStatus()
+            local total = 0
+            for _, tab in ipairs(self.tabList) do total += tab.onCount or 0 end
+            self.StatusLabel.Text = total > 0 and (self.statusText .. "  ·  " .. total .. " bật") or self.statusText
+            tw(self.StatusDot, { BackgroundColor3 = self.statusColor })
+            tw(self.StatusLabel, { TextColor3 = (self.statusColor == P.mute) and P.sub or P.text })
+        end
+
+        function Lib:Destroy()
+            if self.destroyed then return end
+            self.destroyed = true
+            for _, c in ipairs(self.conns) do pcall(function() c:Disconnect() end) end
+            pcall(function() self.Gui:Destroy() end)
+        end
+
+        -- ------------------------------------------------------------
+        -- Tìm kiếm toàn bộ tính năng
+        -- ------------------------------------------------------------
+        function Lib:_applySearch(raw: string)
+            local q = fold(raw or "")
+            q = string.gsub(q, "^%s+", "")
+            q = string.gsub(q, "%s+$", "")
+            self.query = q
+            local firstHit: any = nil
+            local currentHits = 0
+            for _, tab in ipairs(self.tabList) do
+                local hits = 0
+                for _, sec in ipairs(tab.sections) do
+                    local secMatch = (q ~= "") and (string.find(sec.FoldTitle, q, 1, true) ~= nil)
+                    local any = false
+                    for _, e in ipairs(sec.elems) do
+                        local m = (q == "") or secMatch or (string.find(e.key, q, 1, true) ~= nil)
+                        if e.row.Visible ~= m then e.row.Visible = m end
+                        if m then any = true; hits += 1 end
+                    end
+                    sec.Frame.Visible = (q == "") or any or secMatch
+                    sec.Body.Visible = (not sec.collapsed) or (q ~= "")
+                end
+                tab.hits = hits
+                tab.Empty.Visible = (q ~= "") and hits == 0
+                if q ~= "" then
+                    tab.Empty.Text = "Không tìm thấy “" .. raw .. "” trong mục này."
+                end
+                if q ~= "" and hits > 0 and not firstHit then firstHit = tab end
+                if tab == self.CurrentTab then currentHits = hits end
+                tab:_refreshBadge()
+            end
+            if q ~= "" and currentHits == 0 and firstHit then
+                firstHit:Activate()
+            end
+            self:_updateHeader()
+        end
+
+        function Lib:_allCollapsed(): boolean
+            local tab = self.CurrentTab
+            if not tab or #tab.sections == 0 then return false end
+            for _, sec in ipairs(tab.sections) do
+                if not sec.collapsed then return false end
+            end
+            return true
+        end
+
+        function Lib:_toggleCollapseAll()
+            local tab = self.CurrentTab
+            if not tab then return end
+            local target = not self:_allCollapsed()
+            for _, sec in ipairs(tab.sections) do sec:SetCollapsed(target) end
+            self.CollapseBtn.Text = target and "Mở rộng tất cả" or "Thu gọn tất cả"
+        end
+
+        function Lib:_updateHeader()
+            local tab = self.CurrentTab
+            if not tab then return end
+            self.HeadTitle.Text = (tab.Emoji and (tab.Emoji .. "  ") or "") .. tab.Label
+            local total, on = 0, 0
+            for _, sec in ipairs(tab.sections) do
+                total += #sec.toggles
+                for _, t in ipairs(sec.toggles) do
+                    if t.CurrentValue then on += 1 end
+                end
+            end
+            if self.query ~= "" then
+                self.HeadSub.Text = tab.hits .. " kết quả cho “" .. self.SearchBox.Text .. "” trong mục này"
+            elseif total > 0 then
+                self.HeadSub.Text = on .. " / " .. total .. " tính năng đang bật  ·  " .. #tab.sections .. " nhóm"
+            else
+                self.HeadSub.Text = #tab.sections .. " nhóm chức năng"
+            end
+            self.CollapseBtn.Text = self:_allCollapsed() and "Mở rộng tất cả" or "Thu gọn tất cả"
+        end
+
+        -- ------------------------------------------------------------
+        -- TAB
+        -- ------------------------------------------------------------
+        function Lib:CreateTab(o: any): any
+            o = o or {}
+            local name = tostring(o.Name or "Tab")
+            local meta = TAB_META[name]
+            local emoji, label = splitEmoji(name)
+            if meta then
+                label = meta.label or label
+                emoji = meta.emoji or emoji
+            end
+            emoji = emoji or ICONMAP[o.Icon or ""] or "•"
+            local groupName = o.Group or (meta and meta.group) or nil
+            local tab: any = setmetatable({
+                Window = self, Name = name, Label = label, Emoji = emoji, Group = groupName,
+                sections = {}, onCount = 0, hits = 0, headless = nil,
+            }, TabMT)
+
+            -- Tiêu đề nhóm trong sidebar
+            if groupName and groupName ~= self.lastGroup then
+                self.lastGroup = groupName
+                local gl = Label({
+                    Name = "Group", Size = UDim2.new(1, 0, 0, 19), Text = string.upper(groupName), Font = FONT_B,
+                    TextSize = 9.5, TextColor3 = P.mute, LayoutOrder = nextOrder(),
+                }, self.TabScroll)
+                Pad(gl, 5, 0, 0, 8)
+                tab.GroupLabel = gl
+                tab.GroupText = string.upper(groupName)
+            end
+
+            -- Nút tab
+            local btn = Button({
+                Name = "Tab", Size = UDim2.new(1, 0, 0, 33), BackgroundColor3 = P.card, BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+            }, self.TabScroll)
+            Round(btn, 8)
+            tab.Btn = btn
+            tab.Indicator = Frame({
+                Name = "Indicator", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 0, 0.5, 0),
+                Size = UDim2.fromOffset(3, 0), BackgroundColor3 = P.accent,
+            }, btn)
+            Round(tab.Indicator, "full")
+            tab.Chip = Frame({
+                Name = "Chip", Position = UDim2.fromOffset(8, 4), Size = UDim2.fromOffset(25, 25), BackgroundColor3 = P.card2,
+            }, btn)
+            Round(tab.Chip, 7)
+            tab.ChipText = Label({
+                Name = "Emoji", Size = UDim2.fromScale(1, 1), Text = emoji, TextSize = 13.5, TextXAlignment = XC,
+            }, tab.Chip)
+            tab.TabLabel = Label({
+                Name = "Label", Position = UDim2.fromOffset(40, 0), Size = UDim2.new(1, -40 - 36, 1, 0), Text = label,
+                Font = FONT_M, TextSize = 12.5, TextColor3 = P.sub, TextTruncate = Enum.TextTruncate.AtEnd,
+            }, btn)
+            tab.Badge = Frame({
+                Name = "Badge", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
+                Size = UDim2.fromOffset(0, 18), AutomaticSize = AUTO_X, BackgroundColor3 = P.accent,
+                BackgroundTransparency = 0.84, Visible = false,
+            }, btn)
+            Round(tab.Badge, "full")
+            Pad(tab.Badge, 0, 7, 0, 7)
+            tab.BadgeText = Label({
+                Name = "N", Text = "0", Font = FONT_B, TextSize = 10.5, TextColor3 = P.accent,
+                Size = UDim2.fromOffset(0, 18), AutomaticSize = AUTO_X, TextXAlignment = XC,
+            }, tab.Badge)
+
+            -- Trang nội dung
+            local page = mk("ScrollingFrame", {
+                Name = name, BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1),
+                CanvasSize = UDim2.new(), AutomaticCanvasSize = AUTO_Y, ScrollBarThickness = 4,
+                ScrollBarImageColor3 = P.stroke, ScrollBarImageTransparency = 0.2,
+                ScrollingDirection = Enum.ScrollingDirection.Y, ElasticBehavior = Enum.ElasticBehavior.Never,
+                Visible = false, TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
+                BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
+                MidImage = "rbxasset://textures/ui/Scroll/scroll-middle.png",
+            }, nil, self.Pages)
+            Pad(page, 14, 16, 18, 14)
+            List(page, 10)
+            tab.Page = page
+            tab.Empty = Label({
+                Name = "Empty", Size = UDim2.new(1, 0, 0, 80), Text = "", Font = FONT, TextSize = 13, TextColor3 = P.mute,
+                TextXAlignment = XC, Visible = false, LayoutOrder = 1000000,
+            }, page)
+            self._conn(page.ChildAdded, function(ch: Instance)
+                if ch:IsA("GuiObject") and ch.Name == "QRCard" then
+                    local firstSec = tab.sections[1]
+                    ch.LayoutOrder = (firstSec and firstSec.Frame and firstSec.Frame.LayoutOrder or 10) + 5
+                end
+            end)
+
+            btn.MouseEnter:Connect(function()
+                if self.CurrentTab ~= tab then tw(btn, { BackgroundTransparency = 0.55 }) end
+            end)
+            btn.MouseLeave:Connect(function()
+                if self.CurrentTab ~= tab then tw(btn, { BackgroundTransparency = 1 }) end
+            end)
+            btn.MouseButton1Click:Connect(function() tab:Activate() end)
+
+            table.insert(self.tabList, tab)
+            self.tabs[name] = tab
+            tab:_applyCompact(self.compact)
+            if not self.CurrentTab then tab:Activate(true) end
+            return tab
+        end
+
+        TabMT.__index = function(t: any, k: any)
+            local m = rawget(TabMT, k)
+            if m ~= nil then return m end
+            if type(k) == "string" and string.sub(k, 1, 6) == "Create" then
+                return function(self: any, ...)
+                    if not self.headless then self.headless = self:CreateSection("") end
+                    return self.headless[k](self.headless, ...)
+                end
+            end
+            return nil
+        end
+
+        function TabMT:_applyCompact(compact: boolean)
+            self.TabLabel.Visible = not compact
+            self.Chip.Position = compact and UDim2.new(0.5, -12, 0, 4) or UDim2.fromOffset(8, 4)
+            if self.GroupLabel then
+                self.GroupLabel.Text = compact and "" or self.GroupText
+                self.GroupLabel.Size = UDim2.new(1, 0, 0, compact and 8 or 19)
+            end
+            self:_refreshBadge()
+        end
+
+        function TabMT:_style(active: boolean, instant: boolean?)
+            local info = instant and TweenInfo.new(0) or EASE
+            tw(self.Btn, { BackgroundTransparency = active and 0 or 1 }, info)
+            tw(self.Indicator, { Size = UDim2.fromOffset(3, active and 18 or 0) }, info)
+            tw(self.TabLabel, { TextColor3 = active and P.text or P.sub }, info)
+            tw(self.Chip, { BackgroundColor3 = active and P.accent or P.card2, BackgroundTransparency = active and 0.8 or 0 }, info)
+        end
+
+        function TabMT:_refreshBadge()
+            local win = self.Window
+            local n = self.onCount or 0
+            local searching = win.query ~= ""
+            local val = searching and (self.hits or 0) or n
+            self.BadgeText.Text = tostring(val)
+            self.Badge.Visible = (not win.compact) and val > 0
+            if searching then
+                tw(self.Badge, { BackgroundColor3 = P.info })
+                tw(self.BadgeText, { TextColor3 = P.info })
+                tw(self.TabLabel, { TextTransparency = (self.hits or 0) == 0 and 0.6 or 0 })
+            else
+                tw(self.Badge, { BackgroundColor3 = P.accent })
+                tw(self.BadgeText, { TextColor3 = P.accent })
+                tw(self.TabLabel, { TextTransparency = 0 })
+            end
+        end
+
+        function TabMT:_recount()
+            local on = 0
+            for _, sec in ipairs(self.sections) do
+                for _, t in ipairs(sec.toggles) do
+                    if t.CurrentValue then on += 1 end
+                end
+            end
+            self.onCount = on
+            self:_refreshBadge()
+            local win = self.Window
+            win:_refreshStatus()
+            if win.CurrentTab == self then win:_updateHeader() end
+        end
+
+        function TabMT:Activate(instant: boolean?)
+            local win = self.Window
+            win:_closeDropdown()
+            if win.CurrentTab == self and self.Page.Visible then return end
+            local prev = win.CurrentTab
+            win.CurrentTab = self
+            for _, t in ipairs(win.tabList) do
+                local active = (t == self)
+                t:_style(active, instant or t ~= self and t ~= prev)
+                if not active then t.Page.Visible = false end
+            end
+            self.Page.Visible = true
+            if not instant then
+                self.Page.Position = UDim2.fromOffset(0, 10)
+                tw(self.Page, { Position = UDim2.fromOffset(0, 0) }, EASE_SLOW)
+            end
+            win.CurrentTab = self
+            win:_updateHeader()
+        end
+
+        function TabMT:CreateSection(arg: any): any
+            local title = type(arg) == "table" and tostring(arg.Name or "") or tostring(arg or "")
+            local tab = self
+            local sec: any = setmetatable({
+                Tab = self, Window = self.Window, Title = title, FoldTitle = fold(title),
+                elems = {}, toggles = {}, collapsed = false,
+            }, SectionMT)
+
+            local frame = Frame({
+                Name = "Section", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y, BackgroundColor3 = P.card,
+                LayoutOrder = nextOrder(),
+            }, self.Page)
+            Round(frame, 12)
+            Stroke(frame, P.strokeSoft, 1, 0)
+            List(frame, 0)
+            sec.Frame = frame
+
+            if title ~= "" then
+                local head = Button({
+                    Name = "Header", Size = UDim2.new(1, 0, 0, 42), LayoutOrder = 1,
+                }, frame)
+                local bar = Frame({
+                    Name = "Bar", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.5, 0),
+                    Size = UDim2.fromOffset(3, 15), BackgroundColor3 = Color3.new(1, 1, 1),
+                }, head)
+                Round(bar, "full")
+                Grad(bar, P.accent, P.accent2, 90)
+                Label({
+                    Name = "Title", Position = UDim2.fromOffset(28, 0), Size = UDim2.new(1, -110, 1, 0), Text = title,
+                    Font = FONT_B, TextSize = 13, TextTruncate = Enum.TextTruncate.AtEnd,
+                }, head)
+                sec.Count = Frame({
+                    Name = "Count", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -38, 0.5, 0),
+                    Size = UDim2.fromOffset(0, 20), AutomaticSize = AUTO_X, BackgroundColor3 = P.accent,
+                    BackgroundTransparency = 0.86, Visible = false,
+                }, head)
+                Round(sec.Count, "full")
+                Pad(sec.Count, 0, 8, 0, 8)
+                sec.CountText = Label({
+                    Name = "N", Text = "0/0", Font = FONT_B, TextSize = 10.5, TextColor3 = P.accent,
+                    Size = UDim2.fromOffset(0, 20), AutomaticSize = AUTO_X, TextXAlignment = XC,
+                }, sec.Count)
+                sec.Chevron = Label({
+                    Name = "Chevron", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -20, 0.5, 0),
+                    Size = UDim2.fromOffset(18, 18), Text = ">", Font = FONT_B, TextSize = 14, TextColor3 = P.sub,
+                    TextXAlignment = XC, Rotation = 90,
+                }, head)
+                head.MouseButton1Click:Connect(function() sec:SetCollapsed(not sec.collapsed) end)
+                head.MouseEnter:Connect(function() tw(sec.Chevron, { TextColor3 = P.text }) end)
+                head.MouseLeave:Connect(function() tw(sec.Chevron, { TextColor3 = P.sub }) end)
+                sec.Head = head
+            end
+
+            local body = Frame({
+                Name = "Body", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y, BackgroundTransparency = 1,
+                LayoutOrder = 2,
+            }, frame)
+            Pad(body, title ~= "" and 0 or 6, 8, 8, 8)
+            List(body, 2)
+            sec.Body = body
+
+            table.insert(self.sections, sec)
+            return sec
+        end
+
+        -- ------------------------------------------------------------
+        -- SECTION
+        -- ------------------------------------------------------------
+        function SectionMT:SetCollapsed(c: boolean)
+            self.collapsed = c
+            self.Body.Visible = (not c) or (self.Window.query ~= "")
+            if self.Chevron then
+                tw(self.Chevron, { Rotation = c and 0 or 90 })
+            end
+        end
+
+        function SectionMT:_recount()
+            local total, on = #self.toggles, 0
+            for _, t in ipairs(self.toggles) do
+                if t.CurrentValue then on += 1 end
+            end
+            if self.Count then
+                self.Count.Visible = total > 0
+                self.CountText.Text = on .. "/" .. total
+                tw(self.Count, { BackgroundTransparency = on > 0 and 0.78 or 0.92 })
+                tw(self.CountText, { TextColor3 = on > 0 and P.accent or P.sub })
+            end
+            self.Tab:_recount()
+        end
+
+        function SectionMT:_register(row: any, name: string, desc: string?)
+            table.insert(self.elems, { row = row, key = fold(name .. " " .. (desc or "")) })
+        end
+
+        function SectionMT:_row(clickable: boolean, minH: number?): any
+            local row
+            local props = {
+                Name = "Row", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y, BackgroundColor3 = P.hover,
+                BackgroundTransparency = 1, LayoutOrder = nextOrder(),
+            }
+            if clickable then
+                row = Button(props, self.Body)
+                row.MouseEnter:Connect(function() tw(row, { BackgroundTransparency = 0.45 }) end)
+                row.MouseLeave:Connect(function() tw(row, { BackgroundTransparency = 1 }) end)
+            else
+                row = Frame(props, self.Body)
+            end
+            Round(row, 9)
+            Pad(row, 9, 12, 9, 12)
+            mk("UISizeConstraint", { MinSize = Vector2.new(0, minH or 44) }, nil, row)
+            return row
+        end
+
+        local function buildInfo(parent: Instance, name: string, desc: string?, wScale: number, wOff: number): (any, any, any)
+            local info = Frame({
+                Name = "Info", BackgroundTransparency = 1, Size = UDim2.new(wScale, wOff, 0, 0), AutomaticSize = AUTO_Y,
+                AnchorPoint = Vector2.new(0, 0), Position = UDim2.fromOffset(0, 0),
+            }, parent)
+            mk("UISizeConstraint", { MinSize = Vector2.new(0, 26) }, nil, info)
+            mk("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 2),
+                FillDirection = Enum.FillDirection.Vertical, VerticalAlignment = Enum.VerticalAlignment.Center,
+            }, nil, info)
+            local title = Label({
+                Name = "Title", Text = name, Font = FONT_M, TextSize = 13, Size = UDim2.new(1, 0, 0, 0),
+                AutomaticSize = AUTO_Y, TextWrapped = true, LayoutOrder = 1,
+            }, info)
+            local d: any = nil
+            if desc and desc ~= "" then
+                d = Label({
+                    Name = "Desc", Text = desc, Font = FONT, TextSize = 11.5, TextColor3 = P.sub,
+                    Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y, TextWrapped = true,
+                    TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 2,
+                }, info)
+            end
+            return info, title, d
+        end
+
+        local function safeCall(win: any, row: any, name: string, cb: any, ...: any)
+            local ok, err = pcall(cb, ...)
+            if not ok then
+                warn("[YokaHub UI] Callback lỗi · " .. name .. " · " .. tostring(err))
+                if row and row.Parent then
+                    row.BackgroundColor3 = P.danger
+                    tw(row, { BackgroundTransparency = 0.7 })
+                    task.delay(0.7, function()
+                        if row and row.Parent then
+                            row.BackgroundColor3 = P.hover
+                            tw(row, { BackgroundTransparency = 1 })
+                        end
+                    end)
+                end
+            end
+        end
+
+        -- ============ TOGGLE ============
+        function SectionMT:CreateToggle(opts: any, flag: any?): any
+            opts = type(opts) == "table" and opts or {}
+            local name = tostring(opts.Name or "Toggle")
+            local cb = opts.Callback or function() end
+            local win = self.Window
+            local row = self:_row(true)
+            local info, title, descLbl = buildInfo(row, name, opts.Description, 1, -56)
+            local sw = Frame({
+                Name = "Switch", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.fromScale(1, 0.5),
+                Size = UDim2.fromOffset(40, 22), BackgroundColor3 = P.off,
+            }, row)
+            Round(sw, "full")
+            local fill = Frame({
+                Name = "Fill", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1),
+                BackgroundTransparency = 1,
+            }, sw)
+            Round(fill, "full")
+            Grad(fill, P.accent, P.accent2, 0)
+            local knob = Frame({
+                Name = "Knob", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 3, 0.5, 0),
+                Size = UDim2.fromOffset(16, 16), BackgroundColor3 = P.knobOff, ZIndex = 2,
+            }, sw)
+            Round(knob, "full")
+
+            local obj: any = { Class = "Toggle", Name = name, CurrentValue = opts.CurrentValue == true, Row = row }
+            local sec = self
+
+            local function render(instant: boolean?)
+                local on = obj.CurrentValue
+                local pos = on and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
+                local kc = on and Color3.new(1, 1, 1) or P.knobOff
+                if instant then
+                    fill.BackgroundTransparency = on and 0 or 1
+                    knob.Position = pos
+                    knob.BackgroundColor3 = kc
+                else
+                    tw(fill, { BackgroundTransparency = on and 0 or 1 })
+                    tw(knob, { Position = pos, BackgroundColor3 = kc })
+                end
+            end
+
+            local function fire()
+                safeCall(win, row, name, cb, obj.CurrentValue)
+            end
+
+            row.MouseButton1Click:Connect(function()
+                obj.CurrentValue = not obj.CurrentValue
+                render()
+                sec:_recount()
+                fire()
+            end)
+
+            function obj:Set(v: any)
+                local val = v
+                if type(v) == "table" then
+                    val = v.CurrentValue
+                    if v.Name then title.Text = tostring(v.Name) end
+                    if v.Description and descLbl then descLbl.Text = tostring(v.Description) end
+                    if v.Callback then cb = v.Callback end
+                end
+                if val == nil then val = obj.CurrentValue end
+                obj.CurrentValue = val and true or false
+                render()
+                sec:_recount()
+                fire()
+            end
+            function obj:UpdateState(v: boolean)
+                obj.CurrentValue = v and true or false
+                render()
+                sec:_recount()
+            end
+            function obj:Destroy()
+                row:Destroy()
+                local i = table.find(sec.toggles, obj)
+                if i then table.remove(sec.toggles, i) end
+                for j, e in ipairs(sec.elems) do
+                    if e.row == row then table.remove(sec.elems, j) break end
+                end
+                sec:_recount()
+            end
+
+            render(true)
+            table.insert(self.toggles, obj)
+            self:_register(row, name, opts.Description)
+            if obj.CurrentValue then fire() end
+            self:_recount()
+            return obj
+        end
+
+        -- ============ BUTTON ============
+        function SectionMT:CreateButton(opts: any): any
+            opts = type(opts) == "table" and opts or {}
+            local name = tostring(opts.Name or "Button")
+            local cb = opts.Callback or function() end
+            local danger = opts.Style == "danger" or string.find(name, "Tắt hoàn toàn", 1, true) ~= nil
+                or string.find(name, "THOÁT", 1, true) ~= nil or string.find(name, "Dừng toàn bộ", 1, true) ~= nil
+                or string.find(name, "⛔", 1, true) ~= nil
+            local accent = danger and P.danger or P.accent
+            local win = self.Window
+            local row = self:_row(true)
+            local info, title, descLbl = buildInfo(row, name, opts.Description, 1, -44)
+            if danger then title.TextColor3 = RGB(255, 190, 196) end
+            local chip = Frame({
+                Name = "Chip", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.fromScale(1, 0.5),
+                Size = UDim2.fromOffset(30, 26), BackgroundColor3 = accent, BackgroundTransparency = 0.86,
+            }, row)
+            Round(chip, 8)
+            local chipStroke = Stroke(chip, accent, 1, 0.7)
+            local arrow = Label({
+                Name = "Arrow", Size = UDim2.fromScale(1, 1), Text = ">", Font = FONT_B, TextSize = 14,
+                TextColor3 = accent, TextXAlignment = XC,
+            }, chip)
+            row.MouseEnter:Connect(function()
+                tw(chip, { BackgroundTransparency = 0.65 })
+                tw(chipStroke, { Transparency = 0.3 })
+            end)
+            row.MouseLeave:Connect(function()
+                tw(chip, { BackgroundTransparency = 0.86 })
+                tw(chipStroke, { Transparency = 0.7 })
+            end)
+            local obj: any = { Class = "Button", Name = name, Row = row }
+            row.MouseButton1Click:Connect(function()
+                chip.BackgroundTransparency = 0.2
+                tw(chip, { BackgroundTransparency = 0.86 }, EASE_SLOW)
+                safeCall(win, row, name, cb)
+            end)
+            function obj:Set(v: any)
+                if type(v) == "table" then
+                    if v.Name then title.Text = tostring(v.Name) end
+                    if v.Description and descLbl then descLbl.Text = tostring(v.Description) end
+                    if type(v.Callback) == "function" then cb = v.Callback end
+                end
+            end
+            function obj:Destroy() row:Destroy() end
+            self:_register(row, name, opts.Description)
+            return obj
+        end
+
+        -- ============ PARAGRAPH ============
+        function SectionMT:CreateParagraph(opts: any): any
+            opts = type(opts) == "table" and opts or {}
+            local titleText = tostring(opts.Title or "")
+            local bodyText = tostring(opts.Text or opts.Content or "")
+            local win = self.Window
+            local isStatusPara = string.find(titleText, "Trạng thái", 1, true) ~= nil
+            local card = Frame({
+                Name = "Paragraph", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y,
+                BackgroundColor3 = RGB(20, 34, 38), LayoutOrder = nextOrder(),
+            }, self.Body)
+            Round(card, 9)
+            Stroke(card, P.accent, 1, 0.72)
+            Pad(card, 10, 14, 11, 14)
+            mk("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }, nil, card)
+            local t = Label({
+                Name = "Title", Text = titleText, Font = FONT_B, TextSize = 13, TextColor3 = P.accent,
+                Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y, TextWrapped = true, LayoutOrder = 1,
+                Visible = titleText ~= "",
+            }, card)
+            local b = Label({
+                Name = "Text", Text = bodyText, Font = FONT, TextSize = 12.5, TextColor3 = RGB(212, 222, 234),
+                Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y, TextWrapped = true, LineHeight = 1.25,
+                TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 2,
+            }, card)
+            if isStatusPara and bodyText ~= "" then
+                win:SetHint(bodyText)
+            end
+            local obj: any = { Class = "Paragraph", Row = card, Settings = { Title = titleText, Text = bodyText } }
+            function obj:Set(v: any)
+                if type(v) ~= "table" then return end
+                if v.Title ~= nil and tostring(v.Title) ~= t.Text then
+                    t.Text = tostring(v.Title)
+                    t.Visible = t.Text ~= ""
+                end
+                local nt = v.Text ~= nil and v.Text or v.Content
+                if nt ~= nil and tostring(nt) ~= b.Text then
+                    b.Text = tostring(nt)
+                    if isStatusPara then
+                        win:SetHint(b.Text)
+                    end
+                end
+            end
+            function obj:Update() end
+            function obj:Destroy() card:Destroy() end
+            self:_register(card, titleText, bodyText)
+            return obj
+        end
+
+        -- ============ LABEL ============
+        function SectionMT:CreateLabel(opts: any): any
+            opts = type(opts) == "table" and opts or { Text = tostring(opts) }
+            local row = self:_row(false, 32)
+            local l = Label({
+                Name = "Text", Text = tostring(opts.Text or ""), Font = FONT, TextSize = 12.5, TextColor3 = P.sub,
+                Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y, TextWrapped = true,
+            }, row)
+            local obj: any = { Row = row }
+            function obj:Set(v: any)
+                if type(v) == "table" then v = v.Text end
+                l.Text = tostring(v or "")
+            end
+            function obj:Destroy() row:Destroy() end
+            self:_register(row, l.Text, "")
+            return obj
+        end
+
+        function SectionMT:CreateDivider()
+            local f = Frame({
+                Name = "Divider", Size = UDim2.new(1, -8, 0, 1), BackgroundColor3 = P.strokeSoft, LayoutOrder = nextOrder(),
+            }, self.Body)
+            return { Destroy = function() f:Destroy() end }
+        end
+
+        function SectionMT:CreateCustom(height: number): any
+            local f = Frame({
+                Name = "Custom", Size = UDim2.new(1, 0, 0, height or 100), BackgroundTransparency = 1, LayoutOrder = nextOrder(),
+            }, self.Body)
+            self:_register(f, "", "")
+            return f
+        end
+
+        -- ============ SLIDER ============
+        function SectionMT:CreateSlider(opts: any, flag: any?): any
+            opts = type(opts) == "table" and opts or {}
+            local name = tostring(opts.Name or "Slider")
+            local range = opts.Range or { 0, 100 }
+            local lo, hi = range[1], range[2]
+            local inc = opts.Increment or 1
+            local suffix = tostring(opts.Suffix or "")
+            local cb = opts.Callback or function() end
+            local win = self.Window
+            local hasDesc = opts.Description ~= nil and opts.Description ~= ""
+
+            local row = self:_row(false)
+            row.AutomaticSize = Enum.AutomaticSize.None
+            row.Size = UDim2.new(1, 0, 0, hasDesc and 78 or 62)
+            local title = Label({
+                Name = "Title", Size = UDim2.new(1, -112, 0, 18), Text = name, Font = FONT_M, TextSize = 13,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+            }, row)
+            if hasDesc then
+                Label({
+                    Name = "Desc", Position = UDim2.fromOffset(0, 19), Size = UDim2.new(1, -112, 0, 16), Text = opts.Description,
+                    Font = FONT, TextSize = 11.5, TextColor3 = P.sub, TextTruncate = Enum.TextTruncate.AtEnd,
+                }, row)
+            end
+            local valBox = Box({
+                Name = "Value", AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0),
+                Size = UDim2.fromOffset(98, 24), BackgroundTransparency = 0, BackgroundColor3 = P.card2,
+                Font = FONT_B, TextSize = 12, TextColor3 = P.accent, TextXAlignment = XC, ClearTextOnFocus = false,
+            }, row)
+            Round(valBox, 7)
+            local valStroke = Stroke(valBox, P.strokeSoft, 1, 0)
+
+            local trackY = hasDesc and 52 or 38
+            local hit = Button({
+                Name = "Hit", Position = UDim2.fromOffset(0, trackY - 8), Size = UDim2.new(1, 0, 0, 22),
+            }, row)
+            local track = Frame({
+                Name = "Track", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromScale(0, 0.5),
+                Size = UDim2.new(1, 0, 0, 6), BackgroundColor3 = P.off,
+            }, hit)
+            Round(track, "full")
+            local fillBar = Frame({
+                Name = "Fill", Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1),
+            }, track)
+            Round(fillBar, "full")
+            Grad(fillBar, P.accent, P.accent2, 0)
+            local knob = Frame({
+                Name = "Knob", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5),
+                Size = UDim2.fromOffset(14, 14), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 2,
+            }, track)
+            Round(knob, "full")
+            Stroke(knob, P.accent, 2, 0)
+
+            local function snap(v: number): number
+                v = math.clamp(v, lo, hi)
+                if inc and inc > 0 then
+                    v = lo + math.floor((v - lo) / inc + 0.5) * inc
+                    v = math.clamp(v, lo, hi)
+                end
+                return tonumber(string.format("%.4f", v)) or v
+            end
+            local obj: any = { Class = "Slider", Name = name, Row = row, CurrentValue = snap(opts.CurrentValue or lo) }
+
+            local function fmt(v: number): string
+                if v == math.floor(v) then return tostring(math.floor(v)) .. suffix end
+                return tostring(v) .. suffix
+            end
+            local function render(v: number, animate: boolean?)
+                local frac = (hi > lo) and (v - lo) / (hi - lo) or 0
+                if animate then
+                    tw(fillBar, { Size = UDim2.fromScale(frac, 1) }, TweenInfo.new(0.08))
+                    tw(knob, { Position = UDim2.fromScale(frac, 0.5) }, TweenInfo.new(0.08))
+                else
+                    fillBar.Size = UDim2.fromScale(frac, 1)
+                    knob.Position = UDim2.fromScale(frac, 0.5)
+                end
+                if not valBox:IsFocused() then valBox.Text = fmt(v) end
+            end
+            local function commit(v: number, fireCb: boolean)
+                v = snap(v)
+                local changed = v ~= obj.CurrentValue
+                obj.CurrentValue = v
+                render(v, true)
+                if fireCb and changed then safeCall(win, row, name, cb, v) end
+            end
+
+            local dragging = false
+            local function fromInput(input: InputObject)
+                local w = track.AbsoluteSize.X
+                if w <= 0 then return end
+                local frac = math.clamp((input.Position.X - track.AbsolutePosition.X) / w, 0, 1)
+                commit(lo + frac * (hi - lo), true)
+            end
+            win._conn(hit.InputBegan, function(input: InputObject)
+                if isPress(input) then
+                    dragging = true
+                    tw(knob, { Size = UDim2.fromOffset(18, 18) })
+                    fromInput(input)
+                end
+            end)
+            win._conn(UserInputService.InputChanged, function(input: InputObject)
+                if dragging and isMove(input) then fromInput(input) end
+            end)
+            win._conn(UserInputService.InputEnded, function(input: InputObject)
+                if dragging and isPress(input) then
+                    dragging = false
+                    tw(knob, { Size = UDim2.fromOffset(14, 14) })
+                end
+            end)
+            win._conn(valBox.Focused, function()
+                valBox.Text = tostring(obj.CurrentValue)
+                tw(valStroke, { Color = P.accent })
+            end)
+            win._conn(valBox.FocusLost, function()
+                tw(valStroke, { Color = P.strokeSoft })
+                local n = tonumber(string.match(valBox.Text, "-?%d+%.?%d*"))
+                if n then commit(n, true) end
+                valBox.Text = fmt(obj.CurrentValue)
+            end)
+
+            function obj:Set(v: any)
+                local val = v
+                if type(v) == "table" then
+                    val = v.CurrentValue
+                    if v.Name then title.Text = tostring(v.Name) end
+                    if v.Callback then cb = v.Callback end
+                end
+                val = snap(tonumber(val) or obj.CurrentValue)
+                obj.CurrentValue = val
+                render(val, true)
+                safeCall(win, row, name, cb, val)
+            end
+            function obj:UpdateValue(v: any) obj:Set(tonumber(v)) end
+            function obj:Destroy() row:Destroy() end
+
+            render(obj.CurrentValue)
+            self:_register(row, name, opts.Description)
+            safeCall(win, row, name, cb, obj.CurrentValue)
+            return obj
+        end
+
+        -- ============ INPUT ============
+        function SectionMT:CreateInput(opts: any, flag: any?): any
+            opts = type(opts) == "table" and opts or {}
+            local name = tostring(opts.Name or "Input")
+            local cb = opts.Callback or function() end
+            local win = self.Window
+            local row = self:_row(false)
+            local info, title, descLbl = buildInfo(row, name, opts.Description, 0.5, -8)
+            local holder = Frame({
+                Name = "Field", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.fromScale(1, 0.5),
+                Size = UDim2.new(0.44, 0, 0, 30), BackgroundColor3 = P.card2,
+            }, row)
+            Round(holder, 8)
+            local st = Stroke(holder, P.strokeSoft, 1, 0)
+            mk("UISizeConstraint", { MinSize = Vector2.new(110, 30), MaxSize = Vector2.new(240, 30) }, nil, holder)
+            local box = Box({
+                Name = "Input", Size = UDim2.new(1, -20, 1, 0), Position = UDim2.fromOffset(10, 0),
+                PlaceholderText = tostring(opts.PlaceholderText or ""), Text = tostring(opts.CurrentValue or ""),
+                TextTruncate = Enum.TextTruncate.AtEnd,
+            }, holder)
+            local obj: any = { Class = "Input", Name = name, Row = row, CurrentValue = box.Text }
+            win._conn(box.Focused, function() tw(st, { Color = P.accent }) end)
+            win._conn(box.FocusLost, function(enter: boolean)
+                tw(st, { Color = P.strokeSoft })
+                local txt = box.Text
+                if opts.Numeric then txt = string.gsub(txt, "[^%d%.%-]", "") box.Text = txt end
+                obj.CurrentValue = txt
+                safeCall(win, row, name, cb, txt)
+                if opts.RemoveTextAfterFocusLost then box.Text = "" end
+            end)
+            function obj:Set(v: any)
+                if type(v) == "table" then
+                    if v.CurrentValue ~= nil then box.Text = tostring(v.CurrentValue) end
+                    if v.Name then title.Text = tostring(v.Name) end
+                else
+                    box.Text = tostring(v or "")
+                end
+                obj.CurrentValue = box.Text
+            end
+            function obj:Destroy() row:Destroy() end
+            self:_register(row, name, opts.Description)
+            return obj
+        end
+
+        -- ============ DROPDOWN ============
+        local function normalizeSel(cur: any, multi: boolean): { string }
+            local out = {}
+            if type(cur) == "string" then
+                out = { cur }
+            elseif type(cur) == "table" then
+                for _, v in ipairs(cur) do
+                    if v ~= nil then table.insert(out, tostring(v)) end
+                end
+            end
+            if not multi and #out > 1 then out = { out[1] } end
+            return out
+        end
+
+        function Lib:_closeDropdown()
+            if self.ddClose then
+                local f = self.ddClose
+                self.ddClose = nil
+                pcall(f)
+            end
+        end
+
+        function Lib:_openDropdown(anchor: any, cfg: any)
+            self:_closeDropdown()
+            local root = self.Root
+            local s = self.scale
+            local options = cfg.options
+            local multi = cfg.multi
+            local hasSearch = #options > 8
+
+            local blocker = Button({ Name = "DropdownBlocker", Size = UDim2.fromScale(1, 1), ZIndex = 60 }, root)
+            local popW = math.max(anchor.AbsoluteSize.X / s, 210)
+            local rowH = 32
+            local bodyH = math.max(42, math.min(#options * (rowH + 2) + 10, 250))
+            local popH = bodyH + (hasSearch and 44 or 0)
+            local bx = (anchor.AbsolutePosition.X - root.AbsolutePosition.X) / s
+            local by = (anchor.AbsolutePosition.Y - root.AbsolutePosition.Y) / s
+            local bw = anchor.AbsoluteSize.X / s
+            local bh = anchor.AbsoluteSize.Y / s
+            local x = math.clamp(bx + bw - popW, 8, math.max(8, self.W - popW - 8))
+            local y = by + bh + 6
+            if y + popH > self.H - 8 then y = by - popH - 6 end
+            y = math.clamp(y, 8, math.max(8, self.H - popH - 8))
+
+            local pop = Frame({
+                Name = "Dropdown", Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(popW, popH),
+                BackgroundColor3 = RGB(24, 28, 39), ZIndex = 61,
+            }, root)
+            Round(pop, 11)
+            Stroke(pop, P.accent, 1, 0.55)
+            local sc = mk("UIScale", { Scale = 0.94 }, nil, pop)
+            tw(sc, { Scale = 1 }, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+
+            local filterText = ""
+            local listFrame = mk("ScrollingFrame", {
+                Name = "List", BackgroundTransparency = 1, BorderSizePixel = 0,
+                Position = UDim2.fromOffset(0, hasSearch and 44 or 0), Size = UDim2.new(1, 0, 0, bodyH),
+                CanvasSize = UDim2.new(), AutomaticCanvasSize = AUTO_Y, ScrollBarThickness = 3,
+                ScrollBarImageColor3 = P.stroke, ScrollingDirection = Enum.ScrollingDirection.Y, ZIndex = 62,
+            }, nil, pop)
+            Pad(listFrame, 5, 5, 5, 5)
+            List(listFrame, 2)
+
+            local buttons: { [string]: any } = {}
+            local selected: { [string]: boolean } = {}
+            for _, v in ipairs(cfg.current()) do selected[v] = true end
+
+            local function paint(btn: any, opt: string, instant: boolean?)
+                local on = selected[opt] == true
+                local lbl = btn:FindFirstChild("L")
+                local dot = btn:FindFirstChild("Dot")
+                local props = { BackgroundTransparency = on and 0.8 or 1 }
+                if instant then
+                    btn.BackgroundTransparency = props.BackgroundTransparency
+                    lbl.TextColor3 = on and P.accent or P.text
+                    lbl.Font = on and FONT_B or FONT_M
+                    dot.BackgroundTransparency = on and 0 or 1
+                else
+                    tw(btn, props)
+                    tw(lbl, { TextColor3 = on and P.accent or P.text })
+                    lbl.Font = on and FONT_B or FONT_M
+                    tw(dot, { BackgroundTransparency = on and 0 or 1 })
+                end
+            end
+
+            for i, opt in ipairs(options) do
+                local b = Button({
+                    Name = "Opt", Size = UDim2.new(1, 0, 0, rowH), BackgroundColor3 = P.accent, BackgroundTransparency = 1,
+                    LayoutOrder = i, ZIndex = 63,
+                }, listFrame)
+                Round(b, 8)
+                Label({
+                    Name = "L", Position = UDim2.fromOffset(11, 0), Size = UDim2.new(1, -34, 1, 0), Text = opt,
+                    Font = FONT_M, TextSize = 12.5, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 64,
+                }, b)
+                local dot = Frame({
+                    Name = "Dot", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -11, 0.5, 0),
+                    Size = UDim2.fromOffset(8, 8), BackgroundColor3 = P.accent, BackgroundTransparency = 1, ZIndex = 64,
+                }, b)
+                Round(dot, "full")
+                buttons[opt] = b
+                paint(b, opt, true)
+                b.MouseEnter:Connect(function()
+                    if not selected[opt] then tw(b, { BackgroundColor3 = P.hover, BackgroundTransparency = 0.3 }) end
+                end)
+                b.MouseLeave:Connect(function()
+                    if not selected[opt] then tw(b, { BackgroundTransparency = 1 }) end
+                end)
+                b.MouseButton1Click:Connect(function()
+                    if multi then
+                        selected[opt] = not selected[opt] or nil
+                        b.BackgroundColor3 = P.accent
+                        paint(b, opt)
+                        local list = {}
+                        for _, o2 in ipairs(options) do
+                            if selected[o2] then table.insert(list, o2) end
+                        end
+                        cfg.pick(list)
+                    else
+                        cfg.pick({ opt })
+                        self:_closeDropdown()
+                    end
+                end)
+            end
+
+            if hasSearch then
+                local sf = Frame({
+                    Name = "Search", Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 30),
+                    BackgroundColor3 = P.card2, ZIndex = 62,
+                }, pop)
+                Round(sf, 8)
+                Stroke(sf, P.strokeSoft, 1, 0)
+                local sb = Box({
+                    Name = "In", Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -20, 1, 0),
+                    PlaceholderText = "Lọc danh sách…", ZIndex = 63,
+                }, sf)
+                sb:GetPropertyChangedSignal("Text"):Connect(function()
+                    filterText = fold(sb.Text)
+                    for _, opt in ipairs(options) do
+                        buttons[opt].Visible = filterText == "" or string.find(fold(opt), filterText, 1, true) ~= nil
+                    end
+                end)
+            end
+
+            self.ddClose = function()
+                pcall(function() blocker:Destroy() end)
+                local t = tw(sc, { Scale = 0.94 }, TweenInfo.new(0.1))
+                pcall(function() pop:Destroy() end)
+            end
+            blocker.MouseButton1Click:Connect(function() self:_closeDropdown() end)
+        end
+
+        function SectionMT:CreateDropdown(opts: any, flag: any?): any
+            opts = type(opts) == "table" and opts or {}
+            local name = tostring(opts.Name or "Dropdown")
+            local cb = opts.Callback or function() end
+            local multi = opts.MultipleOptions == true
+            local win = self.Window
+            local options: { string } = {}
+            for _, v in ipairs(opts.Options or {}) do table.insert(options, tostring(v)) end
+
+            local row = self:_row(false, 48)
+            local info, title, descLbl = buildInfo(row, name, opts.Description, 0.54, -8)
+            local sel = Button({
+                Name = "Select", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.fromScale(1, 0.5),
+                Size = UDim2.new(0.44, 0, 0, 32), BackgroundColor3 = P.card2, BackgroundTransparency = 0,
+            }, row)
+            Round(sel, 8)
+            local selStroke = Stroke(sel, P.strokeSoft, 1, 0)
+            mk("UISizeConstraint", { MinSize = Vector2.new(120, 32), MaxSize = Vector2.new(250, 32) }, nil, sel)
+            local selLabel = Label({
+                Name = "Value", Position = UDim2.fromOffset(11, 0), Size = UDim2.new(1, -34, 1, 0), Text = "",
+                Font = FONT_M, TextSize = 12.5, TextColor3 = P.accent, TextTruncate = Enum.TextTruncate.AtEnd,
+            }, sel)
+            local caret = Label({
+                Name = "Caret", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -9, 0.5, 0),
+                Size = UDim2.fromOffset(16, 16), Text = ">", Font = FONT_B, TextSize = 13, TextColor3 = P.sub,
+                TextXAlignment = XC, Rotation = 90,
+            }, sel)
+
+            local obj: any = { Class = "Dropdown", Name = name, Row = row }
+            local current = normalizeSel(opts.CurrentOption, multi)
+            obj.CurrentOption = current
+
+            local function label()
+                if #current == 0 then
+                    selLabel.Text = "Chưa chọn"
+                    selLabel.TextColor3 = P.mute
+                elseif #current == 1 then
+                    selLabel.Text = current[1]
+                    selLabel.TextColor3 = P.accent
+                else
+                    selLabel.Text = table.concat(current, ", ")
+                    selLabel.TextColor3 = P.accent
+                end
+            end
+            local function emit()
+                local arg: any = (#current == 1) and current[1] or current
+                safeCall(win, row, name, cb, arg)
+            end
+
+            row.MouseEnter:Connect(function() tw(selStroke, { Color = P.stroke }) end)
+            row.MouseLeave:Connect(function() tw(selStroke, { Color = P.strokeSoft }) end)
+            sel.MouseButton1Click:Connect(function()
+                tw(caret, { Rotation = 270 })
+                win:_openDropdown(sel, {
+                    options = options, multi = multi,
+                    current = function() return current end,
+                    pick = function(list: { string })
+                        current = list
+                        obj.CurrentOption = current
+                        label()
+                        emit()
+                    end,
+                })
+                task.defer(function()
+                    local f = win.ddClose
+                    if f then
+                        win.ddClose = function()
+                            tw(caret, { Rotation = 90 })
+                            f()
+                        end
+                    end
+                end)
+            end)
+
+            function obj:Set(v: any)
+                if type(v) == "table" then
+                    if v.Options ~= nil then
+                        options = {}
+                        for _, o2 in ipairs(v.Options) do table.insert(options, tostring(o2)) end
+                    end
+                    if v.CurrentOption ~= nil then
+                        current = normalizeSel(v.CurrentOption, multi)
+                    elseif v.Options ~= nil then
+                        local keep = {}
+                        for _, c in ipairs(current) do
+                            if table.find(options, c) then table.insert(keep, c) end
+                        end
+                        current = keep
+                    end
+                    if v.Name then title.Text = tostring(v.Name) end
+                    if v.Callback then cb = v.Callback end
+                else
+                    current = normalizeSel(v, multi)
+                end
+                obj.CurrentOption = current
+                label()
+                emit()
+            end
+            function obj:Refresh(list: { any }) obj:Set({ Options = list }) end
+            function obj:Destroy() row:Destroy() end
+
+            label()
+            self:_register(row, name, opts.Description)
+            emit()
+            return obj
+        end
+
+        SectionMT.__index = SectionMT
+
+        -- ============================================================
+        -- NOTIFICATION (toast)
+        -- ============================================================
+        function Lib:Notification(o: any)
+            if self.destroyed then return end
+            o = type(o) == "table" and o or {}
+            local title = tostring(o.Title or "YokaHub")
+            local content = tostring(o.Content or o.Text or "")
+            local key = title .. "|" .. content
+            local now = os.clock()
+            if self.toastRecent[key] and now - self.toastRecent[key] < 1.5 then return end
+            self.toastRecent[key] = now
+            local dur = tonumber(o.Duration) or 3.2
+            local kind = KIND_OF[tostring(o.Icon or "")] or "info"
+            local col = KIND_COLOR[kind]
+
+            -- tối đa 4 toast cùng lúc
+            local alive = {}
+            for _, c in ipairs(self.Toasts:GetChildren()) do
+                if c:IsA("Frame") then table.insert(alive, c) end
+            end
+            if #alive >= 4 then table.sort(alive, function(a, b) return a.LayoutOrder < b.LayoutOrder end) alive[1]:Destroy() end
+
+            local wrap = Frame({
+                Name = "ToastWrap", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y, BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+            }, self.Toasts)
+            local card = Button({
+                Name = "Toast", Position = UDim2.fromOffset(340, 0), Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y,
+                BackgroundColor3 = RGB(22, 26, 36), BackgroundTransparency = 0,
+            }, wrap)
+            Round(card, 11)
+            Stroke(card, col, 1, 0.55)
+            Pad(card, 11, 14, 11, 14)
+            mk("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }, nil, card)
+            Label({
+                Name = "T", Text = title, Font = FONT_B, TextSize = 12.5, TextColor3 = col,
+                Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y, TextWrapped = true, LayoutOrder = 1,
+            }, card)
+            if content ~= "" then
+                Label({
+                    Name = "C", Text = content, Font = FONT, TextSize = 12, TextColor3 = RGB(204, 214, 228),
+                    Size = UDim2.new(1, 0, 0, 0), AutomaticSize = AUTO_Y, TextWrapped = true,
+                    TextYAlignment = Enum.TextYAlignment.Top, LayoutOrder = 2,
+                }, card)
+            end
+            local progTrack = Frame({
+                Name = "ProgTrack", Size = UDim2.new(1, 0, 0, 3), BackgroundColor3 = P.card2, LayoutOrder = 3,
+            }, card)
+            Round(progTrack, "full")
+            local prog = Frame({
+                Name = "Prog", Size = UDim2.fromScale(1, 1), BackgroundColor3 = col,
+            }, progTrack)
+            Round(prog, "full")
+
+            local closed = false
+            local function close()
+                if closed then return end
+                closed = true
+                local t = tw(card, { Position = UDim2.fromOffset(340, 0) }, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In))
+                if t then
+                    t.Completed:Once(function() pcall(function() wrap:Destroy() end) end)
+                else
+                    pcall(function() wrap:Destroy() end)
+                end
+            end
+            card.MouseButton1Click:Connect(close)
+            tw(card, { Position = UDim2.fromOffset(0, 0) }, TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+            tw(prog, { Size = UDim2.fromScale(0, 1) }, TweenInfo.new(dur, Enum.EasingStyle.Linear))
+            task.delay(dur, close)
+        end
+
+        return Lib
+    end)()
+
+
+    -- 5. Khoi tao YokaUI v3 Native Suite (khong phu thuoc thu vien ngoai, fallback icon an toan: http://www.roblox.com/asset/?id=6026568195)
+    local Window: any = nil
+    local Luna: any = nil
+    local uiBootstrapping = true
+    task.defer(function()
+        uiBootstrapping = false
     end)
-    if not okLuna or typeof(Luna) ~= "table" then
-        warn("[YokaHub] Khong the tai Luna UI:", tostring(Luna))
-        return
-    end
-    genv._YokaHubLuna = Luna
 
     local function safeNotify(title: string, content: string, icon: string?)
+        if uiBootstrapping and title ~= "Tự chuyển Sea" then
+            return
+        end
         task.spawn(function()
             pcall(function()
-                Luna:Notification({
-                    Title = title,
-                    Content = content,
-                    Icon = icon or "public",
-                    ImageSource = "Material",
-                    Duration = 3,
-                })
+                if Window and typeof(Window.Notification) == "function" then
+                    Window:Notification({
+                        Title = title,
+                        Content = content,
+                        Icon = icon or "public",
+                        ImageSource = "Material",
+                        Duration = 3,
+                    })
+                end
             end)
         end)
     end
@@ -677,97 +2665,17 @@
         return false
     end
 
-    -- An ngay tu frame dau tien khi Luna tao GUI de khi hop server khong nhay cua so len man hinh
+    -- ========================================================
+    -- KHOI TAO CUA SO CHINH YOKAUI v3 & NUT NOI DOCK PRO
+    -- ========================================================
     local userOpenedHub = false
     local hubDesiredOpen = false
-    local preHideConn: RBXScriptConnection? = nil
-    local titleBoxObj: GuiObject? = nil
-    local exitBtnObj: TextButton? = nil
-    local fsIconObj: ImageLabel? = nil
-    local updateTopBarResponsive: ((number) -> ())? = nil
-    preHideConn = guiParent.ChildAdded:Connect(function(ch: Instance)
-        if ch.Name == "Luna UI" and ch:IsA("ScreenGui") then
-            if preHideConn then preHideConn:Disconnect(); preHideConn = nil end
-            for _, nm in ipairs({ "SmartWindow", "ShadowHolder", "Drag", "MobileSupport" }) do
-                local o = ch:FindFirstChild(nm)
-                if o and o:IsA("GuiObject") then o.Visible = false end
-            end
-        end
-    end)
-
-    
-    local function getLunaGui(): ScreenGui?
-        local g = guiParent:FindFirstChild("Luna UI") or coreGui:FindFirstChild("Luna UI")
-        if g and g:IsA("ScreenGui") then return g end
-        return nil
-    end
-
-    local Window = Luna:CreateWindow({
-        Name = "YokaHub",
-        Subtitle = "King Legacy · " .. curSeaLabel,
-        LogoID = "6031097225",
-        LoadingEnabled = false,
-        LoadingTitle = "YokaHub",
-        LoadingSubtitle = "King Legacy",
-        ConfigSettings = {
-            RootFolder = "YokaHub",
-            ConfigFolder = "Configs",
-        },
-        KeySystem = false,
-    })
-    if preHideConn then preHideConn:Disconnect(); preHideConn = nil end
-
-    task.spawn(function()
-        task.wait(0.5)
-        pcall(function()
-            local lg = getLunaGui()
-            if lg then
-                for _, desc in ipairs(lg:GetDescendants()) do
-                    if desc:IsA("ScrollingFrame") then
-                        desc.AutomaticCanvasSize = Enum.AutomaticSize.Y
-                        desc.ScrollingDirection = Enum.ScrollingDirection.Y
-                        desc.ScrollBarThickness = (desc.Name == "Tabs" and 3 or 4)
-                        desc.CanvasSize = UDim2.new(0, 0, 0, 0)
-                        desc.ElasticBehavior = Enum.ElasticBehavior.Always
-                        if desc.Name == "Tabs" then
-                            desc.Size = UDim2.new(1, -2, 1, -12)
-                            desc.ClipsDescendants = true
-                        end
-                    end
-                end
-            end
-        end)
-    end)
-
-    local function hideHubImmediate()
-        hubDesiredOpen = false
-        local lg = getLunaGui()
-        if not lg then return end
-        for _, nm in ipairs({ "SmartWindow", "ShadowHolder", "Drag", "MobileSupport" }) do
-            local o = lg:FindFirstChild(nm)
-            if o and o:IsA("GuiObject") then o.Visible = false end
-        end
-    end
-    hideHubImmediate()
-
-    -- ========================================================
-    -- NÚT AVATAR MỞ/TẮT YOKAHUB (60x60 BO TRÒN · LUÔN NẰM TRÊN CÙNG MỌI GIAO DIỆN)
-    -- ========================================================
+    local isFullscreen = false
     local DOCK_TOP_ORDER = 2147483646
     local HUB_ORDER = 1000010
     local doExitToGateway: () -> ()
-
-    local dockGui = Instance.new("ScreenGui")
-    dockGui.Name = "YokaHubDockGui"
-    dockGui.ResetOnSpawn = false
-    dockGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    dockGui.DisplayOrder = DOCK_TOP_ORDER
-    dockGui.Parent = guiParent
-    trackConn(dockGui:GetPropertyChangedSignal("DisplayOrder"):Connect(function()
-        if dockGui.DisplayOrder ~= DOCK_TOP_ORDER then
-            dockGui.DisplayOrder = DOCK_TOP_ORDER
-        end
-    end))
+    local setHubVisible: (boolean) -> ()
+    local onHubOpenedHooks: { () -> () } = {}
 
     local customAssetFn = getcustomasset or genv.getcustomasset or getsynasset or genv.getsynasset
     local dockImageId = "rbxassetid://6031097225"
@@ -781,10 +2689,78 @@
         end
     end
 
+    local licenseTierLabel = "VIP PRO · " .. curSeaLabel
+    pcall(function()
+        local lic = readJson("YokaHub_License.json")
+        if typeof(lic) == "table" and typeof(lic.tier) == "string" and lic.tier ~= "" then
+            licenseTierLabel = tostring(lic.tier) .. " · " .. curSeaLabel
+        end
+    end)
+
+    Window = YokaUI.new({
+        Name = "YokaHub",
+        Subtitle = "King Legacy · " .. curSeaLabel,
+        UserName = player.DisplayName or player.Name,
+        UserSub = licenseTierLabel,
+        Hint = "Mẹo: Gõ từ khóa vào ô tìm kiếm phía trên để lọc nhanh bất kỳ tính năng nào (hỗ trợ không dấu)  ·  Phím tắt: RightCtrl / F8 / F9",
+        Width = hubState.winW or 760,
+        Height = hubState.winH or 480,
+        DisplayOrder = HUB_ORDER,
+        Parent = guiParent,
+        OnClose = function()
+            if setHubVisible then setHubVisible(false) end
+        end,
+        OnExit = function()
+            if doExitToGateway then doExitToGateway() end
+        end,
+        OnResize = function(newW: number, newH: number)
+            hubState.winW = newW
+            hubState.winH = newH
+            saveState(hubState)
+        end,
+    })
+    if dockImageId ~= "rbxassetid://6031097225" then
+        pcall(function() Window:SetLogo(dockImageId) end)
+    end
+
+    Luna = Window
+    genv._YokaHubLuna = Window
+
+    local function getLunaGui(): ScreenGui?
+        if Window and Window.Gui and Window.Gui.Parent then
+            return Window.Gui
+        end
+        local g = guiParent:FindFirstChild("Luna UI") or coreGui:FindFirstChild("Luna UI")
+        if g and g:IsA("ScreenGui") then return g end
+        return nil
+    end
+
+    local function hideHubImmediate()
+        hubDesiredOpen = false
+        if Window and Window.Root then
+            Window.Root.Visible = false
+        end
+    end
+    hideHubImmediate()
+
+    -- ========================================================
+    -- NÚT AVATAR MỞ/TẮT YOKAHUB (60x60 BO TRÒN · LUÔN NẰM TRÊN CÙNG MỌI GIAO DIỆN)
+    -- ========================================================
+    local dockGui = Instance.new("ScreenGui")
+    dockGui.Name = "YokaHubDockGui"
+    dockGui.ResetOnSpawn = false
+    dockGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    dockGui.DisplayOrder = DOCK_TOP_ORDER
+    dockGui.Parent = guiParent
+    trackConn(dockGui:GetPropertyChangedSignal("DisplayOrder"):Connect(function()
+        if dockGui.DisplayOrder ~= DOCK_TOP_ORDER then
+            dockGui.DisplayOrder = DOCK_TOP_ORDER
+        end
+    end))
+
     local dockBtn = Instance.new("ImageButton")
     dockBtn.Name = "DockButton"
     dockBtn.Size = UDim2.fromOffset(60, 60)
-    -- Đặt gọn góc trên phải và giới hạn an toàn trong màn hình
     local function clampDockPos(x: number, y: number): (number, number)
         local cam = workspace.CurrentCamera
         local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
@@ -831,10 +2807,9 @@
     trackConn(dockBtn:GetPropertyChangedSignal("Position"):Connect(updateDockExitPos))
 
     dockExitBtn.MouseButton1Click:Connect(function()
-        doExitToGateway()
+        if doExitToGateway then doExitToGateway() end
     end)
 
-    -- Tu giu nut avatar trong man hinh neu cua so Roblox bi thu nho
     local initCam = workspace.CurrentCamera
     if initCam then
         trackConn(initCam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
@@ -850,12 +2825,12 @@
     end
 
     local dockCorner = Instance.new("UICorner")
-    dockCorner.CornerRadius = UDim.new(0, 12)
+    dockCorner.CornerRadius = UDim.new(0, 14)
     dockCorner.Parent = dockBtn
 
     local dockStroke = Instance.new("UIStroke")
     dockStroke.Thickness = 2
-    dockStroke.Color = Color3.fromRGB(214, 92, 118)
+    dockStroke.Color = THEME.c1
     dockStroke.Transparency = 0.08
     dockStroke.Parent = dockBtn
 
@@ -864,10 +2839,9 @@
     dockScale.Scale = 1
     dockScale.Parent = dockBtn
 
-    -- Cham den nho o goc duoi phai bao trang thai Auto Hop
     local dockDot = Instance.new("Frame")
     dockDot.Name = "StatusDot"
-    dockDot.Size = UDim2.fromOffset(11, 11)
+    dockDot.Size = UDim2.fromOffset(12, 12)
     dockDot.Position = UDim2.new(1, -13, 1, -13)
     dockDot.BackgroundColor3 = Color3.fromRGB(140, 145, 160)
     dockDot.BorderSizePixel = 0
@@ -879,30 +2853,33 @@
     dockDotCorner.Parent = dockDot
 
     local dockDotStroke = Instance.new("UIStroke")
-    dockDotStroke.Thickness = 1.6
+    dockDotStroke.Thickness = 1.8
     dockDotStroke.Color = Color3.fromRGB(14, 15, 20)
     dockDotStroke.Parent = dockDot
 
     local function updateDockDot()
         if currentMode == "solo" then
-            dockDot.BackgroundColor3 = Color3.fromRGB(178, 102, 255)
-            dockStroke.Color = Color3.fromRGB(178, 102, 255)
+            local col = Color3.fromRGB(178, 102, 255)
+            dockDot.BackgroundColor3 = col
+            dockStroke.Color = col
+            if Window then Window:SetStatus("Auto Hop · Solo", col) end
         elseif currentMode == "sea3" then
-            dockDot.BackgroundColor3 = THEME.c2
-            dockStroke.Color = THEME.c2
+            dockDot.BackgroundColor3 = THEME.c1
+            dockStroke.Color = THEME.c1
+            if Window then Window:SetStatus("Auto Hop · Sea 3", THEME.c1) end
         elseif currentMode == "sea2" then
-            dockDot.BackgroundColor3 = Color3.fromRGB(82, 178, 240)
-            dockStroke.Color = Color3.fromRGB(82, 178, 240)
+            local col = Color3.fromRGB(82, 178, 240)
+            dockDot.BackgroundColor3 = col
+            dockStroke.Color = col
+            if Window then Window:SetStatus("Auto Hop · Sea 2", col) end
         else
             dockDot.BackgroundColor3 = Color3.fromRGB(145, 150, 165)
-            dockStroke.Color = Color3.fromRGB(214, 92, 118)
+            dockStroke.Color = THEME.c2
+            if Window then Window:SetStatus("Đứng tại phòng", YokaUI.Palette.mute) end
         end
     end
     updateDockDot()
 
-    -- ========================================================
-    -- TOI UU GIAO DIEN: MEM MAI · BO TRON MUOT · HOVER TINH TE
-    -- ========================================================
     local tweenSoft = TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
     local tweenHover = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
@@ -915,585 +2892,32 @@
         (c :: UICorner).CornerRadius = UDim.new(0, radius)
     end
 
-    local function styleCard(card: GuiObject, bg: Color3, strokeCol: Color3, strokeT: number, titleCol: Color3, descCol: Color3, kind: string)
-        card.BackgroundColor3 = bg
-        card.BackgroundTransparency = 0.04
-        setCorner(card, 10)
-        local st = card:FindFirstChildOfClass("UIStroke")
-        if st then
-            st.Color = strokeCol
-            st.Transparency = strokeT
-            st.Thickness = 1
-        end
-        local ttl = card:FindFirstChild("Title")
-        if ttl and ttl:IsA("TextLabel") then
-            ttl.AnchorPoint = Vector2.new(0, 0)
-            ttl.TextColor3 = titleCol
-            ttl.Font = Enum.Font.GothamMedium
-            ttl.TextSize = 15
-            ttl.TextYAlignment = Enum.TextYAlignment.Top
-            ttl.Active = false
-        end
-        local cardInteract = card:FindFirstChild("Interact")
-        if cardInteract and cardInteract:IsA("GuiButton") then
-            cardInteract.ZIndex = 152
-        end
-
-        -- Hieu ung hover mem mai cho cac the tuong tac
-        if kind ~= "paragraph" and not card:GetAttribute("YokaHoverHooked") then
-            card:SetAttribute("YokaHoverHooked", true)
-            local hoverBg = Color3.new(
-                math.min(1, bg.R + 0.032),
-                math.min(1, bg.G + 0.035),
-                math.min(1, bg.B + 0.042)
-            )
-            local hoverStroke = (kind == "danger") and THEME.dangerStroke or THEME.c2
-            trackConn(card.MouseEnter:Connect(function()
-                tweenService:Create(card, tweenHover, { BackgroundColor3 = hoverBg }):Play()
-                if st then
-                    tweenService:Create(st, tweenHover, { Color = hoverStroke, Transparency = 0.18 }):Play()
-                end
-            end))
-            trackConn(card.MouseLeave:Connect(function()
-                tweenService:Create(card, tweenHover, { BackgroundColor3 = bg }):Play()
-                if st then
-                    tweenService:Create(st, tweenHover, { Color = strokeCol, Transparency = strokeT }):Play()
-                end
-            end))
-        end
-
-        local desc = card:FindFirstChild("Desc")
-        local bodyTxt = card:FindFirstChild("Text")
-        local hasDesc = (desc ~= nil and desc:IsA("TextLabel") and string.gsub(desc.Text, "%s+", "") ~= "")
-
-        if kind == "paragraph" then
-            card.AutomaticSize = Enum.AutomaticSize.Y
-            card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 0)
-            if not card:FindFirstChild("YokaCardPad") then
-                local p = Instance.new("UIPadding")
-                p.Name = "YokaCardPad"
-                p.PaddingBottom = UDim.new(0, 12)
-                p.Parent = card
-            end
-            if ttl and ttl:IsA("TextLabel") then
-                ttl.Position = UDim2.new(0, 14, 0, 10)
-                ttl.Size = UDim2.new(1, -28, 0, 20)
-            end
-            if bodyTxt and bodyTxt:IsA("TextLabel") then
-                bodyTxt.AnchorPoint = Vector2.new(0, 0)
-                bodyTxt.Font = Enum.Font.Gotham
-                bodyTxt.TextColor3 = descCol
-                bodyTxt.TextSize = 13
-                bodyTxt.LineHeight = 1.35
-                bodyTxt.TextWrapped = true
-                bodyTxt.TextYAlignment = Enum.TextYAlignment.Top
-                bodyTxt.AutomaticSize = Enum.AutomaticSize.Y
-                bodyTxt.Position = UDim2.new(0, 14, 0, 35)
-                bodyTxt.Size = UDim2.new(1, -28, 0, 0)
-            end
-        elseif (kind == "toggle" or kind == "button" or kind == "danger") and hasDesc and desc and desc:IsA("TextLabel") then
-            local isLongDesc = (#desc.Text > 62)
-            card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, isLongDesc and 70 or 62)
-            if ttl and ttl:IsA("TextLabel") then
-                ttl.Position = UDim2.new(0, 14, 0, 8)
-                ttl.Size = UDim2.new(1, -92, 0, 20)
-                ttl.TextTruncate = Enum.TextTruncate.AtEnd
-            end
-            desc.AnchorPoint = Vector2.new(0, 0)
-            desc.Visible = true
-            desc.Active = false
-            desc.Font = Enum.Font.Gotham
-            desc.TextColor3 = descCol
-            desc.TextSize = 12
-            desc.TextWrapped = true
-            desc.TextYAlignment = Enum.TextYAlignment.Top
-            desc.TextTruncate = Enum.TextTruncate.AtEnd
-            desc.Position = UDim2.new(0, 14, 0, 31)
-            desc.Size = UDim2.new(1, -92, 0, isLongDesc and 32 or 24)
-        elseif kind == "button" or kind == "danger" then
-            card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 44)
-            if desc and desc:IsA("GuiObject") then desc.Visible = false end
-            if ttl and ttl:IsA("TextLabel") then
-                ttl.Position = UDim2.new(0, 14, 0, 0)
-                ttl.Size = UDim2.new(1, -56, 1, 0)
-                ttl.TextYAlignment = Enum.TextYAlignment.Center
-                ttl.TextTruncate = Enum.TextTruncate.AtEnd
-            end
-        elseif kind == "slider" then
-            card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 52)
-            if ttl and ttl:IsA("TextLabel") then
-                ttl.Position = UDim2.new(0, 14, 0, 8)
-                ttl.Size = UDim2.new(1, -105, 0, 18)
-                ttl.TextTruncate = Enum.TextTruncate.AtEnd
-            end
-            local valLbl = card:FindFirstChild("Value") or card:FindFirstChild("Current")
-            if valLbl and valLbl:IsA("TextLabel") then
-                valLbl.Font = Enum.Font.GothamBold
-                valLbl.TextColor3 = THEME.c1
-                valLbl.TextSize = 13
-                valLbl.AnchorPoint = Vector2.new(1, 0)
-                valLbl.Position = UDim2.new(1, -14, 0, 8)
-            end
-            local bar = card:FindFirstChild("Slider") or card:FindFirstChild("Bar") or card:FindFirstChild("Main")
-            if bar and bar:IsA("GuiObject") then
-                bar.Position = UDim2.new(0, 14, 0, 32)
-                bar.Size = UDim2.new(1, -28, 0, 8)
-                setCorner(bar, 4)
-            end
-        elseif kind == "dropdown" then
-            if card.Size.Y.Offset <= 55 then
-                card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 44)
-            end
-            if ttl and ttl:IsA("TextLabel") then
-                ttl.Position = UDim2.new(0, 14, 0, 0)
-                ttl.Size = UDim2.new(0.52, -14, 0, 44)
-                ttl.TextYAlignment = Enum.TextYAlignment.Center
-                ttl.TextTruncate = Enum.TextTruncate.AtEnd
-            end
-            if desc and desc:IsA("TextLabel") then
-                desc.Font = Enum.Font.Gotham
-                desc.TextColor3 = descCol
-                desc.TextSize = 13
-                desc.Active = false
-            end
-            -- Khong de o TextBox Selected chan click mo Dropdown va khong tran de len Title
-            local sel = card:FindFirstChild("Selected")
-            if sel and sel:IsA("TextBox") then
-                sel.TextEditable = false
-                sel.Active = false
-                sel.Selectable = false
-                sel.ZIndex = 151
-                sel.AnchorPoint = Vector2.new(1, 0)
-                sel.Position = UDim2.new(1, -34, 0, 9)
-                sel.Size = UDim2.new(0.46, -24, 0, 26)
-                sel.ClipsDescendants = true
-                sel.TextTruncate = Enum.TextTruncate.AtEnd
-                sel.TextXAlignment = Enum.TextXAlignment.Right
-                sel.TextColor3 = THEME.c1
-                sel.PlaceholderColor3 = THEME.c1
-                sel.Font = Enum.Font.GothamMedium
-                sel.TextSize = 13
-            end
-            -- An List & OptionHolderBackground khi Dropdown dang dong de khong de nut ben duoi
-            local ddList = card:FindFirstChild("List")
-            local ddBg = card:FindFirstChild("OptionHolderBackground")
-            if ddBg and ddBg:IsA("GuiObject") then
-                ddBg.BackgroundColor3 = Color3.fromRGB(22, 25, 34)
-                ddBg.BackgroundTransparency = 0.04
-            end
-            if ddList and ddList:IsA("ScrollingFrame") then
-                ddList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-                ddList.ScrollingDirection = Enum.ScrollingDirection.Y
-                ddList.ScrollBarThickness = 3
-                ddList.CanvasSize = UDim2.new(0, 0, 0, 0)
-                ddList.ElasticBehavior = Enum.ElasticBehavior.Always
-                for _, opt in ipairs(ddList:GetChildren()) do
-                    if opt:IsA("TextLabel") and opt.Name ~= "Template" then
-                        opt.Font = Enum.Font.GothamMedium
-                        opt.TextSize = 13
-                        opt.TextColor3 = Color3.fromRGB(232, 238, 248)
-                    end
-                end
-            end
-            local function syncDropdownVis()
-                local isOpen = (card.Size.Y.Offset > 55)
-                if ddList and ddList:IsA("GuiObject") then ddList.Visible = isOpen end
-                if ddBg and ddBg:IsA("GuiObject") then ddBg.Visible = isOpen end
-            end
-            syncDropdownVis()
-            if not card:GetAttribute("YokaDdHooked") then
-                card:SetAttribute("YokaDdHooked", true)
-                trackConn(card:GetPropertyChangedSignal("Size"):Connect(syncDropdownVis))
-            end
-        end
-    end
-
-    local sidebarExpandedInit = false
-    local tabStylersHooked = false
-
-    local function styleTabButtons(nav: Instance, inter: Instance?)
-        local tabsFolder = nav:FindFirstChild("Tabs")
-        if not tabsFolder then return end
-
-        local function refreshAllTabs(instant: boolean?)
-            local activeName = tostring(Window.CurrentTab or "Săn Boss")
-            for _, tb in ipairs(tabsFolder:GetChildren()) do
-                if tb:IsA("Frame") and tb.Visible and tb.Name ~= "InActive Template" then
-                    local isActive = (tb.Name == activeName)
-                    setCorner(tb, 9)
-                    local grad = tb:FindFirstChildOfClass("UIGradient")
-                    if grad then grad.Enabled = false end
-
-                    local lbl = tb:FindFirstChildOfClass("TextLabel")
-                    local icon = tb:FindFirstChildOfClass("ImageLabel")
-                    local st = tb:FindFirstChildOfClass("UIStroke")
-
-                    local targetBg = isActive and THEME.activeTabBg or THEME.inactiveTabBg
-                    local targetBgT = isActive and 0 or 0.45
-                    local targetTxt = isActive and Color3.fromRGB(16, 22, 20) or Color3.fromRGB(220, 226, 238)
-                    local targetIcon = isActive and Color3.fromRGB(16, 22, 20) or Color3.fromRGB(190, 198, 214)
-                    local targetSt = isActive and THEME.c1 or THEME.cardStroke
-                    local targetStT = isActive and 0.25 or 0.6
-
-                    if lbl then
-                        lbl.Font = isActive and Enum.Font.GothamBold or Enum.Font.GothamMedium
-                        lbl.TextSize = 14
-                        lbl.TextTransparency = 0
-                    end
-                    if icon then icon.ImageTransparency = 0 end
-
-                    if instant then
-                        tb.BackgroundColor3 = targetBg
-                        tb.BackgroundTransparency = targetBgT
-                        if lbl then lbl.TextColor3 = targetTxt end
-                        if icon then icon.ImageColor3 = targetIcon end
-                        if st then st.Color = targetSt; st.Transparency = targetStT end
-                    else
-                        tweenService:Create(tb, tweenSoft, { BackgroundColor3 = targetBg, BackgroundTransparency = targetBgT }):Play()
-                        if lbl then tweenService:Create(lbl, tweenSoft, { TextColor3 = targetTxt }):Play() end
-                        if icon then tweenService:Create(icon, tweenSoft, { ImageColor3 = targetIcon }):Play() end
-                        if st then tweenService:Create(st, tweenSoft, { Color = targetSt, Transparency = targetStT }):Play() end
-                    end
-                end
-            end
-
-            -- Giu UIPageLayout sach se, khong de tab khac lo mep va khong lam hong JumpTo cua Luna
-            if inter then
-                local upl = inter:FindFirstChildOfClass("UIPageLayout")
-                if upl then
-                    upl.Circular = false
-                    upl.TweenTime = 0
-                    upl.Padding = UDim.new(0, 32)
-                end
-                local activePage: GuiObject? = nil
-                for _, pg in ipairs(inter:GetChildren()) do
-                    if pg:IsA("ScrollingFrame") and pg.Name ~= "Template" and pg.Name ~= "Settings" and pg.Name ~= "Home" then
-                        pg.Visible = true
-                        if pg.Name == activeName then
-                            activePage = pg
-                            pg.CanvasPosition = Vector2.new(0, 0)
-                        end
-                    end
-                end
-                if upl and activePage then
-                    pcall(function() upl:JumpTo(activePage) end)
-                end
-            end
-        end
-
-        refreshAllTabs(true)
-        if not tabStylersHooked then
-            tabStylersHooked = true
-            for _, tb in ipairs(tabsFolder:GetChildren()) do
-                if tb:IsA("Frame") and tb.Visible and tb.Name ~= "InActive Template" then
-                    local interact = tb:FindFirstChild("Interact")
-                    if interact and interact:IsA("GuiButton") then
-                        trackConn(interact.MouseEnter:Connect(function()
-                            if tostring(Window.CurrentTab) ~= tb.Name then
-                                tweenService:Create(tb, tweenHover, { BackgroundTransparency = 0.2 }):Play()
-                            end
-                        end))
-                        trackConn(interact.MouseLeave:Connect(function()
-                            if tostring(Window.CurrentTab) ~= tb.Name then
-                                tweenService:Create(tb, tweenHover, { BackgroundTransparency = 0.45 }):Play()
-                            end
-                        end))
-                        trackConn(interact.MouseButton1Click:Connect(function()
-                            task.delay(0.05, function() refreshAllTabs(false) end)
-                            task.delay(0.38, function() refreshAllTabs(true) end)
-                        end))
-                    end
-                end
-            end
-        end
-    end
-
-    local themeRemoteFired = false
     local function applyVisualTheme()
-        pcall(function()
-            Luna.ThemeGradient = ColorSequence.new({
-                ColorSequenceKeypoint.new(0.00, THEME.c1),
-                ColorSequenceKeypoint.new(0.50, THEME.c2),
-                ColorSequenceKeypoint.new(1.00, THEME.c3),
-            })
-            local lunaGui = getLunaGui()
-            if not lunaGui then return end
-
-            if not themeRemoteFired then
-                themeRemoteFired = true
-                local tr = lunaGui:FindFirstChild("ThemeRemote")
-                if tr and tr:IsA("BoolValue") then tr.Value = not tr.Value end
-            end
-
-            local smartWin = lunaGui:FindFirstChild("SmartWindow")
-            if not (smartWin and smartWin:IsA("GuiObject")) then return end
-
-            smartWin.ClipsDescendants = true
-            smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
-            local shadow = lunaGui:FindFirstChild("ShadowHolder")
-            if shadow and shadow:IsA("GuiObject") then
-                shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-            end
-            setCorner(smartWin, 12)
-            smartWin.BackgroundColor3 = THEME.sidebarBg
-            smartWin.BackgroundTransparency = 0.01
-            local swStroke = smartWin:FindFirstChildOfClass("UIStroke")
-            if swStroke then
-                swStroke.Color = THEME.outerStroke
-                swStroke.Transparency = 0.35
-                swStroke.Thickness = 1.2
-            end
-            local line = smartWin:FindFirstChild("Line")
-            if line and line:IsA("GuiObject") then
-                line.BackgroundColor3 = THEME.outerStroke
-                line.BackgroundTransparency = 0.25
-            end
-
-            local titleBox = smartWin:FindFirstChild("Title")
-            if titleBox and titleBox:IsA("GuiObject") then
-                titleBoxObj = titleBox
-                titleBox.Size = UDim2.new(1, -215, 0, 22)
-                titleBox.ClipsDescendants = true
-                local tbLL = titleBox:FindFirstChildOfClass("UIListLayout")
-                if tbLL then tbLL.Padding = UDim.new(0, 10) end
-                local t1 = titleBox:FindFirstChild("Title")
-                if t1 and t1:IsA("TextLabel") then
-                    t1.Font = Enum.Font.GothamBold
-                    t1.TextColor3 = THEME.c1
-                    t1.TextTruncate = Enum.TextTruncate.AtEnd
-                end
-                local t2 = titleBox:FindFirstChild("subtitle")
-                if t2 and t2:IsA("TextLabel") then
-                    t2.Font = Enum.Font.Gotham
-                    t2.TextColor3 = Color3.fromRGB(168, 178, 196)
-                    t2.TextTruncate = Enum.TextTruncate.AtEnd
-                end
-            end
-
-            -- Đảm bảo cửa sổ YokaHub và nút avatar LUÔN ở tầng hiển thị rõ ràng nhất trên màn hình
-            lunaGui.DisplayOrder = HUB_ORDER
-            dockGui.DisplayOrder = DOCK_TOP_ORDER
-            dockBtn.Visible = true
-            if not smartWin:GetAttribute("YokaVisHooked") then
-                smartWin:SetAttribute("YokaVisHooked", true)
-                trackConn(smartWin:GetPropertyChangedSignal("Visible"):Connect(function()
-                    dockBtn.Visible = true
-                    dockStroke.Thickness = smartWin.Visible and 2.4 or 2.0
-                end))
-            end
-
-            local nav = smartWin:FindFirstChild("Navigation")
-            local els = smartWin:FindFirstChild("Elements")
-            local inter = els and els:FindFirstChild("Interactions")
-
-            if nav and nav:IsA("GuiObject") and els and els:IsA("GuiObject") then
-                els.ClipsDescendants = true
-                if inter and inter:IsA("GuiObject") then
-                    inter.ClipsDescendants = true
-                end
-
-                local function syncPaneLayout()
-                    local w = math.max(55, math.floor(nav.Size.X.Offset))
-                    els.AnchorPoint = Vector2.new(0, 0)
-                    els.Position = UDim2.new(0, w, 0, 43)
-                    els.Size = UDim2.new(1, -w, 1, -43)
-                end
-
-                if not sidebarExpandedInit then
-                    sidebarExpandedInit = true
-                    nav.Size = UDim2.new(0, 205, 1, -43)
-                    nav.ClipsDescendants = true
-                    syncPaneLayout()
-                    trackConn(nav:GetPropertyChangedSignal("Size"):Connect(syncPaneLayout))
-                else
-                    syncPaneLayout()
-                end
-                local tabsFolder = nav:FindFirstChild("Tabs")
-                if tabsFolder and tabsFolder:IsA("ScrollingFrame") then
-                    tabsFolder.Size = UDim2.new(1, -2, 1, -12)
-                    tabsFolder.ClipsDescendants = true
-                    tabsFolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
-                    tabsFolder.ScrollingDirection = Enum.ScrollingDirection.Y
-                    tabsFolder.ScrollBarThickness = 3
-                    tabsFolder.CanvasSize = UDim2.new(0, 0, 0, 0)
-                end
-                local navPlayer = nav:FindFirstChild("Player")
-                if navPlayer and navPlayer:IsA("GuiObject") then
-                    navPlayer.Visible = false
-                end
-                styleTabButtons(nav, inter)
-            end
-
-            if els and els:IsA("GuiObject") then
-                els.BackgroundColor3 = THEME.contentBg
-                els.BackgroundTransparency = 0.01
-                for _, hiderName in ipairs({ "Corner Hider 1", "Corner Hider 2", "Corner Hider 3" }) do
-                    local h = els:FindFirstChild(hiderName)
-                    if h and h:IsA("GuiObject") then
-                        h.BackgroundColor3 = THEME.contentBg
-                        h.BackgroundTransparency = 0.01
-                    end
-                end
-
-                if inter then
-                    local function setupTabScrolling(page: ScrollingFrame)
-                        page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-                        page.ScrollingDirection = Enum.ScrollingDirection.Y
-                        page.ScrollBarThickness = 4
-                        page.CanvasSize = UDim2.new(0, 0, 0, 0)
-                        page.ElasticBehavior = Enum.ElasticBehavior.Always
-                    end
-                    if not inter:GetAttribute("YokaInterHooked") then
-                        inter:SetAttribute("YokaInterHooked", true)
-                        trackConn(inter.ChildAdded:Connect(function(child)
-                            if child:IsA("ScrollingFrame") then
-                                setupTabScrolling(child)
-                            end
-                        end))
-                    end
-                    for _, page in ipairs(inter:GetChildren()) do
-                        if page:IsA("ScrollingFrame") then
-                            setupTabScrolling(page)
-                            local pPad = page:FindFirstChildOfClass("UIPadding")
-                            if pPad then
-                                pPad.PaddingTop = UDim.new(0, 14)
-                                pPad.PaddingBottom = UDim.new(0, 18)
-                                pPad.PaddingLeft = UDim.new(0, 12)
-                                pPad.PaddingRight = UDim.new(0, 12)
-                            end
-                            local pageLL = page:FindFirstChildOfClass("UIListLayout")
-                            if pageLL then pageLL.Padding = UDim.new(0, 18) end
-
-                            for _, sec in ipairs(page:GetChildren()) do
-                                if sec.Name == "Section" and sec:IsA("TextLabel") then
-                                    sec.Font = Enum.Font.GothamBold
-                                    sec.TextColor3 = THEME.secTitle
-                                    sec.TextSize = 14
-                                    sec.TextWrapped = true
-                                    sec.AutomaticSize = Enum.AutomaticSize.Y
-                                    local holder = sec:FindFirstChild("Frame")
-                                    if holder and holder:IsA("GuiObject") then
-                                        holder.Position = UDim2.new(0, 0, 0, 30)
-                                        holder.AutomaticSize = Enum.AutomaticSize.Y
-                                        local hLL = holder:FindFirstChildOfClass("UIListLayout")
-                                        if hLL then hLL.Padding = UDim.new(0, 10) end
-                                        for _, item in ipairs(holder:GetChildren()) do
-                                            if item:IsA("GuiObject") then
-                                                local nm = item.Name
-                                                local isToggle = string.find(nm, " - Toggle") ~= nil or item:FindFirstChild("toggle") ~= nil
-                                                local isDropdown = item:FindFirstChild("List") ~= nil or item:FindFirstChild("Selected") ~= nil
-                                                local isSlider = string.find(nm, " - Slider") ~= nil or item:FindFirstChild("Slider") ~= nil or item:FindFirstChild("Bar") ~= nil
-                                                local isParagraph = item:FindFirstChild("Text") ~= nil and item:FindFirstChild("Title") ~= nil and not isToggle and not isDropdown and not isSlider
-                                                if isParagraph then
-                                                    styleCard(item, THEME.infoBg, THEME.infoStroke, 0.42, THEME.infoTitle, Color3.fromRGB(238, 244, 250), "paragraph")
-                                                elseif isToggle then
-                                                    styleCard(item, THEME.cardBg, THEME.cardStroke, 0.50, THEME.textMain, THEME.textDesc, "toggle")
-                                                elseif isDropdown then
-                                                    styleCard(item, THEME.cardBg, THEME.cardStroke, 0.50, THEME.textMain, THEME.textDesc, "dropdown")
-                                                elseif isSlider then
-                                                    styleCard(item, THEME.cardBg, THEME.cardStroke, 0.50, THEME.textMain, THEME.textDesc, "slider")
-                                                elseif string.find(nm, "Tắt hoàn toàn") then
-                                                    styleCard(item, THEME.dangerBg, THEME.dangerStroke, 0.40, THEME.dangerTitle, THEME.textDesc, "danger")
-                                                else
-                                                    styleCard(item, THEME.cardBg, THEME.cardStroke, 0.50, THEME.textMain, THEME.textDesc, "button")
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end)
+        updateDockDot()
     end
 
-    local function ensurePopScale(obj: Instance): UIScale
-        local ex = obj:FindFirstChild("YokaPopScale")
-        if ex and ex:IsA("UIScale") then return ex end
-        local s = Instance.new("UIScale")
-        s.Name = "YokaPopScale"
-        s.Scale = 1
-        s.Parent = obj
-        return s
+    local function attachCornerResizer()
+        -- Tích hợp sẵn trong YokaUI v3
     end
 
-    local onHubOpenedHooks: { () -> () } = {}
     local function isHubOpen(): boolean
-        local lg = getLunaGui()
-        local sw = lg and lg:FindFirstChild("SmartWindow")
-        return (sw ~= nil and sw:IsA("GuiObject") and sw.Visible)
+        return Window ~= nil and Window:IsVisible()
     end
 
-    local hubVisToken = 0
-    local attachCornerResizer: (() -> ())?
-    local function setHubVisible(visible: boolean)
-        local lunaGui = getLunaGui()
-        if not lunaGui then return end
-        local sw = lunaGui:FindFirstChild("SmartWindow")
-        local sh = lunaGui:FindFirstChild("ShadowHolder")
-        local dr = lunaGui:FindFirstChild("Drag")
-        local mobile = lunaGui:FindFirstChild("MobileSupport")
-        if mobile and mobile:IsA("GuiObject") then mobile.Visible = false end
-
-        hubVisToken += 1
-        local myVisToken = hubVisToken
+    setHubVisible = function(visible: boolean)
+        if not Window then return end
         hubDesiredOpen = visible
-
         if visible then
             userOpenedHub = true
             dockGui.DisplayOrder = DOCK_TOP_ORDER
             dockBtn.Visible = true
             dockStroke.Thickness = 2.4
-            if not themeRemoteFired then applyVisualTheme() end
             for _, fn in ipairs(onHubOpenedHooks) do pcall(fn) end
-            if sw and sw:IsA("GuiObject") then
-                if attachCornerResizer then pcall(attachCornerResizer) end
-                local sc = ensurePopScale(sw)
-                sc.Scale = 0.94
-                sw.BackgroundTransparency = 0.01
-                sw.Visible = true
-                tweenService:Create(sc, tweenSoft, { Scale = 1 }):Play()
-                -- Dam bao UIPageLayout nhay dung trang ngay lan mo dau tien sau khi hop
-                local el = sw:FindFirstChild("Elements")
-                local inter = el and el:FindFirstChild("Interactions")
-                if inter then
-                    local upl = inter:FindFirstChildOfClass("UIPageLayout")
-                    local activeNm = tostring(Window.CurrentTab or "Săn Boss")
-                    local pg = inter:FindFirstChild(activeNm) or inter:FindFirstChild("Săn Boss")
-                    if upl and pg and pg:IsA("GuiObject") then
-                        pcall(function() upl:JumpTo(pg) end)
-                    end
-                end
-            end
-            if sh and sh:IsA("GuiObject") then
-                local sc = ensurePopScale(sh)
-                sc.Scale = 0.94
-                sh.Visible = true
-                tweenService:Create(sc, tweenSoft, { Scale = 1 }):Play()
-            end
-            if dr and dr:IsA("GuiObject") then dr.Visible = true end
+            Window:SetVisible(true)
         else
             dockBtn.Visible = true
             dockStroke.Thickness = 2.0
-            if dr and dr:IsA("GuiObject") then dr.Visible = false end
-            if sw and sw:IsA("GuiObject") then
-                if attachCornerResizer then pcall(attachCornerResizer) end
-                local sc = ensurePopScale(sw)
-                local tw = tweenService:Create(sc, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.94 })
-                tw:Play()
-                if sh and sh:IsA("GuiObject") then
-                    tweenService:Create(ensurePopScale(sh), TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.94 }):Play()
-                end
-                tw.Completed:Once(function()
-                    if myVisToken ~= hubVisToken then return end
-                    if sw and sw:IsA("GuiObject") then sw.Visible = false end
-                    if sh and sh:IsA("GuiObject") then sh.Visible = false end
-                    sc.Scale = 1
-                    if sh then ensurePopScale(sh).Scale = 1 end
-                end)
-            end
+            Window:SetVisible(false)
         end
     end
 
@@ -1545,55 +2969,13 @@
         setHubVisible(not hubDesiredOpen)
     end))
 
-    -- ========================================================
-    -- FULL MAN HINH (ICON CHUAN MATERIAL) + KEO GOC DUOI-PHAI
-    -- ========================================================
-    local isFullscreen = false
-    local preFullW, preFullH = 720, 450
-    local preFullPos: UDim2? = nil
-
-    updateTopBarResponsive = function(winW: number)
-        local smartWin = Window and (Window.Main or Window.Holder) or nil
-        if not smartWin then
-            local lg = getLunaGui()
-            smartWin = lg and lg:FindFirstChild("Main")
+    -- Phim tat RightControl de dong/mo nhanh cua so YokaHub tren PC
+    trackConn(userInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
+        if gp or userInputService:GetFocusedTextBox() then return end
+        if input.KeyCode == Enum.KeyCode.RightControl then
+            setHubVisible(not hubDesiredOpen)
         end
-        local nav = smartWin and smartWin:FindFirstChild("Navigation")
-        if nav and nav:IsA("GuiObject") then
-            if winW < 460 then
-                nav.Size = UDim2.new(0, 145, 1, -43)
-            elseif winW < 560 then
-                nav.Size = UDim2.new(0, 170, 1, -43)
-            else
-                nav.Size = UDim2.new(0, 205, 1, -43)
-            end
-        end
-
-        if exitBtnObj and exitBtnObj:IsA("TextButton") then
-            if winW < 440 then
-                exitBtnObj.Size = UDim2.fromOffset(56, 28)
-                exitBtnObj.Text = "🚪"
-                exitBtnObj.TextSize = 12
-                if titleBoxObj and titleBoxObj:IsA("GuiObject") then
-                    titleBoxObj.Size = UDim2.new(1, -135, 0, 22)
-                end
-            elseif winW < 560 then
-                exitBtnObj.Size = UDim2.fromOffset(76, 28)
-                exitBtnObj.Text = "🚪 THOÁT"
-                exitBtnObj.TextSize = 9
-                if titleBoxObj and titleBoxObj:IsA("GuiObject") then
-                    titleBoxObj.Size = UDim2.new(1, -156, 0, 22)
-                end
-            else
-                exitBtnObj.Size = UDim2.fromOffset(130, 28)
-                exitBtnObj.Text = "🚪 THOÁT RA CỔNG KEY"
-                exitBtnObj.TextSize = 10
-                if titleBoxObj and titleBoxObj:IsA("GuiObject") then
-                    titleBoxObj.Size = UDim2.new(1, -215, 0, 22)
-                end
-            end
-        end
-    end
+    end))
 
     doExitToGateway = function()
         pcall(function()
@@ -1604,7 +2986,6 @@
             })
         end)
         task.delay(0.2, function()
-            -- 1. Xoa file License luu tren may
             pcall(function()
                 local delFn = delfile or (syn and syn.delfile)
                 local isfFn = isfile or (syn and syn.isfile)
@@ -1617,7 +2998,6 @@
             genv._YokaHub_Authenticated = false
             genv._YokaHub_Running = nil
 
-            -- 2. Don dep YokaHub dang chay
             hubState.mode = "off"
             saveState(hubState)
             genv._DisableWatchdog = true
@@ -1639,10 +3019,9 @@
             for _, c in ipairs(activeConns) do pcall(function() c:Disconnect() end) end
             purgeLunaBlur()
             pcall(function() dockGui:Destroy() end)
-            pcall(function() Luna:Destroy() end)
+            pcall(function() Window:Destroy() end)
             genv._YokaHubLuna = nil
 
-            -- 3. Mo lai ngay Cổng Gateway (Giao dien chua Get Key)
             task.spawn(function()
                 task.wait(0.3)
                 if typeof(genv._YokaHub_LaunchGateway) == "function" then
@@ -1662,437 +3041,18 @@
         end)
     end
 
-    local function getResponsiveScaleFactor(vp: Vector2): number
-        return math.clamp(math.min(vp.X / 920, vp.Y / 580), 0.50, 1.20)
-    end
-
-    local function syncResponsiveScale(smartWin: GuiObject, shadow: GuiObject?, scaleFactor: number)
-        local smartScale = smartWin:FindFirstChild("YokaResponsiveScale")
-        if not smartScale then
-            smartScale = Instance.new("UIScale")
-            smartScale.Name = "YokaResponsiveScale"
-            smartScale.Parent = smartWin
-        end
-        (smartScale :: UIScale).Scale = scaleFactor
-        if shadow and shadow:IsA("GuiObject") then
-            local shadowScale = shadow:FindFirstChild("YokaResponsiveScale")
-            if not shadowScale then
-                shadowScale = Instance.new("UIScale")
-                shadowScale.Name = "YokaResponsiveScale"
-                shadowScale.Parent = shadow
-            end
-            (shadowScale :: UIScale).Scale = scaleFactor
-        end
-    end
-
     local function applyWindowSize(w: number, h: number, smooth: boolean, saveIt: boolean)
-        local cam = workspace.CurrentCamera
-        local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-        local scaleFactor = getResponsiveScaleFactor(vp)
-        local effVpX = math.floor((vp.X - 16) / scaleFactor)
-        local effVpY = math.floor((vp.Y - 16) / scaleFactor)
-
-        -- Nguong an toan dong phu hop moi man hinh (Mobile / Tablet / PC nho / 4K)
-        local minW = math.clamp(math.floor(effVpX * 0.35), 360, 520)
-        local maxW = math.max(minW, effVpX)
-        local minH = math.clamp(math.floor(effVpY * 0.35), 250, 340)
-        local maxH = math.max(minH, effVpY)
-
-        local finalW = math.clamp(math.floor(w + 0.5), minW, maxW)
-        local finalH = math.clamp(math.floor(h + 0.5), minH, maxH)
-        hubState.winW = finalW
-        hubState.winH = finalH
+        if not Window then return end
+        isFullscreen = false
+        Window:SetSize(w, h, smooth, true)
+        hubState.winW = Window.W
+        hubState.winH = Window.H
         if saveIt then saveState(hubState) end
-
-        local lunaGui = getLunaGui()
-        if not lunaGui then return end
-        local smartWin = lunaGui:FindFirstChild("SmartWindow")
-        local shadow = lunaGui:FindFirstChild("ShadowHolder")
-        if not (smartWin and smartWin:IsA("GuiObject")) then return end
-
-        smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
-        if shadow and shadow:IsA("GuiObject") then
-            shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-        end
-
-        syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
-
-        local newSize = UDim2.fromOffset(finalW, finalH)
-        local curPos = smartWin.Position
-        local curScaledW = finalW * scaleFactor
-        local curScaledH = finalH * scaleFactor
-        local halfW = curScaledW * 0.5
-        local halfH = curScaledH * 0.5
-        local minCenterX = halfW + 8
-        local maxCenterX = math.max(minCenterX, vp.X - halfW - 8)
-        local minCenterY = halfH + 8
-        local maxCenterY = math.max(minCenterY, vp.Y - halfH - 8)
-
-        local targetPos = curPos
-        local isInitialPos = (curPos.X.Scale == 0.5 and curPos.Y.Scale == 0.5 and curPos.X.Offset == 0 and curPos.Y.Offset == 0)
-        if isInitialPos or (curPos.X.Scale == 0 and curPos.X.Offset == 0) then
-            targetPos = UDim2.fromScale(0.5, 0.5)
-        else
-            local curX = curPos.X.Scale * vp.X + curPos.X.Offset
-            local curY = curPos.Y.Scale * vp.Y + curPos.Y.Offset
-            if curX < minCenterX or curX > maxCenterX or curY < minCenterY or curY > maxCenterY then
-                targetPos = UDim2.fromOffset(math.clamp(curX, minCenterX, maxCenterX), math.clamp(curY, minCenterY, maxCenterY))
-            end
-        end
-
-        local twInfo = TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-        if smooth then
-            tweenService:Create(smartWin, twInfo, { Size = newSize, Position = targetPos }):Play()
-            if shadow and shadow:IsA("GuiObject") then tweenService:Create(shadow, twInfo, { Size = newSize, Position = targetPos }):Play() end
-        else
-            smartWin.Size = newSize
-            smartWin.Position = targetPos
-            if shadow and shadow:IsA("GuiObject") then
-                shadow.Size = newSize
-                shadow.Position = targetPos
-            end
-        end
-        if updateTopBarResponsive then updateTopBarResponsive(finalW) end
     end
 
     local function toggleFullscreen()
-        local lunaGui = getLunaGui()
-        if not lunaGui then return end
-        local smartWin = lunaGui:FindFirstChild("SmartWindow")
-        local shadow = lunaGui:FindFirstChild("ShadowHolder")
-        if not (smartWin and smartWin:IsA("GuiObject")) then return end
-
-        local twInfo = TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-        local cam = workspace.CurrentCamera
-        local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-        local scaleFactor = getResponsiveScaleFactor(vp)
-        syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
-        local effMaxW = math.max(380, math.floor((vp.X - 16) / scaleFactor))
-        local effMaxH = math.max(260, math.floor((vp.Y - 16) / scaleFactor))
-
-        if not isFullscreen then
-            isFullscreen = true
-            local curW = smartWin.Size.X.Offset
-            local curH = smartWin.Size.Y.Offset
-            if curW >= (effMaxW - 24) or curH >= (effMaxH - 24) then
-                preFullW, preFullH, preFullPos = 720, 450, UDim2.fromScale(0.5, 0.5)
-            else
-                preFullW, preFullH, preFullPos = curW, curH, smartWin.Position
-            end
-
-            local fullSz = UDim2.fromOffset(effMaxW, effMaxH)
-            local centerPos = UDim2.fromScale(0.5, 0.5)
-
-            tweenService:Create(smartWin, twInfo, { Size = fullSz, Position = centerPos }):Play()
-            if shadow and shadow:IsA("GuiObject") then
-                tweenService:Create(shadow, twInfo, { Size = fullSz, Position = centerPos }):Play()
-            end
-            if fsIconObj then
-                fsIconObj.Image = "http://www.roblox.com/asset/?id=6026568240"
-            end
-        else
-            isFullscreen = false
-            local backW = math.clamp(preFullW, 380, effMaxW)
-            local backH = math.clamp(preFullH, 260, effMaxH)
-            local backSz = UDim2.fromOffset(backW, backH)
-            local backPos = preFullPos or UDim2.fromScale(0.5, 0.5)
-            tweenService:Create(smartWin, twInfo, { Size = backSz, Position = backPos }):Play()
-            if shadow and shadow:IsA("GuiObject") then
-                tweenService:Create(shadow, twInfo, { Size = backSz, Position = backPos }):Play()
-            end
-            if fsIconObj then
-                fsIconObj.Image = "http://www.roblox.com/asset/?id=6026568245"
-            end
-        end
-        if updateTopBarResponsive then updateTopBarResponsive(smartWin.Size.X.Offset) end
-    end
-
-    attachCornerResizer = function()
-        local lunaGui = getLunaGui()
-        if not lunaGui then return end
-        local smartWin = lunaGui:FindFirstChild("SmartWindow")
-        local shadow = lunaGui:FindFirstChild("ShadowHolder")
-        if not (smartWin and smartWin:IsA("GuiObject")) then return end
-
-        -- An nut Close goc cua Luna va thay bang nut X muot thu gon ve hinh nen avatar
-        local origCtrls = smartWin:FindFirstChild("Controls")
-        local origClose = origCtrls and origCtrls:FindFirstChild("Close")
-        if origClose and origClose:IsA("GuiObject") then origClose.Visible = false end
-        local oldClose = smartWin:FindFirstChild("YokaCloseBtn")
-        if oldClose then oldClose:Destroy() end
-
-        -- [NUT THOAT RA CỔNG KEY TREN THANH TIEU DE TOPBAR]
-        local oldExit = smartWin:FindFirstChild("YokaExitToGatewayBtn")
-        if oldExit then oldExit:Destroy() end
-
-        local exitBtn = Instance.new("TextButton")
-        exitBtn.Name = "YokaExitToGatewayBtn"
-        exitBtn.AnchorPoint = Vector2.new(1, 0)
-        exitBtn.Size = UDim2.fromOffset(130, 28)
-        exitBtn.Position = UDim2.new(1, -74, 0, 7)
-        exitBtn.BackgroundColor3 = Color3.fromRGB(195, 38, 54)
-        exitBtn.BackgroundTransparency = 0.15
-        exitBtn.BorderSizePixel = 0
-        exitBtn.AutoButtonColor = false
-        exitBtn.Font = Enum.Font.GothamBold
-        exitBtn.TextSize = 10
-        exitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        exitBtn.Text = "🚪 THOÁT RA CỔNG KEY"
-        exitBtn.ZIndex = 1002
-        exitBtn.Parent = smartWin
-        exitBtnObj = exitBtn
-
-        local exitCorner = Instance.new("UICorner")
-        exitCorner.CornerRadius = UDim.new(0, 7)
-        exitCorner.Parent = exitBtn
-
-        local exitStroke = Instance.new("UIStroke")
-        exitStroke.Color = Color3.fromRGB(255, 90, 90)
-        exitStroke.Thickness = 1.2
-        exitStroke.Parent = exitBtn
-
-        trackConn(exitBtn.MouseEnter:Connect(function()
-            tweenService:Create(exitBtn, TweenInfo.new(0.12), { BackgroundColor3 = Color3.fromRGB(230, 25, 45), BackgroundTransparency = 0 }):Play()
-        end))
-        trackConn(exitBtn.MouseLeave:Connect(function()
-            tweenService:Create(exitBtn, TweenInfo.new(0.12), { BackgroundColor3 = Color3.fromRGB(195, 38, 54), BackgroundTransparency = 0.15 }):Play()
-        end))
-        trackConn(exitBtn.MouseButton1Click:Connect(function()
-            doExitToGateway()
-        end))
-
-        local closeBtn = Instance.new("TextButton")
-        closeBtn.Name = "YokaCloseBtn"
-        closeBtn.AnchorPoint = Vector2.new(1, 0)
-        closeBtn.Size = UDim2.fromOffset(28, 28)
-        closeBtn.Position = UDim2.new(1, -6, 0, 7)
-        closeBtn.BackgroundColor3 = Color3.fromRGB(34, 38, 50)
-        closeBtn.BackgroundTransparency = 0.55
-        closeBtn.BorderSizePixel = 0
-        closeBtn.AutoButtonColor = false
-        closeBtn.Font = Enum.Font.GothamBold
-        closeBtn.TextSize = 15
-        closeBtn.TextColor3 = Color3.fromRGB(210, 216, 230)
-        closeBtn.Text = "×"
-        closeBtn.ZIndex = 1002
-        closeBtn.Parent = smartWin
-
-        local closeCorner = Instance.new("UICorner")
-        closeCorner.CornerRadius = UDim.new(0, 7)
-        closeCorner.Parent = closeBtn
-
-        trackConn(closeBtn.MouseEnter:Connect(function()
-            tweenService:Create(closeBtn, TweenInfo.new(0.12), { BackgroundColor3 = Color3.fromRGB(185, 58, 68), BackgroundTransparency = 0.1, TextColor3 = Color3.fromRGB(255, 255, 255) }):Play()
-        end))
-        trackConn(closeBtn.MouseLeave:Connect(function()
-            tweenService:Create(closeBtn, TweenInfo.new(0.12), { BackgroundColor3 = Color3.fromRGB(34, 38, 50), BackgroundTransparency = 0.55, TextColor3 = Color3.fromRGB(210, 216, 230) }):Play()
-        end))
-        trackConn(closeBtn.MouseButton1Click:Connect(function()
-            setHubVisible(false)
-        end))
-
-        -- Nut Full Man Hinh dung icon Material chuan (open_in_full = 6026568245), khong bi loi font
-        local oldFs = smartWin:FindFirstChild("YokaFullscreenBtn")
-        if oldFs then oldFs:Destroy() end
-
-        local fsBtn = Instance.new("ImageButton")
-        fsBtn.Name = "YokaFullscreenBtn"
-        fsBtn.AnchorPoint = Vector2.new(1, 0)
-        fsBtn.Size = UDim2.fromOffset(28, 28)
-        fsBtn.Position = UDim2.new(1, -38, 0, 7)
-        fsBtn.BackgroundColor3 = Color3.fromRGB(34, 38, 50)
-        fsBtn.BackgroundTransparency = 0.55
-        fsBtn.BorderSizePixel = 0
-        fsBtn.AutoButtonColor = false
-        fsBtn.Image = ""
-        fsBtn.ZIndex = 1002
-        fsBtn.Parent = smartWin
-
-        local fsCorner = Instance.new("UICorner")
-        fsCorner.CornerRadius = UDim.new(0, 7)
-        fsCorner.Parent = fsBtn
-
-        local fsIcon = Instance.new("ImageLabel")
-        fsIcon.Name = "Icon"
-        fsIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-        fsIcon.Position = UDim2.fromScale(0.5, 0.5)
-        fsIcon.Size = UDim2.fromOffset(17, 17)
-        fsIcon.BackgroundTransparency = 1
-        fsIcon.Image = isFullscreen and "http://www.roblox.com/asset/?id=6026568240" or "http://www.roblox.com/asset/?id=6026568245"
-        fsIcon.ImageColor3 = Color3.fromRGB(205, 212, 226)
-        fsIcon.ZIndex = 1000
-        fsIcon.Parent = fsBtn
-        fsIconObj = fsIcon
-
-        trackConn(fsBtn.MouseEnter:Connect(function()
-            tweenService:Create(fsBtn, TweenInfo.new(0.12), { BackgroundTransparency = 0.15 }):Play()
-            tweenService:Create(fsIcon, TweenInfo.new(0.12), { ImageColor3 = Color3.fromRGB(255, 255, 255) }):Play()
-        end))
-        trackConn(fsBtn.MouseLeave:Connect(function()
-            tweenService:Create(fsBtn, TweenInfo.new(0.12), { BackgroundTransparency = 0.55 }):Play()
-            tweenService:Create(fsIcon, TweenInfo.new(0.12), { ImageColor3 = Color3.fromRGB(205, 212, 226) }):Play()
-        end))
-        trackConn(fsBtn.MouseButton1Click:Connect(toggleFullscreen))
-
-        local old = smartWin:FindFirstChild("YokaResizeHandle")
-        if old then old:Destroy() end
-
-        local handle = Instance.new("TextButton")
-        handle.Name = "YokaResizeHandle"
-        handle.Size = UDim2.fromOffset(24, 24)
-        handle.Position = UDim2.new(1, -24, 1, -24)
-        handle.BackgroundTransparency = 1
-        handle.BorderSizePixel = 0
-        handle.AutoButtonColor = false
-        handle.Text = ""
-        handle.ZIndex = 999
-        handle.Active = true
-        handle.Parent = smartWin
-
-        local function makeBar(w: number, x: number, y: number): Frame
-            local bar = Instance.new("Frame")
-            bar.Size = UDim2.fromOffset(w, 2)
-            bar.Position = UDim2.fromOffset(x, y)
-            bar.Rotation = -45
-            bar.BackgroundColor3 = THEME.c1
-            bar.BackgroundTransparency = 0.4
-            bar.BorderSizePixel = 0
-            bar.ZIndex = 1000
-            bar.Parent = handle
-            local c = Instance.new("UICorner")
-            c.CornerRadius = UDim.new(1, 0)
-            c.Parent = bar
-            return bar
-        end
-
-        local b1 = makeBar(12, 8, 15)
-        local b2 = makeBar(7, 13, 18)
-
-        trackConn(handle.MouseEnter:Connect(function()
-            tweenService:Create(b1, TweenInfo.new(0.12), { BackgroundTransparency = 0.05 }):Play()
-            tweenService:Create(b2, TweenInfo.new(0.12), { BackgroundTransparency = 0.05 }):Play()
-        end))
-        trackConn(handle.MouseLeave:Connect(function()
-            tweenService:Create(b1, TweenInfo.new(0.12), { BackgroundTransparency = 0.4 }):Play()
-            tweenService:Create(b2, TweenInfo.new(0.12), { BackgroundTransparency = 0.4 }):Play()
-        end))
-        trackConn(smartWin:GetPropertyChangedSignal("Size"):Connect(function()
-            local expanded = (smartWin.Size.Y.Offset >= 120)
-            handle.Visible = expanded
-            fsBtn.Visible = expanded
-            if exitBtnObj then exitBtnObj.Visible = expanded end
-            if updateTopBarResponsive then updateTopBarResponsive(smartWin.Size.X.Offset) end
-        end))
-        local initExpanded = (smartWin.Size.Y.Offset >= 120)
-        handle.Visible = initExpanded
-        fsBtn.Visible = initExpanded
-        if exitBtnObj then exitBtnObj.Visible = initExpanded end
-        if updateTopBarResponsive then updateTopBarResponsive(smartWin.Size.X.Offset) end
-
-        local resizing = false
-        local rStartMouse = Vector2.new(0, 0)
-        local rStartW, rStartH = 720, 450
-        local rStartPos = smartWin.Position
-
-        trackConn(handle.InputBegan:Connect(function(input: InputObject)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                resizing = true; isFullscreen = false
-                rStartMouse = Vector2.new(input.Position.X, input.Position.Y)
-                rStartW = smartWin.Size.X.Offset
-                rStartH = smartWin.Size.Y.Offset
-                rStartPos = smartWin.Position
-            end
-        end))
-        trackConn(userInputService.InputChanged:Connect(function(input: InputObject)
-            if not resizing then return end
-            if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
-            local cam = workspace.CurrentCamera
-            local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-            local scaleFactor = getResponsiveScaleFactor(vp)
-            local delta = (Vector2.new(input.Position.X, input.Position.Y) - rStartMouse) / scaleFactor
-            local effVpX = math.floor((vp.X - 16) / scaleFactor)
-            local effVpY = math.floor((vp.Y - 16) / scaleFactor)
-            local dragMinW = math.clamp(math.floor(effVpX * 0.35), 360, 520)
-            local dragMaxW = math.max(dragMinW, effVpX)
-            local dragMinH = math.clamp(math.floor(effVpY * 0.35), 250, 340)
-            local dragMaxH = math.max(dragMinH, effVpY)
-            local newW = math.clamp(math.floor(rStartW + delta.X), dragMinW, dragMaxW)
-            local newH = math.clamp(math.floor(rStartH + delta.Y), dragMinH, dragMaxH)
-            local ddx = (newW - rStartW) * 0.5 * scaleFactor
-            local ddy = (newH - rStartH) * 0.5 * scaleFactor
-            smartWin.Size = UDim2.fromOffset(newW, newH)
-            smartWin.Position = UDim2.new(rStartPos.X.Scale, rStartPos.X.Offset + ddx, rStartPos.Y.Scale, rStartPos.Y.Offset + ddy)
-            if shadow and shadow:IsA("GuiObject") then
-                shadow.Size = smartWin.Size
-                shadow.Position = smartWin.Position
-            end
-            hubState.winW = newW
-            hubState.winH = newH
-            if updateTopBarResponsive then updateTopBarResponsive(newW) end
-        end))
-        trackConn(userInputService.InputEnded:Connect(function(input: InputObject)
-            if resizing and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-                resizing = false
-                saveState(hubState)
-            end
-        end))
-    end
-
-    -- Kích hoạt ngay Resizer & Căn chỉnh kích thước cửa sổ ban đầu
-    task.spawn(function()
-        task.wait(0.5)
-        pcall(function()
-            local lunaGui = getLunaGui()
-            if lunaGui then
-                local smartWin = lunaGui:FindFirstChild("SmartWindow")
-                local shadow = lunaGui:FindFirstChild("ShadowHolder")
-                if smartWin and smartWin:IsA("GuiObject") then
-                    smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
-                    if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0.5, 0.5) end
-                end
-            end
-            if attachCornerResizer then attachCornerResizer() end
-            applyWindowSize(hubState.winW or 720, hubState.winH or 450, false, false)
-        end)
-    end)
-
-    -- Bộ lắng nghe thay đổi độ phân giải màn hình tự động (Dynamic Responsive Scale)
-    local cam = workspace.CurrentCamera
-    if cam then
-        trackConn(cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-            pcall(function()
-                local vp = cam.ViewportSize
-                local scaleFactor = getResponsiveScaleFactor(vp)
-                local lunaGui = getLunaGui()
-                if lunaGui then
-                    local smartWin = lunaGui:FindFirstChild("SmartWindow")
-                    local shadow = lunaGui:FindFirstChild("ShadowHolder")
-                    if smartWin and smartWin:IsA("GuiObject") then
-                        smartWin.AnchorPoint = Vector2.new(0.5, 0.5)
-                        if shadow and shadow:IsA("GuiObject") then shadow.AnchorPoint = Vector2.new(0.5, 0.5) end
-                        syncResponsiveScale(smartWin, shadow and shadow:IsA("GuiObject") and shadow or nil, scaleFactor)
-                        local effMaxW = math.max(380, math.floor((vp.X - 16) / scaleFactor))
-                        local effMaxH = math.max(260, math.floor((vp.Y - 16) / scaleFactor))
-                        if isFullscreen then
-                            local fullSz = UDim2.fromOffset(effMaxW, effMaxH)
-                            local fullPos = UDim2.fromScale(0.5, 0.5)
-                            smartWin.Size = fullSz
-                            smartWin.Position = fullPos
-                            if shadow and shadow:IsA("GuiObject") then
-                                shadow.Size = fullSz
-                                shadow.Position = fullPos
-                            end
-                        else
-                            local curW = smartWin.Size.X.Offset
-                            local curH = smartWin.Size.Y.Offset
-                            if curW > effMaxW or curH > effMaxH then
-                                applyWindowSize(math.min(curW, effMaxW), math.min(curH, effMaxH), false, false)
-                            end
-                        end
-                        if updateTopBarResponsive then updateTopBarResponsive(smartWin.Size.X.Offset) end
-                    end
-                end
-            end)
-        end))
+        if not Window then return end
+        Window:ToggleFullscreen()
+        isFullscreen = Window.fullscreen
     end
 
