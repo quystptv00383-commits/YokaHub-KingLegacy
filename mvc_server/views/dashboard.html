@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YokaHub MVC · SQL Server Boss &amp; Analytics Dashboard</title>
+  <style>
+    :root {
+      --bg: #111218;
+      --panel: #171921;
+      --card: #1f222c;
+      --stroke: #363c50;
+      --accent: #3ab688;
+      --accent-soft: #6ee7b7;
+      --danger: #e25563;
+      --text: #f6f8fc;
+      --muted: #b6bece;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Segoe UI", system-ui, sans-serif; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px; }
+    .wrap { max-width: 1220px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+    .header {
+      background: var(--panel); border: 1px solid var(--stroke); border-radius: 12px;
+      padding: 18px 22px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .brand h1 { font-size: 20px; color: var(--accent-soft); letter-spacing: 0.3px; }
+    .brand p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .badge {
+      background: rgba(58, 182, 136, 0.14); border: 1px solid var(--accent); color: var(--accent-soft);
+      padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    }
+    .grid-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+    .kpi {
+      background: var(--card); border: 1px solid var(--stroke); border-radius: 10px; padding: 14px 16px;
+    }
+    .kpi .label { font-size: 12px; color: var(--muted); }
+    .kpi .val { font-size: 24px; font-weight: 700; color: var(--text); margin-top: 6px; }
+    .section {
+      background: var(--panel); border: 1px solid var(--stroke); border-radius: 12px; padding: 16px 18px;
+    }
+    .section-head {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 10px;
+    }
+    .section-head h2 { font-size: 15px; color: var(--accent-soft); }
+    .btn {
+      background: var(--card); border: 1px solid var(--stroke); color: var(--text);
+      padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent-soft); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid rgba(54,60,80,0.6); }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; }
+    .hp-bar { width: 96px; height: 8px; background: #262936; border-radius: 999px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 6px; }
+    .hp-fill { height: 100%; background: linear-gradient(90deg, var(--danger), var(--accent)); }
+    .mono { font-family: Consolas, monospace; font-size: 12px; color: #d6e2ff; }
+    .empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+    .two-col { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="brand">
+        <h1>YokaHub MVC · SQL Server Command Center</h1>
+        <p id="subInfo">Đang tải thông tin kết nối Microsoft SQL Server...</p>
+      </div>
+      <div class="badge" id="sqlStatus">SQL Server: Connected</div>
+    </div>
+
+    <div class="grid-kpi">
+      <div class="kpi"><div class="label">Boss Đang Sống (90s TTL)</div><div class="val" id="kBoss">0</div></div>
+      <div class="kpi"><div class="label">Tổng Vật Phẩm Đã Drop</div><div class="val" id="kDrops">0</div></div>
+      <div class="kpi"><div class="label">Tổng Lượt Hop Server</div><div class="val" id="kHops">0</div></div>
+      <div class="kpi"><div class="label">License Keys (SQL)</div><div class="val" id="kKeys">0</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <h2>Boss Live Servers (dbo.BossServers)</h2>
+        <button class="btn" onclick="refreshNow()">Làm mới ngay</button>
+      </div>
+      <div id="bossWrap"></div>
+    </div>
+
+    <div class="two-col">
+      <div class="section">
+        <div class="section-head"><h2>Nhật Ký Drop Gần Nhất (dbo.DropLogs)</h2></div>
+        <div id="dropWrap"></div>
+      </div>
+      <div class="section">
+        <div class="section-head"><h2>Phiên Đang Treo (dbo.HunterSessions)</h2></div>
+        <div id="sessWrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const initialState = __INITIAL_DATA_JSON__;
+
+    function seaName(pid) {
+      if (Number(pid) === 15759515082) return "Sea 3";
+      if (Number(pid) === 6381829480) return "Sea 2";
+      return "Sea 1";
+    }
+
+    function copyText(txt, btn) {
+      navigator.clipboard.writeText(txt).then(() => {
+        const old = btn.textContent;
+        btn.textContent = "Đã Copy!";
+        setTimeout(() => { btn.textContent = old; }, 1100);
+      });
+    }
+
+    function el(tag, cls, text) {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text !== undefined && text !== null) n.textContent = String(text);
+      return n;
+    }
+
+    function render(data) {
+      if (!data) return;
+      document.getElementById("subInfo").textContent =
+        `SQL Server: ${data.serverName || "localhost"} · Database: ${data.database || "YokaHubDB"} · Tự làm mới 4s`;
+      const s = data.stats || {};
+      document.getElementById("kBoss").textContent = Number(s.aliveBosses || 0).toLocaleString();
+      document.getElementById("kDrops").textContent = Number(s.totalDrops || 0).toLocaleString();
+      document.getElementById("kHops").textContent = Number(s.totalHops || 0).toLocaleString();
+      document.getElementById("kKeys").textContent = Number(s.activeKeys || 0).toLocaleString();
+
+      // Boss table
+      const bossWrap = document.getElementById("bossWrap");
+      bossWrap.replaceChildren();
+      const bosses = data.bosses || [];
+      if (bosses.length === 0) {
+        bossWrap.appendChild(el("div", "empty", "Chưa có Boss sống nào được ghi nhận trong 90 giây gần nhất."));
+      } else {
+        const tbl = el("table");
+        const thead = el("thead");
+        const hr = el("tr");
+        ["Sea", "Boss", "Máu", "Người chơi", "Tuổi", "JobId", "Join Script"].forEach(h => hr.appendChild(el("th", "", h)));
+        thead.appendChild(hr);
+        tbl.appendChild(thead);
+        const tbody = el("tbody");
+        bosses.forEach(b => {
+          const tr = el("tr");
+          tr.appendChild(el("td", "", seaName(b.placeId)));
+          tr.appendChild(el("td", "", b.eventName));
+          const hpTd = el("td");
+          const bar = el("span", "hp-bar");
+          const fill = el("span", "hp-fill");
+          const pct = Math.max(0, Math.min(100, Number((b.health && b.health.percent) || 100)));
+          fill.style.width = pct + "%";
+          bar.appendChild(fill);
+          hpTd.appendChild(bar);
+          hpTd.appendChild(el("span", "", pct + "%"));
+          tr.appendChild(hpTd);
+          tr.appendChild(el("td", "", `${(b.players && b.players.current) || 1}/${(b.players && b.players.max) || 12}`));
+          tr.appendChild(el("td", "", `${b.ageSec || 0}s`));
+          tr.appendChild(el("td", "mono", String(b.jobId || "").slice(0, 14) + "..."));
+          const actTd = el("td");
+          const copyBtn = el("button", "btn", "Copy Join Lua");
+          const luaJoin = `game:GetService("TeleportService"):TeleportToPlaceInstance(${b.placeId}, "${b.jobId}", game.Players.LocalPlayer)`;
+          copyBtn.onclick = () => copyText(luaJoin, copyBtn);
+          actTd.appendChild(copyBtn);
+          tr.appendChild(actTd);
+          tbody.appendChild(tr);
+        });
+        tbl.appendChild(tbody);
+        bossWrap.appendChild(tbl);
+      }
+
+      // Drops table
+      const dropWrap = document.getElementById("dropWrap");
+      dropWrap.replaceChildren();
+      const drops = data.drops || [];
+      if (drops.length === 0) {
+        dropWrap.appendChild(el("div", "empty", "Chưa có vật phẩm drop nào."));
+      } else {
+        const tbl = el("table");
+        const thead = el("thead");
+        const hr = el("tr");
+        ["Thời gian", "Nhân vật", "Vật phẩm", "SL"].forEach(h => hr.appendChild(el("th", "", h)));
+        thead.appendChild(hr);
+        tbl.appendChild(thead);
+        const tbody = el("tbody");
+        drops.slice(0, 15).forEach(d => {
+          const tr = el("tr");
+          tr.appendChild(el("td", "mono", d.droppedAt));
+          tr.appendChild(el("td", "", d.playerName));
+          tr.appendChild(el("td", "", d.itemName));
+          tr.appendChild(el("td", "", `+${d.deltaCount} (${d.totalCount})`));
+          tbody.appendChild(tr);
+        });
+        tbl.appendChild(tbody);
+        dropWrap.appendChild(tbl);
+      }
+
+      // Sessions table
+      const sessWrap = document.getElementById("sessWrap");
+      sessWrap.replaceChildren();
+      const sessions = data.sessions || [];
+      if (sessions.length === 0) {
+        sessWrap.appendChild(el("div", "empty", "Chưa có phiên farm nào đang kết nối."));
+      } else {
+        const tbl = el("table");
+        const thead = el("thead");
+        const hr = el("tr");
+        ["Nhân vật", "Chế độ", "Hop", "Beli / Gem", "Cập nhật"].forEach(h => hr.appendChild(el("th", "", h)));
+        thead.appendChild(hr);
+        tbl.appendChild(thead);
+        const tbody = el("tbody");
+        sessions.forEach(ss => {
+          const tr = el("tr");
+          tr.appendChild(el("td", "", ss.playerName));
+          tr.appendChild(el("td", "", ss.mode));
+          tr.appendChild(el("td", "", ss.hopsCount));
+          tr.appendChild(el("td", "", `${Number(ss.beliDelta || 0).toLocaleString()} / ${Number(ss.gemsDelta || 0).toLocaleString()}`));
+          tr.appendChild(el("td", "mono", ss.updatedAt));
+          tbody.appendChild(tr);
+        });
+        tbl.appendChild(tbody);
+        sessWrap.appendChild(tbl);
+      }
+    }
+
+    async function refreshNow() {
+      try {
+        const res = await fetch("/api/dashboard");
+        if (res.ok) render(await res.json());
+      } catch (e) {}
+    }
+
+    render(initialState);
+    setInterval(refreshNow, 4000);
+  </script>
+</body>
+</html>

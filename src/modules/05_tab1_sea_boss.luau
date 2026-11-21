@@ -1166,6 +1166,33 @@
         end,
     }, "BossDiscordNotifyToggle")
 
+    IndependentApiSection:CreateToggle({
+        Name = "🗄️ Kết Nối Database SQL Server Cục Bộ (MVC Server)",
+        Description = "Tự động đồng bộ BossServers, DropLogs, Phiên Hop & Cấu hình vào SQL Server (YokaHubDB) khi máy đang chạy MVC Server (http://127.0.0.1:8787)",
+        CurrentValue = (hubState.syncToLocalSql ~= false),
+        Callback = function(Value: boolean)
+            hubState.syncToLocalSql = Value
+            saveState(hubState)
+            if Value then
+                safeNotify("SQL MVC Server", "Đã bật đồng bộ dữ liệu sang Database SQL Server cục bộ!", "storage")
+            else
+                safeNotify("SQL MVC Server", "Đã tắt đồng bộ Database SQL Server cục bộ.", "info")
+            end
+        end,
+    }, "SyncToLocalSqlToggle")
+
+    IndependentApiSection:CreateInput({
+        Name = "🔌 Địa Chỉ YokaHub MVC SQL Server URL",
+        PlaceholderText = "http://127.0.0.1:8787",
+        RemoveTextAfterFocusLost = false,
+        Callback = function(text: string)
+            local clean = YokaNet.normalizeBaseUrl(text)
+            hubState.mvcSqlServerUrl = (clean ~= "") and clean or "http://127.0.0.1:8787"
+            saveState(hubState)
+            safeNotify("SQL MVC Server", "Đã đặt địa chỉ MVC SQL API: " .. hubState.mvcSqlServerUrl, "storage")
+        end,
+    }, "MvcSqlServerUrlInput")
+
     IndependentApiSection:CreateInput({
         Name = "📢 Discord Webhook Chỉ Báo Boss (Kênh báo Server có Boss)",
         PlaceholderText = "https://discord.com/api/webhooks/... (trống = dùng file local YokaHub_BossWebhook.txt)",

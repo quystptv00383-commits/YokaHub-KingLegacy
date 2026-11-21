@@ -2500,6 +2500,24 @@
         local discordCooldowns: { [string]: number } = {}
         local cachedLocalDiscordUrl = ""
         local cachedLocalDiscordAt = 0
+        local mvcHealth = { url = "", checkedAt = 0, alive = false }
+        local lastConfigSyncAt = 0
+        local lastSessionSyncAt = 0
+
+        function net.getReachableSqlMvcUrl(): string
+            if hubState.syncToLocalSql == false then return "" end
+            local sqlUrl = net.normalizeBaseUrl(hubState.mvcSqlServerUrl or "http://127.0.0.1:8787")
+            if sqlUrl == "" then return "" end
+            local now = os.clock()
+            if mvcHealth.url == sqlUrl and (now - mvcHealth.checkedAt) < 15.0 then
+                return mvcHealth.alive and sqlUrl or ""
+            end
+            mvcHealth.url = sqlUrl
+            mvcHealth.checkedAt = now
+            local okH, codeH, rawH = net.httpRequest("GET", sqlUrl .. "/api/health")
+            mvcHealth.alive = (okH and codeH == 200 and typeof(rawH) == "string" and string.find(rawH, "YokaHubDB", 1, true) ~= nil)
+            return mvcHealth.alive and sqlUrl or ""
+        end
 
         function net.normalizeDiscordWebhook(raw: any): string
             local s = string.gsub(tostring(raw or ""), "%s+", "")
@@ -2665,9 +2683,13 @@
             local seen: { [string]: boolean } = {}
             local hasPrivate = false
             local hasWukong = false
-            local baseUrl = net.normalizeBaseUrl(hubState.privateBossApiUrl)
+            local apiUrls: { string } = {}
+            local customPriv = net.normalizeBaseUrl(hubState.privateBossApiUrl)
+            local localSql = net.getReachableSqlMvcUrl()
+            if customPriv ~= "" then table.insert(apiUrls, customPriv) end
+            if localSql ~= "" and localSql ~= customPriv then table.insert(apiUrls, localSql) end
 
-            if baseUrl ~= "" then
+            for _, baseUrl in ipairs(apiUrls) do
                 local now = os.clock()
                 local privEntries: { any }? = nil
                 if privCache.url == baseUrl and (now - privCache.fetchedAt) < 2.0 and typeof(privCache.snap) == "table" then
@@ -2751,6 +2773,47 @@
             return false, "no_route"
         end
 
+        local function sendDiscordBossFallback(bossName: string, curH: number, maxH: number, pct: number, pCount: number, pMax: number, execName: string)
+            local dcUrl = net.getBossDiscordWebhook()
+            if dcUrl == "" or game.JobId == "" then return end
+            local jobId = game.JobId
+            local seaLabel = (game.PlaceId == SEA3_PLACE and "Sea 3") or (game.PlaceId == SEA2_PLACE and "Sea 2") or "Sea 1"
+            local quickJoin = string.format('game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s", game.Players.LocalPlayer)', game.PlaceId, jobId)
+            local hpText = (maxH > 0) and string.format("%d/%d (%d%%)", curH, maxH, pct) or string.format("%d%%", pct)
+            local dcDesc = table.concat({
+                "```",
+                string.format("🎮 %s: Alive | ❤️ %s", bossName, hpText),
+                "```",
+                "**🌐 SERVER**",
+                string.format("**Game:** King Legacy (%s)", seaLabel),
+                string.format("**Players:** %d/%d", pCount, pMax),
+                "",
+                "**📌 JobId PC**",
+                "```",
+                jobId,
+                "```",
+                "**📌 JobId Join Script**",
+                "```lua",
+                quickJoin,
+                "```",
+                "**💻 Executor**",
+                execName,
+            }, "\n")
+            net.httpRequest("POST", dcUrl, {
+                content = jobId,
+                username = "YokaHub Boss Notifier",
+                embeds = {
+                    {
+                        author = { name = "YokaHub Boss Notifier" },
+                        title = "🔥 BOSS DETECTED",
+                        description = dcDesc,
+                        color = 16724787,
+                        footer = { text = "YokaHub | Auto Detection System" },
+                    },
+                },
+            })
+        end
+
         function net.reportAliveBoss(bossName: string, bossSource: string, hpCur: number?, hpMax: number?)
             if game.JobId == "" then return end
             local now = os.clock()
@@ -2761,10 +2824,24 @@
             local curH = math.floor(tonumber(hpCur) or 0)
             local maxH = math.floor(tonumber(hpMax) or 0)
             local pct = (maxH > 0) and math.clamp(math.floor((curH / maxH) * 100 + 0.5), 1, 100) or 100
+            local execName = "YokaHub Client"
+            pcall(function()
+                if typeof(identifyexecutor) == "function" then
+                    local ex = identifyexecutor()
+                    if typeof(ex) == "string" and ex ~= "" then execName = ex end
+                end
+            end)
 
+            local reportTargets: { string } = {}
             local baseUrl = net.normalizeBaseUrl(hubState.privateBossApiUrl)
-            if hubState.privateBossApiReport ~= false and baseUrl ~= "" and (now - (reportCooldowns[cdKey] or 0)) >= 15.0 then
+            local sqlUrl = net.getReachableSqlMvcUrl()
+            if hubState.privateBossApiReport ~= false and baseUrl ~= "" then table.insert(reportTargets, baseUrl) end
+            if sqlUrl ~= "" and sqlUrl ~= baseUrl then table.insert(reportTargets, sqlUrl) end
+
+            local wantClientDc = (hubState.bossDiscordNotify ~= false) and (net.getBossDiscordWebhook() ~= "") and ((now - (discordCooldowns[cdKey] or 0)) >= 60.0)
+            if #reportTargets > 0 and (now - (reportCooldowns[cdKey] or 0)) >= 15.0 then
                 reportCooldowns[cdKey] = now
+                if wantClientDc then discordCooldowns[cdKey] = now end
                 local payload = {
                     placeId = game.PlaceId,
                     jobId = jobId,
@@ -2772,64 +2849,76 @@
                     eventName = bossName,
                     source = bossSource,
                     alive = true,
+                    executor = execName,
+                    reportedBy = players.LocalPlayer and players.LocalPlayer.Name or "",
                     health = { current = curH, max = maxH, percent = pct },
                     players = { current = pCount, max = pMax },
                     reportedAt = os.time(),
                 }
                 task.spawn(function()
-                    net.httpRequest("POST", baseUrl .. "/api/report", payload, getPrivateHeaders())
-                end)
-            end
-
-            local dcUrl = (hubState.bossDiscordNotify ~= false) and net.getBossDiscordWebhook() or ""
-            if dcUrl ~= "" and (now - (discordCooldowns[cdKey] or 0)) >= 60.0 then
-                discordCooldowns[cdKey] = now
-                local seaLabel = (game.PlaceId == SEA3_PLACE and "Sea 3") or (game.PlaceId == SEA2_PLACE and "Sea 2") or "Sea 1"
-                local execName = "YokaHub Client"
-                pcall(function()
-                    if typeof(identifyexecutor) == "function" then
-                        local ex = identifyexecutor()
-                        if typeof(ex) == "string" and ex ~= "" then execName = ex end
+                    local handledByMvc = false
+                    for _, targetUrl in ipairs(reportTargets) do
+                        local okR, _, rawR = net.httpRequest("POST", targetUrl .. "/api/report", payload, getPrivateHeaders())
+                        if okR and typeof(rawR) == "string" and string.find(rawR, '"discordHandledByServer":true', 1, true) ~= nil then
+                            handledByMvc = true
+                        end
+                    end
+                    if not handledByMvc and wantClientDc then
+                        sendDiscordBossFallback(bossName, curH, maxH, pct, pCount, pMax, execName)
                     end
                 end)
-                local quickJoin = string.format('game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s", game.Players.LocalPlayer)', game.PlaceId, jobId)
-                local hpText = (maxH > 0) and string.format("%d/%d (%d%%)", curH, maxH, pct) or string.format("%d%%", pct)
-                local dcDesc = table.concat({
-                    "```",
-                    string.format("🎮 %s: Alive | ❤️ %s", bossName, hpText),
-                    "```",
-                    "**🌐 SERVER**",
-                    string.format("**Game:** King Legacy (%s)", seaLabel),
-                    string.format("**Players:** %d/%d", pCount, pMax),
-                    "",
-                    "**📌 JobId PC**",
-                    "```",
-                    jobId,
-                    "```",
-                    "**📌 JobId Join Script**",
-                    "```lua",
-                    quickJoin,
-                    "```",
-                    "**💻 Executor**",
-                    execName,
-                }, "\n")
-                local dcPayload = {
-                    content = jobId,
-                    username = "YokaHub Boss Notifier",
-                    embeds = {
-                        {
-                            author = { name = "YokaHub Boss Notifier" },
-                            title = "🔥 BOSS DETECTED",
-                            description = dcDesc,
-                            color = 16724787,
-                            footer = { text = "YokaHub | Auto Detection System" },
-                        },
-                    },
-                }
+            elseif wantClientDc then
+                discordCooldowns[cdKey] = now
                 task.spawn(function()
-                    net.httpRequest("POST", dcUrl, dcPayload)
+                    sendDiscordBossFallback(bossName, curH, maxH, pct, pCount, pMax, execName)
                 end)
             end
+        end
+
+        function net.syncDropToSql(dropTbl: { [string]: any })
+            local sqlUrl = net.getReachableSqlMvcUrl()
+            if sqlUrl == "" then return end
+            task.spawn(function()
+                net.httpRequest("POST", sqlUrl .. "/api/drops", dropTbl, getPrivateHeaders())
+            end)
+        end
+
+        function net.syncSessionToSql(modeStr: string)
+            local now = os.clock()
+            if (now - lastSessionSyncAt) < 8.0 then return end
+            local sqlUrl = net.getReachableSqlMvcUrl()
+            if sqlUrl == "" then return end
+            lastSessionSyncAt = now
+            local cur = getPlayerStats()
+            local payload = {
+                playerName = players.LocalPlayer and players.LocalPlayer.Name or "Unknown",
+                jobId = game.JobId,
+                placeId = game.PlaceId,
+                mode = modeStr or currentMode or "off",
+                hopsCount = session.hops or 0,
+                startBeli = session.startBeli or cur.beli,
+                currentBeli = cur.beli,
+                startGems = session.startGems or cur.gems,
+                currentGems = cur.gems,
+            }
+            task.spawn(function()
+                net.httpRequest("POST", sqlUrl .. "/api/session", payload, getPrivateHeaders())
+            end)
+        end
+
+        function net.syncConfigToSql(cfgTbl: any)
+            local now = os.clock()
+            if (now - lastConfigSyncAt) < 1.5 then return end
+            local sqlUrl = net.getReachableSqlMvcUrl()
+            if sqlUrl == "" then return end
+            lastConfigSyncAt = now
+            task.spawn(function()
+                net.httpRequest("POST", sqlUrl .. "/api/config", { configKey = "default", config = cfgTbl }, getPrivateHeaders())
+            end)
+        end
+
+        genv._YokaSyncConfigToSql = function(stTbl: any)
+            net.syncConfigToSql(stTbl)
         end
 
         return net

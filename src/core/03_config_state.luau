@@ -379,6 +379,8 @@
         smartPublicHop: boolean?,
         bossDiscordWebhook: string?,
         bossDiscordNotify: boolean?,
+        mvcSqlServerUrl: string?,
+        syncToLocalSql: boolean?,
     }
 
     local function loadState(): HubState
@@ -526,6 +528,8 @@
             smartPublicHop = true,
             bossDiscordWebhook = "",
             bossDiscordNotify = true,
+            mvcSqlServerUrl = "http://127.0.0.1:8787",
+            syncToLocalSql = true,
         }
         local d = readJson(stateFile)
         if typeof(d) == "table" then
@@ -676,6 +680,8 @@
             if typeof(d.smartPublicHop) == "boolean" then st.smartPublicHop = d.smartPublicHop end
             if typeof(d.bossDiscordWebhook) == "string" then st.bossDiscordWebhook = d.bossDiscordWebhook end
             if typeof(d.bossDiscordNotify) == "boolean" then st.bossDiscordNotify = d.bossDiscordNotify end
+            if typeof(d.mvcSqlServerUrl) == "string" and d.mvcSqlServerUrl ~= "" then st.mvcSqlServerUrl = d.mvcSqlServerUrl end
+            if typeof(d.syncToLocalSql) == "boolean" then st.syncToLocalSql = d.syncToLocalSql end
             if typeof(d.toolMode) == "string" then st.toolMode = d.toolMode end
             if typeof(d.m1SpamList) == "table" then
                 st.m1SpamList = d.m1SpamList
@@ -698,6 +704,9 @@
 
     local function saveState(st: HubState)
         writeJson(stateFile, st)
+        if typeof(genv._YokaSyncConfigToSql) == "function" then
+            pcall(genv._YokaSyncConfigToSql, st)
+        end
     end
 
     type SessionData = {

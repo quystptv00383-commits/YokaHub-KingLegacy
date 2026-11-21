@@ -2452,7 +2452,8 @@
     end
 
     local function scanAndReportAliveBosses()
-        local hasPriv = YokaNet.normalizeBaseUrl(hubState.privateBossApiUrl) ~= "" and hubState.privateBossApiReport ~= false
+        local useSqlMvc = (hubState.syncToLocalSql ~= false) and (YokaNet.normalizeBaseUrl(hubState.mvcSqlServerUrl or "http://127.0.0.1:8787") ~= "") and (YokaNet.getReachableSqlMvcUrl() ~= "")
+        local hasPriv = (YokaNet.normalizeBaseUrl(hubState.privateBossApiUrl) ~= "" and hubState.privateBossApiReport ~= false) or useSqlMvc
         local hasDisc = (hubState.bossDiscordNotify ~= false) and ((YokaNet.normalizeDiscordWebhook(hubState.bossDiscordWebhook) ~= "") or (YokaNet.getBossDiscordWebhook() ~= ""))
         if not hasPriv and not hasDisc then return end
         if game.PlaceId ~= SEA3_PLACE and game.PlaceId ~= SEA2_PLACE then return end
@@ -2488,6 +2489,7 @@
             if t >= 1000000 then t = 0 end
             if t % 2 == 0 and updateSessionUI then updateSessionUI() end
             if t % 3 == 0 then pcall(scanAndReportAliveBosses) end
+            if t % 6 == 0 and hubState.syncToLocalSql ~= false then pcall(YokaNet.syncSessionToSql, currentMode) end
             if dmgEnabled and refreshNearbyMobs then refreshNearbyMobs() end
             task.wait(1.5)
         end
