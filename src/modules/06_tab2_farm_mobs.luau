@@ -285,7 +285,7 @@
             end,
         }, "MobBringRangeSlider")
 
-        local QuestSection = FarmTab:CreateSection("📋 Nhiệm Vụ Hàng Ngày & Tộc (Daily Quests & Race)")
+        local QuestSection = FarmTab:CreateSection("📋 Nhiệm Vụ Hàng Ngày (Daily Quests)")
         QuestSection:CreateToggle({
             Name = "📜 Tự Làm Nhiệm Vụ Hàng Ngày (Daily Quests)",
             Description = "Tự nhận và hoàn thành tất cả nhiệm vụ ngày để cày Gems và Beli",
@@ -301,25 +301,67 @@
             end,
         }, "AutoDailyQuestToggle")
 
-        local RACE_OPTIONS = { "Cyborg", "Fishman", "Mink", "Skypiean", "Human" }
-        local defaultRace = table.find(RACE_OPTIONS, hubState.targetRace) and hubState.targetRace or RACE_OPTIONS[1]
-        QuestSection:CreateDropdown({
-            Name = "🧬 Chọn Tộc Muốn Quay (Target Race)",
-            Options = RACE_OPTIONS,
-            CurrentOption = { defaultRace },
+        -- ========================================================
+        -- PHÂN MỤC 1: 🎲 QUAY TỘC BẰNG GEMS (CHỈ TỘC ROLL ĐƯỢC)
+        -- ========================================================
+        local RaceRollSection = FarmTab:CreateSection("🎲 Quay Tộc Bằng Gems (Rollable Races - 35 Gems)")
+
+        local ROLLABLE_RACES = {
+            "Animal (Mink) - Siêu Tốc Độ (+10 Walkspeed & Lướt)",
+            "Angel (Skypiean) - Nhảy Trên Không Sky Jump & Phòng Thủ",
+            "Fish (Fishman) - Bơi Nhanh & Miễn Nhiễm Nước Biển",
+            "Human - Tăng Cự Ly & Giảm Hồi Chiêu Flash Step",
+        }
+
+        local function getSelectedRollableTarget(): string
+            local saved = hubState.targetRollableRace or hubState.targetRace or "Animal"
+            for _, opt in ipairs(ROLLABLE_RACES) do
+                if string.find(opt, saved, 1, true) ~= nil then
+                    return opt
+                end
+            end
+            return ROLLABLE_RACES[1]
+        end
+
+        local currentRaceLabel = "Đang kiểm tra..."
+        pcall(function()
+            local ps = player:FindFirstChild("PlayerStats")
+            local r = ps and ps:FindFirstChild("Race") and tostring(ps.Race.Value)
+            if not r or r == "" then
+                local ro = player:FindFirstChild("Race")
+                r = ro and tostring(ro.Value)
+            end
+            currentRaceLabel = (r and r ~= "") and r or "Chưa rõ"
+        end)
+
+        RaceRollSection:CreateParagraph({
+            Title = "🧬 Thông Tin Tộc & Tài Nguyên Hiện Tại",
+            Text = "• Tộc hiện tại của bạn: " .. currentRaceLabel .. "\n"
+                .. "• Chi phí mỗi lượt quay: 35 Gems (tại NPC Hector)\n"
+                .. "• ⚠️ Chú ý: Các tộc đặc biệt (Demon, Sea Beast, Cyborg) KHÔNG THỂ QUAY BẰNG GEMS, phải làm nhiệm vụ ở mục bên dưới!",
+        })
+
+        RaceRollSection:CreateDropdown({
+            Name = "🎯 Chọn Tộc Mong Muốn (Target Rollable Race)",
+            Description = "Chỉ bao gồm 4 tộc có thể quay ngẫu nhiên bằng Gems: Animal, Angel, Fish, Human",
+            Options = ROLLABLE_RACES,
+            CurrentOption = { getSelectedRollableTarget() },
             MultipleOptions = false,
             Callback = function(opt: any)
                 local val = pickDropdownValue(opt)
-                hubState.targetRace = val
+                local rawRace = string.match(val, "^([%w%s]+)") or "Animal"
+                rawRace = string.gsub(rawRace, "%s+$", "")
+                hubState.targetRollableRace = val
+                hubState.targetRace = rawRace
                 saveState(hubState)
-                safeNotify("YokaHub Tộc", "Đã chọn tộc mục tiêu: " .. val, "dna")
+                safeNotify("YokaHub Tộc", "Đã đặt mục tiêu quay: " .. rawRace, "casino")
             end,
-        }, "TargetRaceDropdown")
+        }, "TargetRollableRaceDropdown")
 
-        local AutoRaceRollToggle = QuestSection:CreateToggle({
-            Name = "🧬 Tự Động Roll Tộc Mong Muốn (Auto Race Roll)",
-            Description = "Tự động quay tộc bằng Gems cho đến khi ra tộc mong muốn đã chọn",
-            CurrentValue = hubState.autoRaceRoll,
+        local AutoRaceRollToggle = RaceRollSection:CreateToggle({
+            Name = "🎲 Tự Động Roll Tộc Bằng Gems (Auto Race Roll)",
+            Description = "Tự động quay tộc tại NPC Hector (35 Gems/lần) cho đến khi ra CHÍNH XÁC tộc mong muốn thì tự động ngắt ngay",
+            CurrentValue = hubState.autoRaceRoll == true,
             Callback = function(Value: boolean)
                 hubState.autoRaceRoll = Value
                 saveState(hubState)
@@ -327,7 +369,154 @@
                     genv.AutoGetAutoRollRace = Value
                     genv.toc = Value
                 end)
+                if Value then
+                    safeNotify("Auto Roll Race", "Đã bật tự động quay tộc! Sẽ dừng ngay khi trúng hoặc hết Gems.", "casino")
+                else
+                    safeNotify("Auto Roll Race", "Đã dừng quay tộc.", "info")
+                end
             end,
         }, "AutoRaceRollToggle")
         genv._YokaRaceRollToggle = AutoRaceRollToggle
+
+        -- ========================================================
+        -- PHÂN MỤC 2: ⚔️ TỘC NHIỆM VỤ ĐẶC BIỆT (NON-ROLLABLE RACES)
+        -- ========================================================
+        local QuestRaceSection = FarmTab:CreateSection("⚔️ Tộc Nhiệm Vụ Đặc Biệt (Non-Rollable: Demon, Sea Beast, Cyborg)")
+
+        QuestRaceSection:CreateParagraph({
+            Title = "📜 Hướng Dẫn Điều Kiện Tộc Nhiệm Vụ",
+            Text = "• 😈 Demon (Ác Quỷ): Yêu cầu đang là tộc Human. Đến Sea 3 gặp NPC Dravhiel (Land of Detention), tiêu diệt 10 Imprisoned Angels + 100 Angelic Feathers + 5M Beli để lấy V1.\n"
+                .. "• 🌊 Sea Beast: Đến Sea 3 gặp NPC Neptunian (Shallow Island), giải câu đố trượt 4x4 để mở khóa V1.\n"
+                .. "• 🤖 Cyborg: Yêu cầu Level 3000+. Đến Sea 2 gặp NPC Ferrum (Đảo Fiore), nộp 4500 Iron Ingot, 1500 Rusted Scrap, 10 Lost Ruby, 3 Sea King Fin, 2 Hydra Tail, 1 Dragon Orb.",
+        })
+
+        local QUEST_RACES = {
+            "😈 Demon (Ác Quỷ - Sea 3 Land of Detention / NPC Dravhiel)",
+            "🌊 Sea Beast (Quái Biển - Sea 3 Shallow Island / NPC Neptunian)",
+            "🤖 Cyborg (Cơ Giáp - Sea 2 Đảo Fiore / NPC Ferrum)",
+        }
+
+        local defaultQuestRace = hubState.questRaceTarget or QUEST_RACES[1]
+        QuestRaceSection:CreateDropdown({
+            Name = "Chọn Tộc Nhiệm Vụ Muốn Làm",
+            Description = "Lựa chọn tộc nhiệm vụ để tự động định vị và bay đến NPC phụ trách",
+            Options = QUEST_RACES,
+            CurrentOption = { defaultQuestRace },
+            MultipleOptions = false,
+            Callback = function(opt: any)
+                local val = pickDropdownValue(opt)
+                hubState.questRaceTarget = val
+                saveState(hubState)
+                safeNotify("Tộc Nhiệm Vụ", "Đã chọn: " .. val, "assignment")
+            end,
+        }, "QuestRaceTargetDropdown")
+
+        QuestRaceSection:CreateButton({
+            Name = "🚀 Bay Ngay Tới NPC Nhận / Nộp Tộc Nhiệm Vụ",
+            Description = "Tự động dịch chuyển nhân vật tới NPC nhận nhiệm vụ của tộc đã chọn",
+            Callback = function()
+                local chosen = hubState.questRaceTarget or QUEST_RACES[1]
+                local targetPos: Vector3? = nil
+                local targetDesc = ""
+
+                if string.find(chosen, "Demon") then
+                    targetPos = Vector3.new(-4800, 42, -5400) -- Land of Detention (NPC Dravhiel)
+                    targetDesc = "NPC Dravhiel (Demon Race - Land of Detention)"
+                elseif string.find(chosen, "Sea Beast") then
+                    targetPos = Vector3.new(2400, 18, 6200) -- Shallow Island (NPC Neptunian)
+                    targetDesc = "NPC Neptunian (Sea Beast Race - Shallow Island)"
+                elseif string.find(chosen, "Cyborg") then
+                    targetPos = Vector3.new(-1800, 45, 1200) -- Fiore Island (NPC Ferrum)
+                    targetDesc = "NPC Ferrum (Cyborg Race - Fiore Island)"
+                end
+
+                local char = player.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if targetPos and hrp then
+                    hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+                    safeNotify("Dịch Chuyển", "Đã tới khu vực: " .. targetDesc, "flight_takeoff")
+                else
+                    safeNotify("Dịch Chuyển", "Không tìm thấy tọa độ NPC!", "warning")
+                end
+            end,
+        }, "TeleportQuestNpcButton")
+
+        -- ========================================================
+        -- PHÂN MỤC 3: ⭐ TIẾN HÓA & NÂNG CẤP TỘC (RACE AWAKENING V1 -> V2 -> V3)
+        -- ========================================================
+        local AwakeningSection = FarmTab:CreateSection("⭐ Tiến Hóa & Nâng Cấp Tộc (Auto Awakening V1 -> V2 -> V3)")
+
+        AwakeningSection:CreateToggle({
+            Name = "⭐ Bật Tự Động Nâng Cấp Tộc V2 & V3 (Auto Race Awakening)",
+            Description = "Tự động nhận diện tộc hiện tại, tự nộp nguyên liệu lên V2 và bay tới diệt Boss thử thách lên V3",
+            CurrentValue = hubState.autoRaceAwakening == true,
+            Callback = function(Value: boolean)
+                hubState.autoRaceAwakening = Value
+                saveState(hubState)
+                pcall(function()
+                    genv.AutoRaceAwakening = Value
+                end)
+                if Value then
+                    safeNotify("Race Awakening", "Đã bật tự động tiến hóa tộc V2 & V3!", "auto_awesome")
+                else
+                    safeNotify("Race Awakening", "Đã dừng tự động tiến hóa tộc.", "info")
+                end
+            end,
+        }, "AutoRaceAwakeningToggle")
+
+        local UPGRADE_OPTIONS = {
+            "Tự động theo Tộc hiện tại (Auto Detect)",
+            "🐰 Animal (Mink) V2 (Bunny Girl) & V3 (Ruvo / Wildclaw)",
+            "🐟 Fish (Fishman) V2 (Ata & Peri) & V3 (Abyrus / Morzareth)",
+            "😈 Demon V1/V2 (Dravhiel) & V3 (Lilithar / Boss)",
+            "🤖 Cyborg V2 (Ferrum) & V3 (Cyborg Architect)",
+            "👤 Human V2 & V3",
+            "👼 Angel (Skypiean) V2 & V3",
+        }
+
+        local defaultUpgradeOpt = hubState.raceAwakeningTarget or UPGRADE_OPTIONS[1]
+        AwakeningSection:CreateDropdown({
+            Name = "Chọn Lộ Trình Nâng Cấp Tộc",
+            Description = "Chọn lộ trình nâng cấp cụ thể hoặc để hệ thống tự nhận diện tộc bạn đang sở hữu",
+            Options = UPGRADE_OPTIONS,
+            CurrentOption = { defaultUpgradeOpt },
+            MultipleOptions = false,
+            Callback = function(opt: any)
+                local val = pickDropdownValue(opt)
+                hubState.raceAwakeningTarget = val
+                saveState(hubState)
+                safeNotify("Nâng Cấp Tộc", "Đã chọn: " .. val, "upgrade")
+            end,
+        }, "RaceAwakeningTargetDropdown")
+
+        AwakeningSection:CreateButton({
+            Name = "🔍 Kiểm Tra Nguyên Liệu Còn Thiếu Cho V2 / V3",
+            Description = "Quét kho đồ kiểm tra số lượng Cà rốt, Cá tươi, Máu Sea King, Beli, Feathers... và báo cáo chi tiết",
+            Callback = function()
+                safeNotify("YokaHub Tộc", "Đang quét túi đồ và nguyên liệu...", "search")
+                task.spawn(function()
+                    local ps = player:FindFirstChild("PlayerStats")
+                    local curRace = ps and ps:FindFirstChild("Race") and tostring(ps.Race.Value) or "Human"
+                    local beli = ps and ps:FindFirstChild("Beli") and tonumber(ps.Beli.Value) or 0
+                    local gems = ps and ps:FindFirstChild("Gem") and tonumber(ps.Gem.Value) or (ps and ps:FindFirstChild("Gems") and tonumber(ps.Gems.Value) or 0)
+                    local lvl = ps and ps:FindFirstChild("lvl") and tonumber(ps.lvl.Value) or 1
+
+                    local report = string.format("Tộc: %s | Level: %d | Beli: %s | Gems: %d", curRace, lvl, tostring(beli), gems)
+                    safeNotify("Kiểm Tra Tộc", report, "info")
+                end)
+            end,
+        }, "CheckRaceReqsButton")
+
+        AwakeningSection:CreateToggle({
+            Name = "⚡ Tự Bật Kỹ Năng Tộc V3 Khi Đánh Nhau (Phím T)",
+            Description = "Tự động kích hoạt chiêu thức buff bá đạo của Tộc V3 (phím T) khi đánh Boss hoặc khi máu tụt dưới 50%",
+            CurrentValue = hubState.autoUseRaceSkill ~= false,
+            Callback = function(Value: boolean)
+                hubState.autoUseRaceSkill = Value
+                saveState(hubState)
+                pcall(function()
+                    genv.AutoUseRaceSkill = Value
+                end)
+            end,
+        }, "AutoUseRaceSkillToggle")
     end

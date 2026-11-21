@@ -113,7 +113,7 @@
         if not m or not isModelAlive(m) then return end
         local n = string.lower(m.Name)
         if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return end
-        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return end
+        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) and string.find(n, "galleon", 1, true) == nil then return end
         currentCombatTarget = m
         currentCombatTargetAt = os.clock()
     end
@@ -206,7 +206,8 @@
 
     local function isKrakenBoss(n: string): boolean
         if isIslandMobName(n) then return false end
-        if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
+        -- Kraken Galleon là Boss Thuyền Galleon, KHÔNG PHẢI Boss Quái Biển Kraken!
+        if string.find(n, "galleon", 1, true) ~= nil then return false end
         if hubState.ignoreKraken == true then return false end
         return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil
     end
@@ -224,7 +225,6 @@
     local function isSeaEventMiscBoss(n: string): boolean
         if isIslandMobName(n) then return false end
         if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
-        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
         if string.find(n, "galleon", 1, true) ~= nil then
             return true
         end
@@ -237,9 +237,9 @@
         local n = string.lower(m.Name or "")
         if isIslandMobName(n) then return false end
 
-        -- CHẶN BỎ QUA GALLEON & KRAKEN
+        -- CHẶN BỎ QUA GALLEON (BAO GỒM KRAKEN GALLEON) & KRAKEN THẬT
         if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
-        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) and string.find(n, "galleon", 1, true) == nil then return false end
 
         if pName == "seamonster" or pName == "ghostmonster" then return true end
         if string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil
@@ -262,9 +262,9 @@
         local n = string.lower(name)
         if isIslandMobName(n) then return false end
 
-        -- CHẶN TRIỆT ĐỂ: Nếu bật bỏ qua Galleon hoặc Kraken thì từ chối ngay lập tức!
+        -- CHẶN TRIỆT ĐỂ: Bỏ qua Tàu Galleon (kể cả Kraken Galleon) hoặc Kraken Quái Biển
         if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
-        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) and string.find(n, "galleon", 1, true) == nil then return false end
 
         -- 1. Depth King (Top 1)
         if isDepthKingBoss(n) then
@@ -418,7 +418,7 @@
         if currentCombatTarget and (os.clock() - currentCombatTargetAt) < 6.0 and isModelAlive(currentCombatTarget) then
             local curName = string.lower(currentCombatTarget.Name)
             if (hubState.ignoreGalleon == true and string.find(curName, "galleon", 1, true) ~= nil)
-               or (hubState.ignoreKraken == true and (string.find(curName, "kraken", 1, true) ~= nil or string.find(curName, "tentacle", 1, true) ~= nil)) then
+               or (hubState.ignoreKraken == true and (string.find(curName, "kraken", 1, true) ~= nil or string.find(curName, "tentacle", 1, true) ~= nil) and string.find(curName, "galleon", 1, true) == nil) then
                 currentCombatTarget = nil
             else
                 local cRoot = getModelRoot(currentCombatTarget)
@@ -452,7 +452,7 @@
                         if hubState.ignoreGalleon == true and string.find(mName, "galleon", 1, true) ~= nil then
                             continue
                         end
-                        if hubState.ignoreKraken == true and (string.find(mName, "kraken", 1, true) ~= nil or string.find(mName, "tentacle", 1, true) ~= nil) then
+                        if hubState.ignoreKraken == true and (string.find(mName, "kraken", 1, true) ~= nil or string.find(mName, "tentacle", 1, true) ~= nil) and string.find(mName, "galleon", 1, true) == nil then
                             continue
                         end
                         local d = (mRoot.Position - myPos).Magnitude
@@ -944,7 +944,7 @@
         if currentCombatTarget and isModelAlive(currentCombatTarget) then
             local curName = string.lower(currentCombatTarget.Name)
             if (hubState.ignoreGalleon == true and string.find(curName, "galleon", 1, true) ~= nil)
-                or (hubState.ignoreKraken == true and (string.find(curName, "kraken", 1, true) ~= nil or string.find(curName, "tentacle", 1, true) ~= nil)) then
+                or (hubState.ignoreKraken == true and (string.find(curName, "kraken", 1, true) ~= nil or string.find(curName, "tentacle", 1, true) ~= nil) and string.find(curName, "galleon", 1, true) == nil) then
                 currentCombatTarget = nil
             end
         end
@@ -1463,7 +1463,7 @@
     -- ========================================================
     local function isIslandWanted(n: string, soloKey: string?, mode: string?): boolean
         if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
-        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) and string.find(n, "galleon", 1, true) == nil then return false end
 
         if soloKey and soloKey ~= "" then
             if soloKey == "dragon" then
@@ -1475,12 +1475,13 @@
                 return string.find(n, "abyssal", 1, true) ~= nil
             elseif soloKey == "kraken" then
                 if hubState.ignoreKraken == true then return false end
+                if string.find(n, "galleon", 1, true) ~= nil then return false end
                 return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil
             elseif soloKey == "crab" then
                 return string.find(n, "crab", 1, true) ~= nil
             elseif soloKey == "sea3_events" then
                 if string.find(n, "depth", 1, true) ~= nil or string.find(n, "abyssal", 1, true) ~= nil then return false end
-                if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+                if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) and string.find(n, "galleon", 1, true) == nil then return false end
                 if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
                 return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "crab", 1, true) ~= nil or string.find(n, "sea", 1, true) ~= nil
             elseif soloKey == "hydra" then
@@ -1569,7 +1570,7 @@
                             if mHum and mHum.Health > 0 then
                                 local mName = string.lower(m.Name)
                                 local isIgnored = (hubState.ignoreGalleon == true and string.find(mName, "galleon", 1, true) ~= nil)
-                                    or (hubState.ignoreKraken == true and (string.find(mName, "kraken", 1, true) ~= nil or string.find(mName, "tentacle", 1, true) ~= nil))
+                                    or (hubState.ignoreKraken == true and (string.find(mName, "kraken", 1, true) ~= nil or string.find(mName, "tentacle", 1, true) ~= nil) and string.find(mName, "galleon", 1, true) == nil)
                                 if not isIgnored then
                                     return true
                                 end
@@ -1643,7 +1644,7 @@
                         if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then
                             return false
                         end
-                        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then
+                        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) and string.find(n, "galleon", 1, true) == nil then
                             return false
                         end
 
@@ -1666,7 +1667,7 @@
                             if soloKeyActive == "serpent" then return isSerpentBoss(n) end
                             if soloKeyActive == "sea3_events" then
                                 if isDepthKingBoss(n) or isAbyssalBoss(n) or isIslandMobName(n) then return false end
-                                if hubState.ignoreKraken == true and (isKrakenBoss(n) or string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+                                if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) and string.find(n, "galleon", 1, true) == nil then return false end
                                 if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
                                 return isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n) or isSerpentBoss(n) or isSeaEventMiscBoss(n) or (folderName == "SeaMonster" and not isIslandMobName(n))
                             end
@@ -1677,7 +1678,7 @@
                         end
                         -- Tự động đánh Sea Event khi bật Auto Fight Sea Event
                         if (hubState.autoFightSeaEvent ~= false or genv.AutoFightSeaEvent) and (folderName == "SeaMonster" or folderName == "GhostMonster" or isSeaEventMiscBoss(n) or isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n) or isSerpentBoss(n) or isDepthKingBoss(n) or isAbyssalBoss(n) or string.find(n, "hydra", 1, true) ~= nil or string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil or string.find(n, "ghost", 1, true) ~= nil) then
-                            if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+                            if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) and string.find(n, "galleon", 1, true) == nil then return false end
                             if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
                             return true
                         end
@@ -2060,11 +2061,12 @@
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
 
-        -- CHẶN TRIỆT ĐỂ BỎ QUA GALLEON & KRAKEN
+        -- CHẶN TRIỆT ĐỂ BỎ QUA GALLEON (BAO GỒM KRAKEN GALLEON) & KRAKEN THẬT (QUÁI BIỂN)
         if hubState.ignoreGalleon == true and (string.find(nm, "galleon", 1, true) ~= nil or string.find(src, "galleon", 1, true) ~= nil) then
             return 0
         end
-        if hubState.ignoreKraken == true and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil or string.find(src, "kraken", 1, true) ~= nil) then
+        if hubState.ignoreKraken == true and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil or string.find(src, "kraken", 1, true) ~= nil)
+           and string.find(nm, "galleon", 1, true) == nil and string.find(src, "galleon", 1, true) == nil then
             return 0
         end
 
@@ -2103,8 +2105,8 @@
             return 6
         end
 
-        -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (4 điểm)
-        if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) then
+        -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (4 điểm) - CHỈ dành cho Boss Quái Biển Kraken, không nhận nhầm Tàu Kraken Galleon
+        if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) and string.find(nm, "galleon", 1, true) == nil then
             if hubState.ignoreKraken == true or hubState.fightSea3Kraken ~= true then return 0 end
             return 4
         end
@@ -4333,9 +4335,40 @@ end)
     -- ========================================================
     -- [NATIVE DAILY QUEST & RACE ROLL WORKER]
     -- ========================================================
+    local lastRaceRollTick = 0
+    local lastRaceSkillTick = 0
+    local lastAwakeningCheckTick = 0
+
+    local function normalizeRaceName(r: string): string
+        local low = string.lower(string.gsub(r, "%s+", ""))
+        if string.find(low, "animal") or string.find(low, "mink") then
+            return "animal"
+        elseif string.find(low, "angel") or string.find(low, "sky") then
+            return "angel"
+        elseif string.find(low, "fish") then
+            return "fish"
+        elseif string.find(low, "human") then
+            return "human"
+        elseif string.find(low, "demon") then
+            return "demon"
+        elseif string.find(low, "sea") and string.find(low, "beast") then
+            return "seabeast"
+        elseif string.find(low, "cyborg") then
+            return "cyborg"
+        end
+        return low
+    end
+
+    local function isNonRollableRace(r: string): boolean
+        local norm = normalizeRaceName(r)
+        return norm == "demon" or norm == "seabeast" or norm == "cyborg"
+    end
+
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(1.5)
+            task.wait(0.75)
+
+            -- 1. Tự Động Làm Daily Quests
             if hubState.autoDailyQuest or genv.autoalldailyquest then
                 pcall(function()
                     local curQ = player:FindFirstChild("CurrentQuest")
@@ -4364,7 +4397,10 @@ end)
                     end
                 end)
             end
-            if hubState.autoRaceRoll or genv.AutoGetAutoRollRace then
+
+            -- 2. Tự Động Quay Tộc Bằng Gems (Chỉ dành cho Rollable Races: Human, Mink, Angel, Fish)
+            if (hubState.autoRaceRoll or genv.AutoGetAutoRollRace) and (os.clock() - lastRaceRollTick) >= 0.85 then
+                lastRaceRollTick = os.clock()
                 pcall(function()
                     local ps = player:FindFirstChild("PlayerStats")
                     local curRace = ps and ps:FindFirstChild("Race") and tostring(ps.Race.Value) or ""
@@ -4372,8 +4408,10 @@ end)
                         local rObj = player:FindFirstChild("Race")
                         curRace = rObj and tostring(rObj.Value) or ""
                     end
-                    local targetRace = hubState.targetRace or "Cyborg"
-                    if curRace ~= "" and string.lower(curRace) == string.lower(targetRace) then
+
+                    local targetRaw = hubState.targetRollableRace or hubState.targetRace or "Animal"
+                    -- Kiểm tra an toàn: Nếu người dùng chọn Tộc Nhiệm Vụ (Demon, Sea Beast, Cyborg) -> Ngắt ngay và cảnh báo!
+                    if isNonRollableRace(targetRaw) then
                         hubState.autoRaceRoll = false
                         genv.AutoGetAutoRollRace = false
                         genv.toc = false
@@ -4381,14 +4419,110 @@ end)
                         if genv._YokaRaceRollToggle and typeof(genv._YokaRaceRollToggle.Set) == "function" then
                             pcall(function() genv._YokaRaceRollToggle:Set({ CurrentValue = false }) end)
                         end
-                        safeNotify("YokaHub Tộc", "Chúc mừng! Bạn đã quay trúng tộc mong muốn: " .. curRace .. "!", "check_circle")
-                    else
+                        safeNotify("YokaHub Tộc", "Tộc " .. targetRaw .. " không thể quay bằng Gems! Hãy làm nhiệm vụ.", "warning")
+                        return
+                    end
+
+                    local curNorm = normalizeRaceName(curRace)
+                    local targetNorm = normalizeRaceName(targetRaw)
+
+                    -- Đã trúng tộc mong muốn
+                    if curNorm ~= "" and curNorm == targetNorm then
+                        hubState.autoRaceRoll = false
+                        genv.AutoGetAutoRollRace = false
+                        genv.toc = false
+                        saveState(hubState)
+                        if genv._YokaRaceRollToggle and typeof(genv._YokaRaceRollToggle.Set) == "function" then
+                            pcall(function() genv._YokaRaceRollToggle:Set({ CurrentValue = false }) end)
+                        end
+                        safeNotify("YokaHub Tộc", "🎉 CHÚC MỪNG! Bạn đã quay trúng: " .. curRace .. "!", "check_circle")
+                        return
+                    end
+
+                    -- Kiểm tra số Gems hiện có (Mỗi lượt tốn 35 Gems)
+                    local gems = ps and ps:FindFirstChild("Gem") and tonumber(ps.Gem.Value) or (ps and ps:FindFirstChild("Gems") and tonumber(ps.Gems.Value) or 0)
+                    if gems < 35 then
+                        hubState.autoRaceRoll = false
+                        genv.AutoGetAutoRollRace = false
+                        genv.toc = false
+                        saveState(hubState)
+                        if genv._YokaRaceRollToggle and typeof(genv._YokaRaceRollToggle.Set) == "function" then
+                            pcall(function() genv._YokaRaceRollToggle:Set({ CurrentValue = false }) end)
+                        end
+                        safeNotify("YokaHub Tộc", "Đã dừng quay tộc: Bạn không đủ 35 Gems!", "warning")
+                        return
+                    end
+
+                    -- Tiến hành quay tộc qua Remote chính của King Legacy
+                    local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                    if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Race") then
+                        rem.Functions.Race:InvokeServer("Roll")
+                    elseif rem and rem:FindFirstChild("Events") and rem.Events:FindFirstChild("Race") then
+                        rem.Events.Race:FireServer("Roll")
+                    end
+                end)
+            end
+
+            -- 3. Tự Động Kích Hoạt Kỹ Năng Tộc V3 (Phím T) Khi Giao Chiến
+            if (hubState.autoUseRaceSkill ~= false or genv.AutoUseRaceSkill) and (os.clock() - lastRaceSkillTick) >= 2.5 then
+                pcall(function()
+                    local char = player.Character
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.Health > 0 and hum.Health < hum.MaxHealth * 0.75 then
+                        lastRaceSkillTick = os.clock()
+                        if sharedVim then
+                            sharedVim:SendKeyEvent(true, Enum.KeyCode.T, false, game)
+                            task.wait(0.05)
+                            sharedVim:SendKeyEvent(false, Enum.KeyCode.T, false, game)
+                        end
                         local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
                         if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Race") then
-                            rem.Functions.Race:InvokeServer("Roll")
+                            pcall(function() rem.Functions.Race:InvokeServer("Skill") end)
                         end
                     end
                 end)
+            end
+
+            -- 4. Tự Động Hỗ Trợ Tiến Hóa Tộc (Auto Race Awakening V1 -> V2 -> V3)
+            if hubState.autoRaceAwakening or genv.AutoRaceAwakening then
+                if (os.clock() - lastAwakeningCheckTick) >= 3.0 then
+                    lastAwakeningCheckTick = os.clock()
+                    pcall(function()
+                        local ps = player:FindFirstChild("PlayerStats")
+                        local curRace = ps and ps:FindFirstChild("Race") and tostring(ps.Race.Value) or ""
+                        local norm = normalizeRaceName(curRace)
+                        local targetAwk = hubState.raceAwakeningTarget or "Auto Theo Tộc Hiện Tại"
+                        local questTarget = hubState.questRaceTarget or ""
+
+                        local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                        local qRem = rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Quest")
+
+                        if norm == "animal" or string.find(string.lower(targetAwk), "mink") then
+                            -- Mink V2: nộp Bunny Girl
+                            if qRem then
+                                pcall(function() qRem:InvokeServer("BunnyGirl") end)
+                                pcall(function() qRem:InvokeServer("MinkV2") end)
+                            end
+                        elseif norm == "fish" or string.find(string.lower(targetAwk), "fish") then
+                            -- Fish V2: Ata & Peri
+                            if qRem then
+                                pcall(function() qRem:InvokeServer("FishV2") end)
+                                pcall(function() qRem:InvokeServer("Peri") end)
+                            end
+                        elseif norm == "demon" or string.find(string.lower(targetAwk), "demon") or string.find(string.lower(questTarget), "demon") then
+                            -- Demon V1 / V2: Dravhiel
+                            if qRem then
+                                pcall(function() qRem:InvokeServer("Dravhiel") end)
+                                pcall(function() qRem:InvokeServer("DemonV2") end)
+                            end
+                        elseif norm == "cyborg" or string.find(string.lower(targetAwk), "cyborg") or string.find(string.lower(questTarget), "cyborg") then
+                            -- Cyborg V2: Ferrum
+                            if qRem then
+                                pcall(function() qRem:InvokeServer("Ferrum") end)
+                            end
+                        end
+                    end)
+                end
             end
         end
     end)

@@ -24,11 +24,12 @@
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
 
-        -- CHẶN TRIỆT ĐỂ BỎ QUA GALLEON & KRAKEN
+        -- CHẶN TRIỆT ĐỂ BỎ QUA GALLEON (BAO GỒM KRAKEN GALLEON) & KRAKEN THẬT (QUÁI BIỂN)
         if hubState.ignoreGalleon == true and (string.find(nm, "galleon", 1, true) ~= nil or string.find(src, "galleon", 1, true) ~= nil) then
             return 0
         end
-        if hubState.ignoreKraken == true and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil or string.find(src, "kraken", 1, true) ~= nil) then
+        if hubState.ignoreKraken == true and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil or string.find(src, "kraken", 1, true) ~= nil)
+           and string.find(nm, "galleon", 1, true) == nil and string.find(src, "galleon", 1, true) == nil then
             return 0
         end
 
@@ -67,8 +68,8 @@
             return 6
         end
 
-        -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (4 điểm)
-        if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) then
+        -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (4 điểm) - CHỈ dành cho Boss Quái Biển Kraken, không nhận nhầm Tàu Kraken Galleon
+        if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) and string.find(nm, "galleon", 1, true) == nil then
             if hubState.ignoreKraken == true or hubState.fightSea3Kraken ~= true then return 0 end
             return 4
         end
@@ -559,7 +560,7 @@
 
     MasterFightSection:CreateToggle({
         Name = "🚫 Tắt Tự Động Đánh Kraken & Xúc Tu",
-        Description = "Bỏ qua hoàn toàn Kraken và xúc tu, không bay tới và không tấn công để tập trung săn các Boss lớn khác",
+        Description = "Bỏ qua hoàn toàn Boss Quái Biển Kraken và xúc tu, không bay tới và không tấn công để tập trung săn các Boss lớn khác",
         CurrentValue = (hubState.ignoreKraken == true),
         Callback = function(Value: boolean)
             hubState.ignoreKraken = Value
@@ -568,13 +569,13 @@
                 genv.IgnoreKraken = Value
                 if Value and currentCombatTarget and isModelAlive(currentCombatTarget) then
                     local curN = string.lower(currentCombatTarget.Name)
-                    if string.find(curN, "kraken", 1, true) ~= nil or string.find(curN, "tentacle", 1, true) ~= nil then
+                    if (string.find(curN, "kraken", 1, true) ~= nil or string.find(curN, "tentacle", 1, true) ~= nil) and string.find(curN, "galleon", 1, true) == nil then
                         currentCombatTarget = nil
                     end
                 end
             end)
             if Value then
-                safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Kraken & Xúc tu (kể cả Kraken Galleon)!", "block")
+                safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Boss Quái Biển Kraken & Xúc tu!", "block")
             else
                 safeNotify("YokaHub Boss", "Đã tắt: Cho phép đánh lại Kraken.", "check")
             end
@@ -583,7 +584,7 @@
 
     MasterFightSection:CreateToggle({
         Name = "🚫 Tắt Tự Động Đánh Tàu Galleon",
-        Description = "Bỏ qua hoàn toàn tàu chiến Galleon, Ghost Galleon, Kraken Galleon, không bắn phá tàu để tiết kiệm thời gian",
+        Description = "Bỏ qua hoàn toàn tất cả các loại Boss Thuyền Galleon (Ghost Galleon, Kraken Galleon...), không bắn phá tàu để tiết kiệm thời gian",
         CurrentValue = (hubState.ignoreGalleon == true),
         Callback = function(Value: boolean)
             hubState.ignoreGalleon = Value
@@ -598,7 +599,7 @@
                 end
             end)
             if Value then
-                safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Tàu Galleon (kể cả Kraken Galleon)!", "block")
+                safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Boss Thuyền Galleon (bao gồm Kraken Galleon)!", "block")
             else
                 safeNotify("YokaHub Boss", "Đã tắt: Cho phép đánh lại Galleon.", "check")
             end

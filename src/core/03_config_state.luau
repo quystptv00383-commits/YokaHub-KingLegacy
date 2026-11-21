@@ -279,7 +279,12 @@
         autoAlly: boolean?,
         autoDailyQuest: boolean?,
         autoRaceRoll: boolean?,
+        targetRollableRace: string?,
         targetRace: string?,
+        questRaceTarget: string?,
+        autoRaceAwakening: boolean?,
+        raceAwakeningTarget: string?,
+        autoUseRaceSkill: boolean?,
         webhookUrl: string?,
         whFruit: boolean?,
         whDrop: boolean?,
@@ -419,7 +424,12 @@
             autoAlly = true,
             autoDailyQuest = false,
             autoRaceRoll = false,
-            targetRace = "Cyborg",
+            targetRollableRace = "Animal (Mink)",
+            targetRace = "Animal (Mink)",
+            questRaceTarget = "Demon (Ác Quỷ - Land of Detention)",
+            autoRaceAwakening = false,
+            raceAwakeningTarget = "Tự động theo Tộc hiện tại (Auto Detect)",
+            autoUseRaceSkill = true,
             webhookUrl = "",
             whFruit = false,
             whDrop = false,
@@ -561,7 +571,12 @@
             if typeof(d.autoAlly) == "boolean" then st.autoAlly = d.autoAlly end
             if typeof(d.autoDailyQuest) == "boolean" then st.autoDailyQuest = d.autoDailyQuest end
             if typeof(d.autoRaceRoll) == "boolean" then st.autoRaceRoll = d.autoRaceRoll end
+            if typeof(d.targetRollableRace) == "string" and d.targetRollableRace ~= "" then st.targetRollableRace = d.targetRollableRace end
             if typeof(d.targetRace) == "string" and d.targetRace ~= "" then st.targetRace = d.targetRace end
+            if typeof(d.questRaceTarget) == "string" and d.questRaceTarget ~= "" then st.questRaceTarget = d.questRaceTarget end
+            if typeof(d.autoRaceAwakening) == "boolean" then st.autoRaceAwakening = d.autoRaceAwakening end
+            if typeof(d.raceAwakeningTarget) == "string" and d.raceAwakeningTarget ~= "" then st.raceAwakeningTarget = d.raceAwakeningTarget end
+            if typeof(d.autoUseRaceSkill) == "boolean" then st.autoUseRaceSkill = d.autoUseRaceSkill end
             if typeof(d.webhookUrl) == "string" then st.webhookUrl = d.webhookUrl end
             if typeof(d.whFruit) == "boolean" then st.whFruit = d.whFruit end
             if typeof(d.whDrop) == "boolean" then st.whDrop = d.whDrop end
