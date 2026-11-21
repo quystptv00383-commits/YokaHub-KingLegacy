@@ -716,6 +716,7 @@
             }, foot)
             Round(avatar, "full")
             Stroke(avatar, P.accent, 1.5, 0.35)
+            self.AvatarBox = avatar
             self.AvatarImg = Image({ Name = "Img", Size = UDim2.fromScale(1, 1) }, avatar)
             Round(self.AvatarImg, "full")
             local lp = PlayersService.LocalPlayer
@@ -983,6 +984,9 @@
         end
 
         function Lib:_layout()
+            if self.destroyed or not self.Root or not self.Root.Parent or not self.Sidebar or not self.Panel then
+                return
+            end
             local compact = self.W < 640
             self.compact = compact
             local sw = compact and 64 or 200
@@ -998,7 +1002,10 @@
             self.TabScroll.Size = UDim2.new(1, 0, 1, compact and -62 or -84)
             self.UserName.Visible = not compact
             self.UserSub.Visible = not compact
-            self.AvatarImg.Parent.Position = compact and UDim2.new(0.5, -17, 0, 10) or UDim2.fromOffset(12, 12)
+            local avBox = self.AvatarBox or (self.AvatarImg and self.AvatarImg.Parent)
+            if avBox and avBox:IsA("GuiObject") then
+                avBox.Position = compact and UDim2.new(0.5, -17, 0, 10) or UDim2.fromOffset(12, 12)
+            end
             self.ExitBtn.Position = compact and UDim2.new(0.5, -17, 0, 48) or UDim2.new(0, 10, 0, 52)
             self.ExitBtn.Size = compact and UDim2.fromOffset(34, 0) or UDim2.new(1, -20, 0, 26)
             if compact then
@@ -1012,6 +1019,7 @@
         end
 
         function Lib:SetSize(w: number, h: number, smooth: boolean?, silent: boolean?)
+            if self.destroyed or not self.Root or not self.Root.Parent then return end
             self.fullscreen = false
             self:_syncFsIcon()
             local nw, nh = self:_clampSize(w, h)

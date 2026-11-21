@@ -354,11 +354,13 @@
     task.spawn(function()
         hideHubImmediate()
         task.wait(0.45)
+        if genv._YokaHubToken ~= myToken or not Window or Window.destroyed then return end
         applyVisualTheme()
         attachCornerResizer()
         applyWindowSize(hubState.winW, hubState.winH, false, false)
         if not userOpenedHub then hideHubImmediate() end
         task.wait(0.6)
+        if genv._YokaHubToken ~= myToken or not Window or Window.destroyed then return end
         applyVisualTheme()
         if not userOpenedHub then hideHubImmediate() end
     end)

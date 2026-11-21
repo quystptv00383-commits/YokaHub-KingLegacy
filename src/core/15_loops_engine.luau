@@ -1920,8 +1920,22 @@
         return false
     end
 
+    local function getInstancePosition(inst: Instance?): Vector3?
+        if not inst or not inst.Parent then return nil end
+        if inst:IsA("BasePart") then
+            return inst.Position
+        elseif inst:IsA("Model") then
+            local root = getModelRoot(inst)
+            if root then return root.Position end
+            local okB, cf = pcall(function() return inst:GetBoundingBox() end)
+            if okB and typeof(cf) == "CFrame" then return cf.Position end
+        end
+        local subPart = inst:FindFirstChildWhichIsA("BasePart", true)
+        return subPart and subPart.Position or nil
+    end
+
     local function findSeaEventIslandPos(soloKey: string?, mode: string?): (Vector3?, string?)
-        -- 1. Kiểm tra trực tiếp tọa độ sự kiện biển từ Wukong SeaEvent API nếu khớp ĐÚNG Boss đang bật
+        -- 1. Kiểm tra trực tiếp tọa độ sự kiện biển hoặc Model mục tiêu sống từ Wukong SeaEvent API nếu khớp ĐÚNG Boss đang bật
         if typeof(genv.WK_SeaEvent) == "table" and typeof(genv.WK_SeaEvent.GetState) == "function" then
             local okS, st = pcall(genv.WK_SeaEvent.GetState)
             if okS and typeof(st) == "table" and st.phase and st.phase ~= "inactive" and st.phase ~= "waiting" and st.phase ~= "cooldown" and st.phase ~= "none" then
@@ -1932,6 +1946,7 @@
                         local rawPos = st.position or st.Position or st.targetPos or st.TargetPos or st.spawnPos or st.SpawnPos
                             or (typeof(st.cframe) == "CFrame" and st.cframe.Position)
                             or (typeof(st.CFrame) == "CFrame" and st.CFrame.Position)
+                            or (typeof(st.target) == "Instance" and getInstancePosition(st.target))
                         if typeof(rawPos) == "Vector3" then
                             return rawPos, tostring(st.eventKey or st.eventName or "SeaEvent")
                         end
@@ -1939,15 +1954,15 @@
                 end
             end
         end
-        -- 2. Quét các đảo sự kiện tương ứng với mục tiêu đang săn
+        -- 2. Quét các đảo / vị trí sự kiện (kể cả Model, BasePart và Folder như SeaDragonLocation)
         local isl = workspace:FindFirstChild("Island")
         if isl then
             for _, c in ipairs(isl:GetChildren()) do
                 local n = string.lower(c.Name)
                 if isIslandWanted(n, soloKey, mode) then
-                    local okB, cf = pcall(function() return c:IsA("Model") and c:GetBoundingBox() or (c:IsA("BasePart") and c.CFrame or nil) end)
-                    if okB and typeof(cf) == "CFrame" then
-                        return cf.Position, c.Name
+                    local pos = getInstancePosition(c)
+                    if pos then
+                        return pos, c.Name
                     end
                 end
             end
@@ -1956,9 +1971,9 @@
         for _, obj in ipairs(workspace:GetChildren()) do
             local n = string.lower(obj.Name)
             if (obj:IsA("Model") or obj:IsA("Folder")) and isIslandWanted(n, soloKey, mode) then
-                local okB, cf = pcall(function() return obj:IsA("Model") and obj:GetBoundingBox() or nil end)
-                if okB and typeof(cf) == "CFrame" then
-                    return cf.Position, obj.Name
+                local pos = getInstancePosition(obj)
+                if pos then
+                    return pos, obj.Name
                 end
             end
         end
@@ -2811,6 +2826,16 @@
                 end
             end
         end
+        -- 3. Xac thuc qua WK_SeaEvent.GetState().target CHI KHI target la Model song thuc te trong game
+        if typeof(genv.WK_SeaEvent) == "table" and typeof(genv.WK_SeaEvent.GetState) == "function" then
+            local okS, st = pcall(genv.WK_SeaEvent.GetState)
+            if okS and typeof(st) == "table" and st.phase == "alive" and typeof(st.target) == "Instance" and st.target:IsA("Model") and isModelAlive(st.target) then
+                local tName = st.target.Name
+                if isSea3BossEnabled(tName) then
+                    return true, tName
+                end
+            end
+        end
         if genv.DepthKingChestWaitStarted == true and genv.DepthKingChestReadyToHop == false and (hubState.fightSea3DepthKing == true or hubState.fightSea3Abyssal == true) then
             return true, "Đang mở rương Depth King"
         end
@@ -2913,11 +2938,18 @@
         return nil
     end
 
-    -- Helper thu nhay nhanh lien tiep toi da 3 phong (gian cach 1.4s an toan chong loi 279)
-    -- Neu la phong Hydra / Depth King ma bi day, chi khoa 20s (thay vi 150s) de quay lai ngay khi ho cho
+    local lastHopDispatchClock = 0
+
+    -- Helper nhay phong co kiem soat chong spam Teleport (giu khoang cach an toan 10s, toi da 2 lan thu/luot)
     local function burstHopCandidates(candidates: { any }, visited: { [string]: number }, visitedFile: string, expectedMode: string, shortFailCooldownSec: number?, visitedPrefix: string?)
+        if (os.clock() - lastHopDispatchClock) < 10.0 then
+            local rem = math.max(1.0, 10.0 - (os.clock() - lastHopDispatchClock))
+            setStatus(string.format("Đang giãn nhịp chuyển phòng chống văng game (chờ %.0fs)...", rem))
+            smartWait(rem, expectedMode)
+            return
+        end
         local prefix = visitedPrefix or ""
-        local tries = math.min(#candidates, 3)
+        local tries = math.min(#candidates, 2)
         for idx = 1, tries do
             if currentMode ~= expectedMode or genv._YokaHubToken ~= myToken then break end
             local chosen = candidates[idx]
@@ -2925,39 +2957,43 @@
             local vKey = prefix .. ref
             if ref ~= "" then visited[vKey] = os.time(); saveVisited(visitedFile, visited) end
             local hopStart = os.clock()
-            local infoStr = string.format("%s (%s/%s người)", tostring(chosen.eventName), tostring(chosen.players and chosen.players.current or "?"), tostring(chosen.players and chosen.players.max or "?"))
+            lastHopDispatchClock = hopStart
+            local infoStr = string.format("%s (%s/%s người · %s%% HP)", tostring(chosen.eventName), tostring(chosen.players and chosen.players.current or "?"), tostring(chosen.players and chosen.players.max or "?"), tostring(chosen._hp or "?"))
             setStatus("Đang sang phòng: " .. infoStr)
             if idx == 1 then recordHop() end
             armAutoReexec(false)
             if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
                 pcall(genv.WK_JoinLiveBossApiEntry, chosen)
             else
-                local srvId = chosen.jobId or chosen.serverId or chosen.serverRef or chosen.id
+                local srvId = chosen.jobId or chosen.serverId or chosen.id
                 local pId = tonumber(chosen.placeId) or game.PlaceId
-                if srvId and srvId ~= "" then
+                if typeof(srvId) == "string" and string.find(srvId, "-", 1, true) ~= nil then
                     pcall(function() teleportService:TeleportToPlaceInstance(pId, srvId, players.LocalPlayer) end)
                 else
-                    pcall(function() teleportService:Teleport(pId, players.LocalPlayer) end)
+                    setStatus("Đang chờ API điều hướng phòng hỗ trợ...")
+                    smartWait(4.0, expectedMode)
+                    return
                 end
             end
             local waited = 0
             local failed = false
-            while waited < 4.0 and currentMode == expectedMode and genv._YokaHubToken == myToken do
-                task.wait(0.2); waited += 0.2
-                if (tonumber(genv._LastTeleportFailClock) or 0) >= hopStart and waited >= 1.0 then
+            while waited < 6.0 and currentMode == expectedMode and genv._YokaHubToken == myToken do
+                task.wait(0.25); waited += 0.25
+                if (tonumber(genv._LastTeleportFailClock) or 0) >= hopStart and waited >= 0.8 then
                     failed = true
                     if ref ~= "" and shortFailCooldownSec and shortFailCooldownSec > 0 then
                         visited[vKey] = os.time() - visitedTTL + shortFailCooldownSec
                         saveVisited(visitedFile, visited)
                     end
                     if idx < tries then
-                        setStatus("Phòng vừa đầy/lỗi, chuyển phòng kế tiếp...")
+                        setStatus("Phòng vừa đầy, chờ 2.5s rồi thử phòng tiếp theo...")
+                        smartWait(2.5, expectedMode)
                     end
                     break
                 end
             end
             if not failed then
-                smartWait(15.0, expectedMode)
+                smartWait(16.0, expectedMode)
                 break
             end
         end
@@ -2980,9 +3016,42 @@
         end
         if not didInitialRoomSettle then
             didInitialRoomSettle = true
-            local initWait = math.min(getApiHopWait(), 4.0)
-            setStatus(string.format("Đang kiểm tra và nạp dữ liệu phòng hiện tại (chờ %.0fs)...", initWait))
-            smartWait(initWait, mode)
+            -- 1. Chờ người chơi bấm Play & spawn nhân vật thật vào map trước khi đánh giá phòng (tránh hop mù khi đang ở LoadingGUI!)
+            local spawnWait = 0
+            while spawnWait < 16.0 and (hubState.mode or currentMode) == mode and genv._YokaHubToken == myToken do
+                local char = player.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if player:GetAttribute("Playing") == true and hrp then
+                    break
+                end
+                setStatus(string.format("Đang chờ nhân vật vào map (%.0fs)...", spawnWait))
+                task.wait(0.4)
+                spawnWait += 0.4
+            end
+            -- 2. Cho phép StreamingEnabled & luồng bay tiếp cận đảo Boss trước khi kết luận phòng trống
+            local settleSec = math.max(getApiHopWait(), 5.0)
+            local evCheckPos, evCheckName = findSeaEventIslandPos((mode == "solo") and getSoloKey(currentSoloTarget) or nil, mode)
+            if evCheckPos then
+                settleSec = 10.0
+                setStatus("Phát hiện khu vực " .. tostring(evCheckName) .. " — Đang bay tới xác thực Boss trước khi quyết định...")
+            else
+                setStatus(string.format("Đang quét và nạp dữ liệu phòng hiện tại (chờ %.0fs)...", settleSec))
+            end
+            local waitedSettle = 0
+            while waitedSettle < settleSec and (hubState.mode or currentMode) == mode and genv._YokaHubToken == myToken do
+                if mode == "sea3" then
+                    local act, _ = checkSea3Server()
+                    if act then break end
+                elseif mode == "sea2" then
+                    local st2, _ = checkSea2Server()
+                    if st2 ~= "none" then break end
+                elseif mode == "solo" then
+                    local stS, _ = checkSoloServer(getSoloKey(currentSoloTarget))
+                    if stS ~= "none" then break end
+                end
+                task.wait(0.4)
+                waitedSettle += 0.4
+            end
             continue
         end
 
@@ -3224,21 +3293,28 @@
             if currentMode ~= "sea3" or genv._YokaHubToken ~= myToken then continue end
             if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
                 local visited = loadVisited(visitedSea3File)
-                local candidates = {}
+                local healthyCands = {}
+                local backupCands = {}
                 for _, e in ipairs(snap.entries) do
                     local prio = getSea3Prio(e)
                     local ref = tostring(e.serverRef or "")
                     local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
                     local pMax = typeof(e.players) == "table" and (tonumber(e.players.max) or 12) or 12
-                    local hpOk = (typeof(e.health) ~= "table") or ((tonumber(e.health.percent) or 0) >= 15)
-                    if e.alive == true and tonumber(e.placeId) == SEA3_PLACE and prio > 0 and pCur < pMax and hpOk and (ref == "" or visited[ref] == nil) then
+                    local hpPct = typeof(e.health) == "table" and (tonumber(e.health.percent) or 0) or 100
+                    if e.alive == true and tonumber(e.placeId) == SEA3_PLACE and prio > 0 and pCur < pMax and (ref == "" or visited[ref] == nil) then
                         e._prio = prio
                         e._tier = getSlotTier(e)
                         e._pCur = pCur
-                        e._hp = typeof(e.health) == "table" and (tonumber(e.health.percent) or 0) or 0
-                        table.insert(candidates, e)
+                        e._hp = hpPct
+                        -- Ưu tiên phòng <= 10/12 người và Boss còn >= 25% HP (tránh vào phòng đầy 11/12 hoặc Boss sắp chết!)
+                        if pCur <= (pMax - 2) and hpPct >= 25 then
+                            table.insert(healthyCands, e)
+                        elseif (pCur <= (pMax - 2) and hpPct >= 15) or (pCur == (pMax - 1) and hpPct >= 50) then
+                            table.insert(backupCands, e)
+                        end
                     end
                 end
+                local candidates = (#healthyCands > 0) and healthyCands or backupCands
                 table.sort(candidates, function(a, b)
                     if a._prio ~= b._prio then return a._prio > b._prio end
                     if a._tier ~= b._tier then return a._tier > b._tier end
@@ -3248,10 +3324,10 @@
                     return a._hp > b._hp
                 end)
                 if #candidates > 0 then
-                    burstHopCandidates(candidates, visited, visitedSea3File, "sea3")
+                    burstHopCandidates(candidates, visited, visitedSea3File, "sea3", 45)
                 else
                     local hopWait = getApiHopWait()
-                    setStatus(string.format("Chưa có phòng Boss Sea 3 trống trên API — Đang chờ phòng mới (quét lại sau %.0fs)...", hopWait))
+                    setStatus(string.format("Chưa có phòng Boss Sea 3 còn slot & đủ máu (>=25%%) — Chờ phòng mới (%.0fs)...", hopWait))
                     smartWait(hopWait, "sea3")
                 end
             else

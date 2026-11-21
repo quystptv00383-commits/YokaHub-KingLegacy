@@ -238,7 +238,9 @@
             armAutoReexec(false)
         end
 
-        if MasterAutoFightToggle and typeof(MasterAutoFightToggle.Set) == "function" then
+        if MasterAutoFightToggle and typeof(MasterAutoFightToggle.UpdateState) == "function" then
+            pcall(function() MasterAutoFightToggle:UpdateState(hubState.autoFightMaster == true) end)
+        elseif MasterAutoFightToggle and typeof(MasterAutoFightToggle.Set) == "function" and MasterAutoFightToggle.CurrentValue ~= hubState.autoFightMaster then
             pcall(function() MasterAutoFightToggle:Set({ CurrentValue = hubState.autoFightMaster }) end)
         end
 
@@ -1010,11 +1012,11 @@
                     if aCur ~= bCur then return aCur < bCur end
                     return a._hp > b._hp
                 end)
-                local tries = math.min(#list, 4)
+                local tries = math.min(#list, 2)
                 for idx = 1, tries do
                     if genv._YokaHubToken ~= myToken then break end
                     local chosen = list[idx]
-                    local info = string.format("%s (%s/%s người)", tostring(chosen.eventName), tostring(chosen.players and chosen.players.current or "?"), tostring(chosen.players and chosen.players.max or "?"))
+                    local info = string.format("%s (%s/%s người · %s%% HP)", tostring(chosen.eventName), tostring(chosen.players and chosen.players.current or "?"), tostring(chosen.players and chosen.players.max or "?"), tostring(chosen._hp or "?"))
                     setStatus("Đang bay vào: " .. info)
                     if idx == 1 then recordHop() end
                     armAutoReexec(false)
@@ -1022,23 +1024,25 @@
                     if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
                         pcall(genv.WK_JoinLiveBossApiEntry, chosen)
                     else
-                        local srvId = chosen.jobId or chosen.serverId or chosen.serverRef or chosen.id
+                        local srvId = chosen.jobId or chosen.serverId or chosen.id
                         local pId = tonumber(chosen.placeId) or reqPlace or game.PlaceId
-                        if srvId and srvId ~= "" then
+                        if typeof(srvId) == "string" and string.find(srvId, "-", 1, true) ~= nil then
                             pcall(function() teleportService:TeleportToPlaceInstance(pId, srvId, players.LocalPlayer) end)
                         else
-                            pcall(function() teleportService:Teleport(pId, players.LocalPlayer) end)
+                            safeNotify("YokaHub", "Đang chờ mô-đun điều hướng API sẵn sàng...", "info")
+                            break
                         end
                     end
                     safeNotify("Đang bay tới", info, "public")
                     local failed = false
                     local w = 0
-                    while w < 4.0 do
+                    while w < 6.0 do
                         task.wait(0.25); w += 0.25
-                        if (tonumber(genv._LastTeleportFailClock) or 0) >= hopStart and w >= 0.6 then
+                        if (tonumber(genv._LastTeleportFailClock) or 0) >= hopStart and w >= 0.8 then
                             failed = true
                             if idx < tries then
-                                setStatus("Phòng vừa đầy, bật sang phòng tiếp theo ngay...")
+                                setStatus("Phòng vừa đầy, chờ 2.5s rồi thử phòng tiếp theo...")
+                                task.wait(2.5)
                             else
                                 setStatus("Các phòng thử đều vừa đầy, thử bấm lại sau vài giây.")
                             end

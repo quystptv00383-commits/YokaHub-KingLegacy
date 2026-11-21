@@ -21,6 +21,12 @@ task.spawn(function()
     if not player then return end
 
     local genv: any = getgenv()
+    if genv._YokaHub_Running == true and genv._YokaHub_RunningJobId == game.JobId and (os.clock() - (tonumber(genv._YokaHub_RunningAt) or 0)) < 12.0 then
+        return
+    end
+    genv._YokaHub_Running = true
+    genv._YokaHub_RunningJobId = game.JobId
+    genv._YokaHub_RunningAt = os.clock()
     genv._YokaHub_IsEmbedded = true
     local httpService = game:GetService("HttpService")
     local teleportService = game:GetService("TeleportService")
