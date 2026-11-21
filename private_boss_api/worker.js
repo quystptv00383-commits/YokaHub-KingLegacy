@@ -90,6 +90,7 @@ export default {
 
       const key = `${placeId}:${jobId}:${eventName.toLowerCase()}`;
       const rawMap = (await env.BOSS_KV.get(KV_INDEX_KEY, "json")) || {};
+      const isNewBossRoom = !rawMap[key];
 
       // Dọn dẹp entry quá hạn
       for (const [k, entry] of Object.entries(rawMap)) {
@@ -98,6 +99,8 @@ export default {
         }
       }
 
+      const hpObj = body.health || { current: 100, max: 100, percent: 100 };
+      const plObj = body.players || { current: 1, max: 12 };
       rawMap[key] = {
         placeId,
         jobId,
@@ -105,12 +108,38 @@ export default {
         eventName,
         source: String(body.source || "yoka_private"),
         alive: body.alive !== false,
-        health: body.health || { current: 100, max: 100, percent: 100 },
-        players: body.players || { current: 1, max: 12 },
+        health: hpObj,
+        players: plObj,
         updatedAt: now,
       };
 
       await env.BOSS_KV.put(KV_INDEX_KEY, JSON.stringify(rawMap));
+
+      // Gửi cảnh báo Boss mới xuất hiện lên Discord Webhook (nếu đã cấu hình DISCORD_WEBHOOK_URL trong Cloudflare Secret)
+      if (isNewBossRoom && env.DISCORD_WEBHOOK_URL) {
+        const seaLabel = placeId === 15759515082 ? "Sea 3" : (placeId === 6381829480 ? "Sea 2" : `Place ${placeId}`);
+        const discordPayload = {
+          username: "YokaHub Boss API",
+          embeds: [
+            {
+              title: `🚨 ${eventName} (${seaLabel})`,
+              description:
+                `• **Máu Boss:** ${hpObj.percent ?? 100}%\n` +
+                `• **Số người chơi:** ${plObj.current ?? "?"}/${plObj.max ?? 12}\n` +
+                `• **JobId:** \`${jobId}\`\n` +
+                `• **Nguồn:** \`${String(body.source || "yoka_private")}\``,
+              color: 3461096,
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        };
+        fetch(env.DISCORD_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(discordPayload),
+        }).catch(() => {});
+      }
+
       return jsonResp({ ok: true, key, count: Object.keys(rawMap).length });
     }
 

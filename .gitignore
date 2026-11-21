@@ -12,6 +12,7 @@ private_keys.json
 private_salt.txt
 sepay_token.txt
 webhook_private.txt
+webhook_boss_api.txt
 CombinedSettings.json
 
 # Temporary tools & inspect scripts
