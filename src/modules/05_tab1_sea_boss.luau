@@ -532,7 +532,7 @@
 
     MasterFightSection:CreateToggle({
         Name = "🧠 Tự Động Chỉnh Độ Cao Theo Từng Boss (Smart Height)",
-        Description = "Tự động bay cao hay thấp chuẩn xác theo từng Boss (Hydra 80m, Abyssal Tyrant 80m, Depth King 75m, Rồng 75m, Vua Biển 70m, Tàu Ma 48m, Cua 45m, Rắn 42m, Boss Đảo 26m) né trọn vẹn lốc xoáy & vòi rồng biển",
+        Description = "Tự động bay cao hay thấp chuẩn xác theo từng Boss (Hydra/Abyssal 80m, Depth King/Dragon 75m, Sea King 70m, Râu Đen/Râu Trắng/Hephaestus 36-38m, Lôi Thần/Ace 34-35m, Boss Đảo 28m) né trọn vẹn lốc xoáy & chiêu nộ",
         CurrentValue = (hubState.smartBossHeight ~= false),
         Callback = function(Value: boolean)
             hubState.smartBossHeight = Value

@@ -308,6 +308,40 @@
         return false
     end
 
+    local function isBossModel(m: Model?): boolean
+        if not m or not m.Parent then return false end
+        local pName = string.lower(m.Parent.Name or "")
+        local n = string.lower(m.Name or "")
+        if pName == "boss" or pName == "seamonster" or pName == "ghostmonster" then
+            return true
+        end
+        if string.find(n, "boss", 1, true) ~= nil
+            or string.find(n, "tyrant", 1, true) ~= nil
+            or string.find(n, "abyssal", 1, true) ~= nil
+            or string.find(n, "depth king", 1, true) ~= nil or string.find(n, "depthking", 1, true) ~= nil
+            or string.find(n, "hydra", 1, true) ~= nil
+            or string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil
+            or string.find(n, "dragon", 1, true) ~= nil or string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno", 1, true) ~= nil
+            or string.find(n, "ghost ship", 1, true) ~= nil or string.find(n, "galleon", 1, true) ~= nil
+            or string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil
+            or string.find(n, "crab", 1, true) ~= nil or string.find(n, "serpent", 1, true) ~= nil or string.find(n, "sea beast", 1, true) ~= nil
+            or string.find(n, "hephaestus", 1, true) ~= nil or string.find(n, "dark beard", 1, true) ~= nil or string.find(n, "blackbeard", 1, true) ~= nil
+            or string.find(n, "gryphon", 1, true) ~= nil or string.find(n, "lucidus", 1, true) ~= nil or string.find(n, "sally", 1, true) ~= nil
+            or string.find(n, "gazelle", 1, true) ~= nil or string.find(n, "kitsune", 1, true) ~= nil or string.find(n, "flame user", 1, true) ~= nil
+            or string.find(n, "sunken vessel", 1, true) ~= nil or string.find(n, "ryu", 1, true) ~= nil or string.find(n, "dough master", 1, true) ~= nil or string.find(n, "katakuri", 1, true) ~= nil
+            or string.find(n, "whitebeard", 1, true) ~= nil or string.find(n, "kaido", 1, true) ~= nil or string.find(n, "big mom", 1, true) ~= nil
+            or string.find(n, "smoky", 1, true) ~= nil or string.find(n, "tashi", 1, true) ~= nil or string.find(n, "shark man", 1, true) ~= nil
+            or string.find(n, "king snow", 1, true) ~= nil or string.find(n, "rumble man", 1, true) ~= nil or string.find(n, "leader", 1, true) ~= nil
+            or string.find(n, "quake woman", 1, true) ~= nil or string.find(n, "saber", 1, true) ~= nil then
+            return true
+        end
+        local hum = m:FindFirstChildOfClass("Humanoid")
+        if hum and hum.MaxHealth >= 35000 then
+            return true
+        end
+        return false
+    end
+
     local function getBossHoverHeight(targetModel: Model?, isIslandHint: boolean?): number
         local manualFallback = math.clamp(tonumber(hubState.bossSafeHeight) or 35, 8, 150)
         if hubState.smartBossHeight == false then
@@ -316,7 +350,7 @@
 
         if not targetModel then
             if isIslandHint then
-                return 26
+                return 28
             end
             return manualFallback
         end
@@ -324,58 +358,82 @@
         local name = string.lower(targetModel.Name or "")
         local parentName = string.lower((targetModel.Parent and targetModel.Parent.Name) or "")
 
-        -- 1. Hydra (Sea 2) - Quét 3 đầu & vũng độc ăn mòn diện rộng -> Bay cao 80 studs
-        if string.find(name, "hydra", 1, true) ~= nil then
-            return 80
-        end
-
-        -- 2. Drakenfyr / Dragon / Rồng Lửa (Sea 3) - Phun lửa hình nón, quạt đuôi & thiên thạch -> Bay cao 75 studs
-        if string.find(name, "dragon", 1, true) ~= nil or string.find(name, "draken", 1, true) ~= nil or string.find(name, "inferno", 1, true) ~= nil then
-            return 75
-        end
-
-        -- 3. Sea King / Vua Biển (Sea 2) - Cột nước áp lực & lao mình sóng thần -> Bay cao 70 studs
-        if string.find(name, "sea king", 1, true) ~= nil or string.find(name, "seaking", 1, true) ~= nil then
-            return 70
-        end
-
-        -- 4. Depth King / Sunken Altar (Sea 3) - Càn quét đinh ba xoay & lốc xoáy nước -> Bay cao 75 studs
-        if string.find(name, "depth king", 1, true) ~= nil or string.find(name, "depthking", 1, true) ~= nil or string.find(name, "altar", 1, true) ~= nil then
-            return 75
-        end
-
-        -- 5. Abyssal Tyrant / Bạo Chúa Biển Sâu (Sea 3) - Sóng xung kích giậm đất & lốc xoáy vòi rồng thẳng đứng -> Bay cao 80 studs
+        -- 1. SEA RAID BOSSES SIÊU CẤP (Hitbox lốc xoáy, vòi rồng, quét 3 đầu, vũng độc từ 60-80 studs)
         if string.find(name, "tyrant", 1, true) ~= nil or string.find(name, "abyssal", 1, true) ~= nil then
             return 80
         end
-
-        -- 6. Tàu Ghost Ship / Galleon / Ghost Galleon - Đạn pháo bay ngang tầm thấp -> Bay cao 48 studs
+        if string.find(name, "hydra", 1, true) ~= nil then
+            return 80
+        end
+        if string.find(name, "depth king", 1, true) ~= nil or string.find(name, "depthking", 1, true) ~= nil or string.find(name, "altar", 1, true) ~= nil then
+            return 75
+        end
+        if string.find(name, "dragon", 1, true) ~= nil or string.find(name, "draken", 1, true) ~= nil or string.find(name, "inferno", 1, true) ~= nil then
+            return 75
+        end
+        if string.find(name, "sea king", 1, true) ~= nil or string.find(name, "seaking", 1, true) ~= nil then
+            return 70
+        end
+        if string.find(name, "kraken", 1, true) ~= nil or string.find(name, "tentacle", 1, true) ~= nil then
+            return 62
+        end
         if string.find(name, "ghost", 1, true) ~= nil or string.find(name, "galleon", 1, true) ~= nil or string.find(name, "ship", 1, true) ~= nil then
             return 48
         end
-
-        -- 7. Giant Crab / Cua Khổng Lồ (Sea 3) - Kẹp càng & bọt nước -> Bay cao 45 studs
         if string.find(name, "crab", 1, true) ~= nil then
             return 45
         end
-
-        -- 8. Serpent / Rắn Biển (Sea 2 & 3) - Trườn sóng và táp thẳng -> Bay cao 42 studs
         if string.find(name, "serpent", 1, true) ~= nil then
             return 42
         end
-
-        -- 9. Sea Beast / Quái Thú Biển -> Bay cao 45 studs
         if string.find(name, "sea beast", 1, true) ~= nil or string.find(name, "seabeast", 1, true) ~= nil then
             return 45
         end
 
-        -- 10. Kraken & Xúc Tu -> Bay cao 60 studs
-        if string.find(name, "kraken", 1, true) ~= nil or string.find(name, "tentacle", 1, true) ~= nil then
-            return 60
+        -- 2. WORLD / ISLAND RAID BOSSES (Các Boss Đảo có chiêu thức nổ đất, hố đen, địa chấn, sấm sét, laser)
+        -- Dark Beard / Blackbeard / Râu Đen -> Bay cao 38 studs (né hố đen hút Black Hole & nứt đất)
+        if string.find(name, "dark beard", 1, true) ~= nil or string.find(name, "blackbeard", 1, true) ~= nil or string.find(name, "darkbeard", 1, true) ~= nil then
+            return 38
+        end
+        -- Quake Woman / Whitebeard / Râu Trắng -> Bay cao 36 studs (né sóng xung kích mặt đất)
+        if string.find(name, "quake woman", 1, true) ~= nil or string.find(name, "whitebeard", 1, true) ~= nil then
+            return 36
+        end
+        -- Hephaestus (Thần Lửa / Núi Lửa Sea 3) -> Bay cao 36 studs (né búa lửa nổ diện rộng & cột magma)
+        if string.find(name, "hephaestus", 1, true) ~= nil then
+            return 36
+        end
+        -- Flame User / Ace (Hỏa Quyền Sea 2) -> Bay cao 34 studs (né cột lửa Entei thẳng đứng)
+        if string.find(name, "flame user", 1, true) ~= nil or string.find(name, "flameuser", 1, true) ~= nil then
+            return 34
+        end
+        -- Rumble Man / Enel / Lôi Thần (Sea 1) -> Bay cao 35 studs (né sấm sét El Thor quét diện rộng)
+        if string.find(name, "rumble man", 1, true) ~= nil or string.find(name, "rumbleman", 1, true) ~= nil or string.find(name, "enel", 1, true) ~= nil then
+            return 35
+        end
+        -- Leader / Crocodile / Sa Mạc (Sea 1) -> Bay cao 32 studs (né lốc cát Desert Spada)
+        if string.find(name, "leader", 1, true) ~= nil or string.find(name, "crocodile", 1, true) ~= nil then
+            return 32
+        end
+        -- Gryphon / Shanks & Lucidus / Kizaru (Sea 3) -> Bay cao 32 studs (né kiếm khí & mưa laser)
+        if string.find(name, "gryphon", 1, true) ~= nil or string.find(name, "lucidus", 1, true) ~= nil or string.find(name, "shanks", 1, true) ~= nil or string.find(name, "kizaru", 1, true) ~= nil then
+            return 32
+        end
+        -- Katakuri / Dough Master / Mochi (Sea 2) -> Bay cao 32 studs (né mưa gai mochi mọc từ đất)
+        if string.find(name, "dough master", 1, true) ~= nil or string.find(name, "katakuri", 1, true) ~= nil then
+            return 32
+        end
+        -- Sally / Ghost Ship Captain / Ryu / Kitsune Samurai -> Bay cao 30 studs (né trọn vẹn kiếm khí chém ngang)
+        if string.find(name, "sally", 1, true) ~= nil
+            or string.find(name, "ghost ship captain", 1, true) ~= nil
+            or string.find(name, "ryu", 1, true) ~= nil
+            or string.find(name, "kitsune", 1, true) ~= nil then
+            return 30
         end
 
-        -- 11. Boss Đảo (Hephaestus, Saber, Gazelle Man, Whitebeard, Kaido, Big Mom, hoặc nằm trong Folder Monster / Boss / AllNPC)
-        -- Cần bay ở tầm 26 studs: Tuyệt đối an toàn khỏi đòn cận chiến, đồng thời 100% chiêu thức và M1 đều trúng đích
+        -- 3. CÁC BOSS ĐẢO & BOSS PHÓ BẢN / DUNGEON CÒN LẠI
+        -- (Smoky, Tashi, Shark Man, King Snow, Gazelle Man, Sunken Vessel, Saber, Kaido, Big Mom, hoặc nằm trong Folder Boss)
+        -- Cần bay ở tầm 28 studs: Tuyệt đối an toàn khỏi đòn cận chiến của boss, đồng thời 100% kiếm khí, chiêu thức và M1 đều trúng đích
         if isIslandHint
             or string.find(parentName, "boss", 1, true) ~= nil
             or string.find(parentName, "monster", 1, true) ~= nil
@@ -383,21 +441,69 @@
             or string.find(parentName, "mob", 1, true) ~= nil
             or string.find(name, "saber", 1, true) ~= nil
             or string.find(name, "gazelle", 1, true) ~= nil
-            or string.find(name, "hephaestus", 1, true) ~= nil
-            or string.find(name, "whitebeard", 1, true) ~= nil
             or string.find(name, "kaido", 1, true) ~= nil
             or string.find(name, "big mom", 1, true) ~= nil
             or string.find(name, "buddha", 1, true) ~= nil
             or string.find(name, "lucy", 1, true) ~= nil
             or string.find(name, "smoker", 1, true) ~= nil
-            or string.find(name, "tashigi", 1, true) ~= nil
+            or string.find(name, "smoky", 1, true) ~= nil
+            or string.find(name, "tashi", 1, true) ~= nil
+            or string.find(name, "shark man", 1, true) ~= nil
+            or string.find(name, "king snow", 1, true) ~= nil
             or string.find(name, "law", 1, true) ~= nil
             or string.find(name, "doflamingo", 1, true) ~= nil
-            or string.find(name, "katakuri", 1, true) ~= nil then
-            return 26
+            or string.find(name, "vessel", 1, true) ~= nil then
+            return 28
         end
 
         return manualFallback
+    end
+
+    local function getBossOrbitRadius(targetModel: Model?, isEmergency: boolean): number
+        if not targetModel then return 0 end
+        local name = string.lower(targetModel.Name or "")
+
+        -- 1. Boss Biển Siêu Cấp (cột nước, vòi rồng, quét 3 đầu khổng lồ): Bán kính 38 studs (khẩn cấp: 52 studs)
+        if string.find(name, "tyrant", 1, true) ~= nil
+            or string.find(name, "abyssal", 1, true) ~= nil
+            or string.find(name, "depth", 1, true) ~= nil
+            or string.find(name, "hydra", 1, true) ~= nil
+            or string.find(name, "dragon", 1, true) ~= nil
+            or string.find(name, "sea king", 1, true) ~= nil
+            or string.find(name, "seaking", 1, true) ~= nil then
+            return isEmergency and 52 or 38
+        end
+
+        -- 2. Sea Event thường (Kraken, Xúc tu, Cua biển, Rắn biển, Tàu Galleon, Thuyền ma): Bán kính 30 studs (khẩn cấp: 44 studs)
+        if string.find(name, "kraken", 1, true) ~= nil
+            or string.find(name, "tentacle", 1, true) ~= nil
+            or string.find(name, "crab", 1, true) ~= nil
+            or string.find(name, "serpent", 1, true) ~= nil
+            or string.find(name, "galleon", 1, true) ~= nil
+            or string.find(name, "ghost", 1, true) ~= nil
+            or string.find(name, "sea beast", 1, true) ~= nil then
+            return isEmergency and 44 or 30
+        end
+
+        -- 3. World / Island High-Threat Bosses (Râu Đen, Râu Trắng, Hephaestus, Ace, Enel, Gryphon, Lucidus, Katakuri):
+        -- Bán kính 24 studs (khẩn cấp: 38 studs) - né hố đen, lôi đài, địa chấn mặt đất
+        if string.find(name, "dark beard", 1, true) ~= nil or string.find(name, "blackbeard", 1, true) ~= nil
+            or string.find(name, "quake woman", 1, true) ~= nil or string.find(name, "whitebeard", 1, true) ~= nil
+            or string.find(name, "hephaestus", 1, true) ~= nil
+            or string.find(name, "flame user", 1, true) ~= nil or string.find(name, "rumble man", 1, true) ~= nil
+            or string.find(name, "leader", 1, true) ~= nil
+            or string.find(name, "gryphon", 1, true) ~= nil or string.find(name, "lucidus", 1, true) ~= nil
+            or string.find(name, "dough master", 1, true) ~= nil or string.find(name, "katakuri", 1, true) ~= nil then
+            return isEmergency and 38 or 24
+        end
+
+        -- 4. Toàn bộ Boss Đảo / Boss Phó Bản / Mobs Boss còn lại (Smoky, Tashi, Shark Man, King Snow, Ryu, Kitsune, Sally...):
+        -- Bán kính 18 studs (khẩn cấp: 30 studs) - lượn vòng né chiêu kiếm khí chém thẳng
+        if isBossModel(targetModel) then
+            return isEmergency and 30 or 18
+        end
+
+        return 0
     end
 
     local function getAimPoint(targetModel: Model, targetRoot: BasePart): Vector3
@@ -1763,22 +1869,9 @@
                                 sHeight = sHeight + 45 -- Bay vọt lên thêm 45 studs (> 125 studs), hoàn toàn thoát khỏi cột sát thương lốc xoáy
                             end
 
-                            -- 3. Dynamic Orbital Evasion (Quỹ đạo bay lượn vòng né tâm chiêu thẳng đứng):
-                            -- Thay vì đậu cố định tại trục tâm (0, sHeight, 0) - nơi lốc xoáy/cột nước phụt thẳng từ mặt biển lên trời,
-                            -- cho nhân vật liên tục lượn vòng tròn xung quanh Boss với bán kính 36-52 studs.
-                            local bossNameLower = string.lower(targetBoss.Name or "")
-                            local isSeaRaidBoss = string.find(bossNameLower, "tyrant", 1, true) ~= nil
-                                or string.find(bossNameLower, "abyssal", 1, true) ~= nil
-                                or string.find(bossNameLower, "depth", 1, true) ~= nil
-                                or string.find(bossNameLower, "hydra", 1, true) ~= nil
-                                or string.find(bossNameLower, "dragon", 1, true) ~= nil
-                                or string.find(bossNameLower, "sea king", 1, true) ~= nil
-                                or string.find(bossNameLower, "seaking", 1, true) ~= nil
-
-                            local orbitRadius = 0
-                            if isSeaRaidBoss then
-                                orbitRadius = isEmergencyHp and 52 or 38
-                            end
+                            -- 3. Dynamic Orbital Evasion cho TOÀN BỘ BOSS (Biển, Sea Event, Boss Đảo, World Boss)
+                            -- Liên tục bay lượn vòng né tâm chấn thẳng đứng, lốc xoáy, địa chấn và kiếm khí
+                            local orbitRadius = getBossOrbitRadius(targetBoss, isEmergencyHp)
 
                             local orbitOffsetX = 0
                             local orbitOffsetZ = 0
@@ -3572,21 +3665,69 @@ end)
                             if questMobExact then
                                 questMobLastPos[questMobExact] = mRoot.Position
                             end
-                            -- Lơ lửng ngay trên đầu quái/boss nhìn thẳng xuống (8.5 studs an toàn, đánh M1 + Skill trúng 100%)
-                            local sHeight = (hubState.safeDistance ~= false) and 8.5 or 7.0
+                            local curHp = hum.Health
+                            local maxHp = hum.MaxHealth
+                            local hpPct = (maxHp > 0) and (curHp / maxHp) or 1
+                            local isEmergencyHp = (hpPct < 0.40)
+                            local isBoss = isBossModel(targetMob)
+
+                            -- Khẩn cấp hồi máu khi đánh Boss
+                            if isBoss and hpPct < 0.50 then
+                                local healTool = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter")
+                                    or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
+                                if healTool then
+                                    if healTool.Parent == player.Backpack then
+                                        pcall(function() hum:EquipTool(healTool) end)
+                                    end
+                                    pcall(function() healTool:Activate() end)
+                                end
+                                if (hubState.autoKenHaki ~= false) then
+                                    pcall(function()
+                                        local chest = sharedRS:FindFirstChild("Chest")
+                                        local rem = chest and chest:FindFirstChild("Remotes")
+                                        local funcs = rem and rem:FindFirstChild("Functions")
+                                        if funcs and funcs:FindFirstChild("KenEvent") then
+                                            funcs.KenEvent:InvokeServer(true)
+                                        end
+                                    end)
+                                end
+                            end
+
+                            local sHeight: number
+                            local orbitRadius = 0
+                            if isBoss then
+                                sHeight = getBossHoverHeight(targetMob, true)
+                                if isEmergencyHp then
+                                    sHeight = sHeight + 35
+                                end
+                                orbitRadius = getBossOrbitRadius(targetMob, isEmergencyHp)
+                            else
+                                sHeight = (hubState.safeDistance ~= false) and 8.5 or 7.0
+                            end
+
+                            local orbitOffsetX = 0
+                            local orbitOffsetZ = 0
+                            if orbitRadius > 0 then
+                                local orbitClock = os.clock() * 1.3
+                                orbitOffsetX = math.cos(orbitClock) * orbitRadius
+                                orbitOffsetZ = math.sin(orbitClock) * orbitRadius
+                            end
+
                             local aimPos = getAimPoint(targetMob, mRoot)
-                            local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
+                            local hoverPos = mRoot.Position + Vector3.new(orbitOffsetX, sHeight, orbitOffsetZ)
                             setFlightTarget(hoverPos, aimPos, true, 45)
 
-                            -- Gom toàn bộ quái cùng loại trên cả đảo về ngay dưới chân nhân vật (tối đa 25 con, chừa quái mục tiêu chính)
-                            if (hubState.fastMobBring ~= false or genv.autocat) and (questAmount == nil or questAmount > 1) then
+                            -- Gom quái (chỉ gom khi là quái thường, không gom quái khi mục tiêu chính là Boss)
+                            if not isBoss and (hubState.fastMobBring ~= false or genv.autocat) and (questAmount == nil or questAmount > 1) then
                                 local bringAnchor = ((hrp.Position - hoverPos).Magnitude <= 35)
                                     and Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
                                     or mRoot.Position
                                 bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, targetMob.Name, false, targetMob)
                             end
 
-                            if (hrp.Position - hoverPos).Magnitude <= 28 then
+                            local distToHover = (hrp.Position - hoverPos).Magnitude
+                            local castRange = isBoss and math.max(35, sHeight * 0.70) or 28
+                            if not isEmergencyHp and distToHover <= castRange then
                                 castConfiguredSkills(char, hum, targetMob)
                             end
                         end
@@ -3728,15 +3869,67 @@ end)
                         local mRoot = getModelRoot(targetMob)
                         if mRoot then
                             setCurrentCombatTarget(targetMob)
-                            local sHeight = (hubState.safeDistance ~= false) and 11 or 8
+                            local curHp = hum.Health
+                            local maxHp = hum.MaxHealth
+                            local hpPct = (maxHp > 0) and (curHp / maxHp) or 1
+                            local isEmergencyHp = (hpPct < 0.40)
+                            local isBoss = isBossModel(targetMob)
+
+                            -- Khẩn cấp hồi máu khi đánh Boss
+                            if isBoss and hpPct < 0.50 then
+                                local healTool = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter")
+                                    or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
+                                if healTool then
+                                    if healTool.Parent == player.Backpack then
+                                        pcall(function() hum:EquipTool(healTool) end)
+                                    end
+                                    pcall(function() healTool:Activate() end)
+                                end
+                                if (hubState.autoKenHaki ~= false) then
+                                    pcall(function()
+                                        local chest = sharedRS:FindFirstChild("Chest")
+                                        local rem = chest and chest:FindFirstChild("Remotes")
+                                        local funcs = rem and rem:FindFirstChild("Functions")
+                                        if funcs and funcs:FindFirstChild("KenEvent") then
+                                            funcs.KenEvent:InvokeServer(true)
+                                        end
+                                    end)
+                                end
+                            end
+
+                            local sHeight: number
+                            local orbitRadius = 0
+                            if isBoss then
+                                sHeight = getBossHoverHeight(targetMob, true)
+                                if isEmergencyHp then
+                                    sHeight = sHeight + 35
+                                end
+                                orbitRadius = getBossOrbitRadius(targetMob, isEmergencyHp)
+                            else
+                                sHeight = (hubState.safeDistance ~= false) and 11 or 8
+                            end
+
+                            local orbitOffsetX = 0
+                            local orbitOffsetZ = 0
+                            if orbitRadius > 0 then
+                                local orbitClock = os.clock() * 1.3
+                                orbitOffsetX = math.cos(orbitClock) * orbitRadius
+                                orbitOffsetZ = math.sin(orbitClock) * orbitRadius
+                            end
+
                             local aimPos = getAimPoint(targetMob, mRoot)
-                            local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
+                            local hoverPos = mRoot.Position + Vector3.new(orbitOffsetX, sHeight, orbitOffsetZ)
                             setFlightTarget(hoverPos, aimPos, true, 44)
-                            if (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 35 then
+
+                            -- Gom quái (chỉ gom khi là quái thường, không gom quái khi mục tiêu chính là Boss)
+                            if not isBoss and (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 35 then
                                 local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
                                 bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, targetMob.Name, false, targetMob)
                             end
-                            if (hrp.Position - hoverPos).Magnitude <= 32 then
+
+                            local distToHover = (hrp.Position - hoverPos).Magnitude
+                            local castRange = isBoss and math.max(35, sHeight * 0.70) or 32
+                            if not isEmergencyHp and distToHover <= castRange then
                                 castConfiguredSkills(char, hum, targetMob)
                             end
                         end
@@ -3903,15 +4096,30 @@ end)
                             genv.DungeonStatus = string.format("Đang dọn quái (%d con)", mobCount)
 
                             -- Tính toán độ cao bay: Nếu nguy cấp thì vọt lên 75m, bình thường thì dùng slider kết hợp tactics
+                            local isBoss = isBossModel(targetMob)
                             local tactics = hubState.dungeonTactics or "Fast"
                             local baseSafeH = tonumber(hubState.dungeonSafeHeight) or (string.find(tactics, "Safe") and 22 or (string.find(tactics, "Fast") and 12 or 16))
-                            local sHeight = isEmergency and 75 or math.clamp(baseSafeH, 6, 60)
+                            local sHeight = isEmergency and 75 or (isBoss and math.max(baseSafeH, 30) or math.clamp(baseSafeH, 6, 60))
+
+                            local orbitRadius = 0
+                            if isBoss then
+                                orbitRadius = isEmergency and 38 or 20
+                            end
+
+                            local orbitOffsetX = 0
+                            local orbitOffsetZ = 0
+                            if orbitRadius > 0 then
+                                local orbitClock = os.clock() * 1.3
+                                orbitOffsetX = math.cos(orbitClock) * orbitRadius
+                                orbitOffsetZ = math.sin(orbitClock) * orbitRadius
+                            end
+
                             local aimPos = getAimPoint(targetMob, mRoot)
-                            local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
+                            local hoverPos = mRoot.Position + Vector3.new(orbitOffsetX, sHeight, orbitOffsetZ)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1200, 52)
 
-                            -- Tụ quái diện rộng (Dungeon Mob Bring)
-                            if (hubState.dungeonMobBring ~= false or hubState.fastMobBring ~= false) and (hrp.Position - hoverPos).Magnitude <= 45 then
+                            -- Tụ quái diện rộng (Dungeon Mob Bring - chỉ gom khi là quái thường, không gom quái khi gặp Boss Wave)
+                            if not isBoss and (hubState.dungeonMobBring ~= false or hubState.fastMobBring ~= false) and (hrp.Position - hoverPos).Magnitude <= 45 then
                                 local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
                                 local bRange = tonumber(hubState.dungeonBringRange) or 600
                                 bringMobsToPosition(bringAnchor, bRange, 30, nil, true, targetMob)
