@@ -388,16 +388,6 @@
                         dropStore.drops[key] = { name = dispName, cat = cat, count = delta, lastAt = now }
                     end
                     dropStore.lastDrop = "+" .. fmtNum(delta) .. " " .. dispName
-                    YokaNet.syncDropToSql({
-                        playerName = player and player.Name or "Unknown",
-                        itemKey = key,
-                        itemName = dispName,
-                        category = cat,
-                        deltaCount = delta,
-                        totalCount = curVal,
-                        seaPlaceId = game.PlaceId,
-                        jobId = game.JobId,
-                    })
                     if notifyRare then
                         if cat == "sword" or cat == "acc" or cat == "fruit" then
                             table.insert(rareNotifies, dropCatIcon(cat) .. " +" .. fmtNum(delta) .. " " .. dispName)

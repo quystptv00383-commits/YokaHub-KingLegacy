@@ -373,14 +373,6 @@
         islandBossTarget: string?,
         autoTakeBossQuest: boolean?,
         antiAfk19m: boolean?,
-        privateBossApiUrl: string?,
-        privateBossApiKey: string?,
-        privateBossApiReport: boolean?,
-        smartPublicHop: boolean?,
-        bossDiscordWebhook: string?,
-        bossDiscordNotify: boolean?,
-        mvcSqlServerUrl: string?,
-        syncToLocalSql: boolean?,
     }
 
     local function loadState(): HubState
@@ -522,14 +514,6 @@
             islandBossTarget = "Hephaestus (Thợ Rèn Thần - Sea 3)",
             autoTakeBossQuest = true,
             antiAfk19m = true,
-            privateBossApiUrl = "",
-            privateBossApiKey = "",
-            privateBossApiReport = true,
-            smartPublicHop = true,
-            bossDiscordWebhook = "",
-            bossDiscordNotify = true,
-            mvcSqlServerUrl = "http://127.0.0.1:8787",
-            syncToLocalSql = true,
         }
         local d = readJson(stateFile)
         if typeof(d) == "table" then
@@ -674,14 +658,6 @@
             if typeof(d.islandBossTarget) == "string" then st.islandBossTarget = d.islandBossTarget end
             if typeof(d.autoTakeBossQuest) == "boolean" then st.autoTakeBossQuest = d.autoTakeBossQuest end
             if typeof(d.antiAfk19m) == "boolean" then st.antiAfk19m = d.antiAfk19m end
-            if typeof(d.privateBossApiUrl) == "string" then st.privateBossApiUrl = d.privateBossApiUrl end
-            if typeof(d.privateBossApiKey) == "string" then st.privateBossApiKey = d.privateBossApiKey end
-            if typeof(d.privateBossApiReport) == "boolean" then st.privateBossApiReport = d.privateBossApiReport end
-            if typeof(d.smartPublicHop) == "boolean" then st.smartPublicHop = d.smartPublicHop end
-            if typeof(d.bossDiscordWebhook) == "string" then st.bossDiscordWebhook = d.bossDiscordWebhook end
-            if typeof(d.bossDiscordNotify) == "boolean" then st.bossDiscordNotify = d.bossDiscordNotify end
-            if typeof(d.mvcSqlServerUrl) == "string" and d.mvcSqlServerUrl ~= "" then st.mvcSqlServerUrl = d.mvcSqlServerUrl end
-            if typeof(d.syncToLocalSql) == "boolean" then st.syncToLocalSql = d.syncToLocalSql end
             if typeof(d.toolMode) == "string" then st.toolMode = d.toolMode end
             if typeof(d.m1SpamList) == "table" then
                 st.m1SpamList = d.m1SpamList
@@ -704,9 +680,6 @@
 
     local function saveState(st: HubState)
         writeJson(stateFile, st)
-        if typeof(genv._YokaSyncConfigToSql) == "function" then
-            pcall(genv._YokaSyncConfigToSql, st)
-        end
     end
 
     type SessionData = {
