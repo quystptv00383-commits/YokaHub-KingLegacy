@@ -2365,7 +2365,10 @@
                     break
                 end
             end
-            if not failed then break end
+            if not failed then
+                smartWait(15.0, expectedMode)
+                break
+            end
         end
     end
 
@@ -2386,8 +2389,8 @@
         end
         if not didInitialRoomSettle then
             didInitialRoomSettle = true
-            setStatus("Kiểm tra nhanh phòng hiện tại...")
-            smartWait(1.8, mode)
+            setStatus("Đang kiểm tra và nạp dữ liệu phòng hiện tại (chờ 6.5s)...")
+            smartWait(6.5, mode)
             continue
         end
 
@@ -2550,31 +2553,17 @@
                     burstHopCandidates(candidates, visited, visitedSoloFile, "solo", shortCd, vPrefix)
                 else
                     if fullRooms > 0 then
-                        setStatus(string.format("Có %d phòng %s đều đầy 12/12 — đổi server khác...", fullRooms, soloOpt))
+                        setStatus(string.format("Có %d phòng %s đều đầy 12/12 — Chờ slot trống (quét lại sau 8s)...", fullRooms, soloOpt))
                     elseif visitedRooms > 0 then
-                        setStatus(string.format("Có %d phòng %s vừa ghé — đổi server khác...", visitedRooms, soloOpt))
+                        setStatus(string.format("Có %d phòng %s vừa ghé — Chờ phòng mới (quét lại sau 8s)...", visitedRooms, soloOpt))
                     else
-                        setStatus("Chưa có phòng có sẵn cho " .. soloOpt .. " — đang tự động đổi server...")
+                        setStatus("Chưa có phòng API có sẵn cho " .. soloOpt .. " — Đang chờ phòng mới (quét lại sau 8s)...")
                     end
-                    recordHop()
-                    armAutoReexec(false)
-                    if teleportToSea then
-                        teleportToSea(targetPlace, soloKey)
-                    else
-                        ensureCorrectSea(targetPlace, soloOpt, "Dò phòng " .. soloOpt, soloKey, true)
-                    end
-                    smartWait(12.0, "solo")
+                    smartWait(8.0, "solo")
                 end
             else
-                setStatus("Đang tự động chuyển server mới để tìm " .. soloOpt .. "...")
-                recordHop()
-                armAutoReexec(false)
-                if teleportToSea then
-                    teleportToSea(targetPlace, soloKey)
-                else
-                    ensureCorrectSea(targetPlace, soloOpt, "Săn " .. soloOpt, soloKey, true)
-                end
-                smartWait(12.0, "solo")
+                setStatus("Đang chờ dữ liệu API phòng " .. soloOpt .. " (quét lại sau 8s)...")
+                smartWait(8.0, "solo")
             end
 
         elseif mode == "sea3" then
@@ -2669,26 +2658,12 @@
                 if #candidates > 0 then
                     burstHopCandidates(candidates, visited, visitedSea3File, "sea3")
                 else
-                    setStatus("Không còn phòng trống, đang tự động đổi server Sea 3...")
-                    recordHop()
-                    armAutoReexec(false)
-                    if teleportToSea then
-                        teleportToSea(SEA3_PLACE, preferSea3Boss)
-                    else
-                        ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Dò phòng Sea 3", preferSea3Boss, true)
-                    end
-                    smartWait(12.0, "sea3")
+                    setStatus("Chưa có phòng Boss Sea 3 trống trên API — Đang chờ phòng mới (quét lại sau 8s)...")
+                    smartWait(8.0, "sea3")
                 end
             else
-                setStatus("Đang tự động chuyển server mới để săn Boss Sea 3...")
-                recordHop()
-                armAutoReexec(false)
-                if teleportToSea then
-                    teleportToSea(SEA3_PLACE, preferSea3Boss)
-                else
-                    ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Săn Boss Sea 3", preferSea3Boss, true)
-                end
-                smartWait(12.0, "sea3")
+                setStatus("Đang chờ dữ liệu API Boss Sea 3 (quét lại sau 8s)...")
+                smartWait(8.0, "sea3")
             end
 
         elseif mode == "sea2" then
@@ -2813,28 +2788,14 @@
                         if #fallback > 0 then
                             burstHopCandidates(fallback, visUse, visitedSea2File, "sea2")
                         else
-                            setStatus("Chưa có phòng phù hợp, đang tự động đổi server Sea 2...")
-                            recordHop()
-                            armAutoReexec(false)
-                            if teleportToSea then
-                                teleportToSea(SEA2_PLACE, "hydra")
-                            else
-                                ensureCorrectSea(SEA2_PLACE, "Boss Sea 2", "Dò phòng Sea 2", "hydra", true)
-                            end
-                            smartWait(12.0, "sea2")
+                            setStatus("Chưa có phòng Boss / Rương Sea 2 trống trên API — Đang chờ phòng mới (quét lại sau 8s)...")
+                            smartWait(8.0, "sea2")
                         end
                     end
                 end
             else
-                setStatus("Đang tự động chuyển server mới để săn Boss Sea 2...")
-                recordHop()
-                armAutoReexec(false)
-                if teleportToSea then
-                    teleportToSea(SEA2_PLACE, "hydra")
-                else
-                    ensureCorrectSea(SEA2_PLACE, "Boss Sea 2", "Săn Boss Sea 2", "hydra", true)
-                end
-                smartWait(12.0, "sea2")
+                setStatus("Đang chờ dữ liệu API Boss Sea 2 (quét lại sau 8s)...")
+                smartWait(8.0, "sea2")
             end
         end
     end

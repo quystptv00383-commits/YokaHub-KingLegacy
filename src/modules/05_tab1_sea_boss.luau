@@ -925,18 +925,8 @@
                 end
 
                 if #list == 0 then
-                    -- Tự động đổi server công khai qua TeleportService nếu không có kết quả từ snapshot
-                    setStatus("Đang tự động chuyển sang server công khai mới để săn " .. snipeTarget .. "...")
-                    safeNotify("YokaHub", "Đang tìm server mới để săn " .. snipeTarget .. "...", "public")
-                    recordHop()
-                    armAutoReexec(false)
-                    if teleportToSea then
-                        teleportToSea(reqPlace or game.PlaceId, snipeTarget)
-                    elseif ensureCorrectSea then
-                        ensureCorrectSea(reqPlace or game.PlaceId, snipeTarget, "Chuyển server", snipeTarget, true)
-                    else
-                        pcall(function() teleportService:Teleport(reqPlace or game.PlaceId, players.LocalPlayer) end)
-                    end
+                    setStatus("Không tìm thấy phòng trống có " .. snipeTarget .. " trên API (hoặc các phòng đều đầy 12/12).")
+                    safeNotify("YokaHub", "Hiện không có phòng trống có " .. snipeTarget .. ". Vui lòng thử lại sau vài giây!", "info")
                     done(); return
                 end
                 table.sort(list, function(a, b)
@@ -981,7 +971,10 @@
                             break
                         end
                     end
-                    if not failed then break end
+                    if not failed then
+                        task.wait(12.0)
+                        break
+                    end
                 end
                 done()
             end)
