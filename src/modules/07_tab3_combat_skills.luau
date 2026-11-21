@@ -36,6 +36,22 @@
         }, "ToolModeDropdown")
 
         CombatSection:CreateToggle({
+            Name = "⚡ M1 Nhanh Gọn Bỏ Động Tác Thừa (Fast Attack No Anim)",
+            Description = "Triệt tiêu độ trễ vung kiếm/đấm, hủy bỏ toàn bộ động tác thừa của M1 để đạt tốc độ đánh tối đa",
+            CurrentValue = (hubState.fastAttackNoAnim ~= false),
+            Callback = function(Value: boolean)
+                hubState.fastAttackNoAnim = Value
+                saveState(hubState)
+                pcall(function() genv.FastAttackNoAnim = Value end)
+                if Value then
+                    safeNotify("YokaHub M1", "Đã bật M1 nhanh gọn bỏ động tác thừa!", "flash_on")
+                else
+                    safeNotify("YokaHub M1", "Đã tắt bỏ động tác thừa M1.", "info")
+                end
+            end,
+        }, "FastAttackNoAnimToggle")
+
+        CombatSection:CreateToggle({
             Name = "🍎 Use Fruit Transformation",
             Description = "Tự động kích hoạt dạng biến hình của Trái Ác Quỷ khi giao chiến",
             CurrentValue = hubState.autoTransform ~= false,

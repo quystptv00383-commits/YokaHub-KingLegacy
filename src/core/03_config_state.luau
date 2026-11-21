@@ -289,6 +289,7 @@
         autoM1Fruit: boolean?,
         autoM1Sword: boolean?,
         autoM1Melee: boolean?,
+        fastAttackNoAnim: boolean?,
         smartSkillHold: boolean?,
         dodgeSafeDistance: number?,
         flySpeed: number?,
@@ -344,6 +345,7 @@
         fishLocation: string?,
         -- Boss & Sea Events Boards
         autoFightMaster: boolean?,
+        autoFightSeaEvent: boolean?,
         autoCollectChest: boolean?,
         bossSafeHeight: number?,
         smartBossHeight: boolean?,
@@ -426,6 +428,7 @@
             autoM1Fruit = true,
             autoM1Sword = true,
             autoM1Melee = true,
+            fastAttackNoAnim = true,
             smartSkillHold = true,
             dodgeSafeDistance = 95,
             flySpeed = 420,
@@ -476,6 +479,7 @@
             autoBuyBait = false,
             fishLocation = "Tự do (Vị trí hiện tại)",
             autoFightMaster = true,
+            autoFightSeaEvent = true,
             autoCollectChest = true,
             bossSafeHeight = 35,
             smartBossHeight = true,
@@ -564,6 +568,7 @@
             if typeof(d.autoM1Fruit) == "boolean" then st.autoM1Fruit = d.autoM1Fruit end
             if typeof(d.autoM1Sword) == "boolean" then st.autoM1Sword = d.autoM1Sword end
             if typeof(d.autoM1Melee) == "boolean" then st.autoM1Melee = d.autoM1Melee end
+            if typeof(d.fastAttackNoAnim) == "boolean" then st.fastAttackNoAnim = d.fastAttackNoAnim end
             if typeof(d.smartSkillHold) == "boolean" then st.smartSkillHold = d.smartSkillHold end
             if typeof(d.dodgeSafeDistance) == "number" then st.dodgeSafeDistance = math.clamp(math.floor(d.dodgeSafeDistance), 40, 180) end
             if typeof(d.flySpeed) == "number" then st.flySpeed = math.clamp(math.floor(d.flySpeed), 200, 650) end
@@ -611,6 +616,7 @@
             if typeof(d.autoBuyBait) == "boolean" then st.autoBuyBait = d.autoBuyBait end
             if typeof(d.fishLocation) == "string" then st.fishLocation = d.fishLocation end
             if typeof(d.autoFightMaster) == "boolean" then st.autoFightMaster = d.autoFightMaster end
+            if typeof(d.autoFightSeaEvent) == "boolean" then st.autoFightSeaEvent = d.autoFightSeaEvent end
             if typeof(d.autoCollectChest) == "boolean" then st.autoCollectChest = d.autoCollectChest end
             if typeof(d.bossSafeHeight) == "number" then st.bossSafeHeight = math.clamp(math.floor(d.bossSafeHeight), 10, 150) end
             if typeof(d.smartBossHeight) == "boolean" then st.smartBossHeight = d.smartBossHeight end

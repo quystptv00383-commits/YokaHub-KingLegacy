@@ -486,6 +486,26 @@
     -- BẢNG 1: CÀI ĐẶT CHIẾN ĐẤU BOSS & NHẶT RƯƠNG
     -- ========================================================
     local MasterFightSection = HopTab:CreateSection("🌟 CÀI ĐẶT CHIẾN ĐẤU BOSS & SEA EVENT")
+
+    local AutoFightSeaEventToggle = MasterFightSection:CreateToggle({
+        Name = "🌊 Tự Động Đánh Sea Event (Auto Fight Sea Event)",
+        Description = "Tự động bay đến diệt mọi sự kiện biển (Kraken, Hydra, Vua Biển, Tàu Ma, Rắn Biển, Rồng Lửa...), tự xả chiêu và spam M1 theo Tab 3 chuẩn xác, bỏ động tác thừa",
+        CurrentValue = (hubState.autoFightSeaEvent ~= false),
+        Callback = function(Value: boolean)
+            hubState.autoFightSeaEvent = Value
+            saveState(hubState)
+            pcall(function()
+                genv.AutoFightSeaEvent = Value
+                genv.SeaEvent = Value
+            end)
+            if Value then
+                safeNotify("YokaHub Sea Event", "Đã bật Tự Động Đánh Sea Event (Xả Skill & M1 theo Tab 3)!", "flash_on")
+            else
+                safeNotify("YokaHub Sea Event", "Đã tắt Tự Đánh Sea Event.", "info")
+            end
+        end,
+    }, "AutoFightSeaEventToggle")
+
     MasterAutoFightToggle = MasterFightSection:CreateToggle({
         Name = "⚔️ Tự Động Đánh Boss & Săn Sea Event (Master Auto Fight)",
         Description = "Tự động bay đến diệt Boss biển, né chiêu trên không và tích hợp tự động nhặt rương sự kiện biển (Hydra, Vua Biển, Depth King...)",

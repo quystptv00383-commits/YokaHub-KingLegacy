@@ -227,6 +227,28 @@
         return string.find(n, "sea beast", 1, true) ~= nil or string.find(n, "seabeast", 1, true) ~= nil or string.find(n, "ghost ship", 1, true) ~= nil
     end
 
+    local function isSeaEventMob(m: Instance?): boolean
+        if not m or not m.Parent then return false end
+        local pName = string.lower(m.Parent.Name or "")
+        if pName == "seamonster" or pName == "ghostmonster" then return true end
+        local n = string.lower(m.Name or "")
+        if isIslandMobName(n) then return false end
+        if string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil
+            or string.find(n, "hydra", 1, true) ~= nil
+            or string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil
+            or string.find(n, "ghost ship", 1, true) ~= nil or (string.find(n, "ghost", 1, true) ~= nil and string.find(n, "ship", 1, true) ~= nil)
+            or string.find(n, "serpent", 1, true) ~= nil
+            or string.find(n, "sea beast", 1, true) ~= nil or string.find(n, "seabeast", 1, true) ~= nil
+            or string.find(n, "dragon", 1, true) ~= nil or string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno", 1, true) ~= nil
+            or string.find(n, "crab", 1, true) ~= nil
+            or string.find(n, "depth king", 1, true) ~= nil or string.find(n, "depthking", 1, true) ~= nil
+            or string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "tyrant", 1, true) ~= nil
+            or string.find(n, "galleon", 1, true) ~= nil then
+            return true
+        end
+        return false
+    end
+
     local function isSea3BossEnabled(name: string): boolean
         local n = string.lower(name)
         if isIslandMobName(n) then return false end
@@ -380,10 +402,17 @@
         if not hrp then return nil, nil end
         local myPos = hrp.Position
 
-        if currentCombatTarget and (os.clock() - currentCombatTargetAt) < 4.0 and isModelAlive(currentCombatTarget) then
+        if currentCombatTarget and (os.clock() - currentCombatTargetAt) < 6.0 and isModelAlive(currentCombatTarget) then
             local cRoot = getModelRoot(currentCombatTarget)
-            if cRoot and (cRoot.Position - myPos).Magnitude <= maxRange then
-                return currentCombatTarget, cRoot
+            if cRoot then
+                local cDist = (cRoot.Position - myPos).Magnitude
+                local effMax = maxRange
+                if isSeaEventMob(currentCombatTarget) or isSea3BossEnabled(currentCombatTarget.Name) or isSea2BossEnabled(currentCombatTarget.Name) then
+                    effMax = math.max(maxRange, 140)
+                end
+                if cDist <= effMax then
+                    return currentCombatTarget, cRoot
+                end
             end
         end
 
@@ -400,7 +429,11 @@
                     local mRoot = getModelRoot(m)
                     if mHum and mHum.Health > 0 and mRoot then
                         local d = (mRoot.Position - myPos).Magnitude
-                        if d <= maxRange then
+                        local effMax = maxRange
+                        if isSeaEventMob(m) or isSea3BossEnabled(m.Name) or isSea2BossEnabled(m.Name) then
+                            effMax = math.max(maxRange, 140)
+                        end
+                        if d <= effMax then
                             if tier > bestTier or (tier == bestTier and d < bestDist) then
                                 bestTier = tier
                                 bestDist = d
@@ -853,7 +886,7 @@
                 end
             end
 
-            -- Tăng tốc Animation swing / attack (Animation Speedup Bypass)
+            -- Tối ưu hóa đòn đánh: Bỏ hoàn toàn động tác thừa (Animation Cancel / End-Lag Bypass)
             pcall(function()
                 local char = player.Character
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -863,8 +896,12 @@
                         local nameLower = track.Animation and track.Animation.Name:lower() or ""
                         if nameLower:find("slash") or nameLower:find("attack") or nameLower:find("swing") 
                            or nameLower:find("punch") or nameLower:find("m1") or nameLower:find("hit") 
-                           or nameLower:find("combo") then
-                            track:AdjustSpeed(4.0)
+                           or nameLower:find("combo") or nameLower:find("strike") then
+                            if hubState.fastAttackNoAnim ~= false or genv.FastAttackNoAnim then
+                                track:Stop(0)
+                            else
+                                track:AdjustSpeed(4.0)
+                            end
                         end
                     end
                 end
@@ -876,8 +913,14 @@
     local lastM1FireClock = 0
 
     local function equipAndFireSelectedM1(char: Model, hum: Humanoid): Tool?
-        -- CHỈ ĐÁNH KHI CÓ MỤC TIÊU SỐNG TRONG TẦM CẬN CHIẾN (<= 45 STUDS)
-        local tModel, tRoot = getBestCombatTarget(45)
+        -- CHỈ ĐÁNH KHI CÓ MỤC TIÊU SỐNG TRONG TẦM CẬN CHIẾN (<= 50 STUDS, MỞ RỘNG 140 STUDS KHI ĐÁNH BOSS/SEA EVENT)
+        local checkDist = 50
+        if currentCombatTarget and isModelAlive(currentCombatTarget) then
+            if isSeaEventMob(currentCombatTarget) or isSea3BossEnabled(currentCombatTarget.Name) or isSea2BossEnabled(currentCombatTarget.Name) then
+                checkDist = 140
+            end
+        end
+        local tModel, tRoot = getBestCombatTarget(checkDist)
         if not tModel or not tRoot then return nil end
 
         local cats = getAvailableM1Categories()
@@ -960,7 +1003,13 @@
 
             -- Chỉ kích hoạt Auto M1 khi có ít nhất 1 loại vũ khí được tích chọn và người chơi đang không câu cá
             if not hubState.autoFish and not isHoldingSkill and os.clock() >= dodgeUntilClock then
-                local tModel, _ = getBestCombatTarget(45)
+                local checkDist = 50
+                if currentCombatTarget and isModelAlive(currentCombatTarget) then
+                    if isSeaEventMob(currentCombatTarget) or isSea3BossEnabled(currentCombatTarget.Name) or isSea2BossEnabled(currentCombatTarget.Name) then
+                        checkDist = 140
+                    end
+                end
+                local tModel, _ = getBestCombatTarget(checkDist)
                 if tModel then
                     pcall(function()
                         local char = player.Character
@@ -1461,8 +1510,16 @@
         while genv._YokaHubToken == myToken do
             task.wait(0.16)
             local hasLocalFarm = (hubState.autoLevel or hubState.autoKillSelectedMob or hubState.autoDungeon or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat)
-            local busyOtherMode = hubState.autoFish or (currentMode == "off" and hasLocalFarm and not hubState.autoFightIslandBoss)
-            local bossFightActive = (currentMode ~= "off") or hubState.autoFightMaster or hubState.autoFightIslandBoss
+            local seaEventPresent = false
+            if hubState.autoFightSeaEvent ~= false then
+                local sm = workspace:FindFirstChild("SeaMonster")
+                local gm = workspace:FindFirstChild("GhostMonster")
+                if (sm and #sm:GetChildren() > 0) or (gm and #gm:GetChildren() > 0) then
+                    seaEventPresent = true
+                end
+            end
+            local busyOtherMode = hubState.autoFish or (currentMode == "off" and hasLocalFarm and not hubState.autoFightIslandBoss and not seaEventPresent)
+            local bossFightActive = (currentMode ~= "off") or hubState.autoFightMaster or (hubState.autoFightSeaEvent ~= false) or hubState.autoFightIslandBoss
             if bossFightActive and not busyOtherMode and genv._YokaHubToken == myToken then
                 pcall(function()
                     local char = player.Character
@@ -1546,6 +1603,12 @@
                         elseif currentMode == "sea3" then
                             return isSea3BossEnabled(rawName)
                         end
+                        -- Tự động đánh Sea Event khi bật Auto Fight Sea Event
+                        if (hubState.autoFightSeaEvent ~= false or genv.AutoFightSeaEvent) and (folderName == "SeaMonster" or folderName == "GhostMonster" or isSeaEventMiscBoss(n) or isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n) or isSerpentBoss(n) or isDepthKingBoss(n) or isAbyssalBoss(n) or string.find(n, "hydra", 1, true) ~= nil or string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil or string.find(n, "ghost", 1, true) ~= nil) then
+                            if hubState.ignoreKraken == true and (isKrakenBoss(n) or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+                            if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
+                            return true
+                        end
                         if not hubState.autoFightMaster then
                             return false
                         end
@@ -1556,7 +1619,7 @@
                     local targetBoss: Model? = nil
                     local bestBossDist = 1e9
                     local folders
-                    if currentMode == "solo" or currentMode == "sea3" then
+                    if currentMode == "solo" or currentMode == "sea3" or (hubState.autoFightSeaEvent ~= false) then
                         folders = {}
                         local sm = workspace:FindFirstChild("SeaMonster")
                         if sm then table.insert(folders, sm) end
@@ -1565,7 +1628,7 @@
                         local mon = workspace:FindFirstChild("Monster")
                         local bossF = mon and mon:FindFirstChild("Boss")
                         if bossF then table.insert(folders, bossF) end
-                        if hubState.autoFightIslandBoss and mon then
+                        if (hubState.autoFightIslandBoss or currentMode == "sea3") and mon then
                             table.insert(folders, mon)
                         end
                     else
