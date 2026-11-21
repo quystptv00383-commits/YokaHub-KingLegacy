@@ -341,7 +341,11 @@
 
         -- 11. Boss Đảo (Hephaestus, Saber, Gazelle Man, Whitebeard, Kaido, Big Mom, hoặc nằm trong Folder Monster / Boss / AllNPC)
         -- Cần bay ở tầm 26 studs: Tuyệt đối an toàn khỏi đòn cận chiến, đồng thời 100% chiêu thức và M1 đều trúng đích
-        if isIslandHint or parentName == "boss" or parentName == "monster" or parentName == "allnpc"
+        if isIslandHint
+            or string.find(parentName, "boss", 1, true) ~= nil
+            or string.find(parentName, "monster", 1, true) ~= nil
+            or string.find(parentName, "npc", 1, true) ~= nil
+            or string.find(parentName, "mob", 1, true) ~= nil
             or string.find(name, "saber", 1, true) ~= nil
             or string.find(name, "gazelle", 1, true) ~= nil
             or string.find(name, "hephaestus", 1, true) ~= nil
