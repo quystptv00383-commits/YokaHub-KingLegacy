@@ -534,7 +534,7 @@
             if typeof(d.fishFloat) == "boolean" then st.fishFloat = d.fishFloat end
             if typeof(d.autoFightMaster) == "boolean" then st.autoFightMaster = d.autoFightMaster end
             if typeof(d.autoCollectChest) == "boolean" then st.autoCollectChest = d.autoCollectChest end
-            if typeof(d.bossSafeHeight) == "number" then st.bossSafeHeight = d.bossSafeHeight end
+            if typeof(d.bossSafeHeight) == "number" then st.bossSafeHeight = math.clamp(math.floor(d.bossSafeHeight), 10, 150) end
             if typeof(d.smartBossHeight) == "boolean" then st.smartBossHeight = d.smartBossHeight end
             if typeof(d.ignoreKraken) == "boolean" then st.ignoreKraken = d.ignoreKraken end
             if typeof(d.ignoreGalleon) == "boolean" then st.ignoreGalleon = d.ignoreGalleon end

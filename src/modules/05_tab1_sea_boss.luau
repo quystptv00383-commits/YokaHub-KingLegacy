@@ -524,7 +524,7 @@
         Suffix = "studs",
         CurrentValue = hubState.bossSafeHeight or 35,
         Callback = function(Value: number)
-            hubState.bossSafeHeight = Value
+            hubState.bossSafeHeight = math.clamp(math.floor(Value), 10, 150)
             saveState(hubState)
         end,
     }, "BossSafeHeightSlider")
