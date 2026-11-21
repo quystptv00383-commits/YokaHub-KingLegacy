@@ -2497,6 +2497,38 @@
         local pubCache: { [number]: { data: { any }, cursor: string?, fetchedAt: number } } = {}
         local privCache = { url = "", snap = nil :: any, fetchedAt = 0 }
         local reportCooldowns: { [string]: number } = {}
+        local discordCooldowns: { [string]: number } = {}
+        local cachedLocalDiscordUrl = ""
+        local cachedLocalDiscordAt = 0
+
+        function net.normalizeDiscordWebhook(raw: any): string
+            local s = string.gsub(tostring(raw or ""), "%s+", "")
+            if string.match(s, "^https://discord%.com/api/webhooks/%d+/[%w%-%_]+$") or string.match(s, "^https://discordapp%.com/api/webhooks/%d+/[%w%-%_]+$") then
+                return s
+            end
+            return ""
+        end
+
+        function net.getBossDiscordWebhook(): string
+            local fromState = net.normalizeDiscordWebhook(hubState.bossDiscordWebhook)
+            if fromState ~= "" then return fromState end
+            local now = os.clock()
+            if (now - cachedLocalDiscordAt) < 10.0 then
+                return cachedLocalDiscordUrl
+            end
+            cachedLocalDiscordAt = now
+            cachedLocalDiscordUrl = ""
+            if typeof(isf) == "function" and typeof(rf) == "function" then
+                local okEx, exists = pcall(isf, "YokaHub_BossWebhook.txt")
+                if okEx and exists then
+                    local okR, raw = pcall(rf, "YokaHub_BossWebhook.txt")
+                    if okR and typeof(raw) == "string" then
+                        cachedLocalDiscordUrl = net.normalizeDiscordWebhook(raw)
+                    end
+                end
+            end
+            return cachedLocalDiscordUrl
+        end
 
         local function getReqFn(): any
             return (genv.syn and genv.syn.request) or (genv.http and genv.http.request) or genv.request or genv.http_request
@@ -2720,33 +2752,84 @@
         end
 
         function net.reportAliveBoss(bossName: string, bossSource: string, hpCur: number?, hpMax: number?)
-            if hubState.privateBossApiReport == false then return end
-            local baseUrl = net.normalizeBaseUrl(hubState.privateBossApiUrl)
-            if baseUrl == "" or game.JobId == "" then return end
+            if game.JobId == "" then return end
             local now = os.clock()
-            local cdKey = game.JobId .. "|" .. string.lower(bossName)
-            if (now - (reportCooldowns[cdKey] or 0)) < 15.0 then return end
-            reportCooldowns[cdKey] = now
-
+            local jobId = game.JobId
+            local cdKey = jobId .. "|" .. string.lower(bossName)
             local pCount = #players:GetPlayers()
             local pMax = players.MaxPlayers or 12
-            local curH = tonumber(hpCur) or 0
-            local maxH = tonumber(hpMax) or 0
+            local curH = math.floor(tonumber(hpCur) or 0)
+            local maxH = math.floor(tonumber(hpMax) or 0)
             local pct = (maxH > 0) and math.clamp(math.floor((curH / maxH) * 100 + 0.5), 1, 100) or 100
-            local payload = {
-                placeId = game.PlaceId,
-                jobId = game.JobId,
-                serverRef = game.JobId,
-                eventName = bossName,
-                source = bossSource,
-                alive = true,
-                health = { current = curH, max = maxH, percent = pct },
-                players = { current = pCount, max = pMax },
-                reportedAt = os.time(),
-            }
-            task.spawn(function()
-                net.httpRequest("POST", baseUrl .. "/api/report", payload, getPrivateHeaders())
-            end)
+
+            local baseUrl = net.normalizeBaseUrl(hubState.privateBossApiUrl)
+            if hubState.privateBossApiReport ~= false and baseUrl ~= "" and (now - (reportCooldowns[cdKey] or 0)) >= 15.0 then
+                reportCooldowns[cdKey] = now
+                local payload = {
+                    placeId = game.PlaceId,
+                    jobId = jobId,
+                    serverRef = jobId,
+                    eventName = bossName,
+                    source = bossSource,
+                    alive = true,
+                    health = { current = curH, max = maxH, percent = pct },
+                    players = { current = pCount, max = pMax },
+                    reportedAt = os.time(),
+                }
+                task.spawn(function()
+                    net.httpRequest("POST", baseUrl .. "/api/report", payload, getPrivateHeaders())
+                end)
+            end
+
+            local dcUrl = (hubState.bossDiscordNotify ~= false) and net.getBossDiscordWebhook() or ""
+            if dcUrl ~= "" and (now - (discordCooldowns[cdKey] or 0)) >= 60.0 then
+                discordCooldowns[cdKey] = now
+                local seaLabel = (game.PlaceId == SEA3_PLACE and "Sea 3") or (game.PlaceId == SEA2_PLACE and "Sea 2") or "Sea 1"
+                local execName = "YokaHub Client"
+                pcall(function()
+                    if typeof(identifyexecutor) == "function" then
+                        local ex = identifyexecutor()
+                        if typeof(ex) == "string" and ex ~= "" then execName = ex end
+                    end
+                end)
+                local quickJoin = string.format('game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s", game.Players.LocalPlayer)', game.PlaceId, jobId)
+                local hpText = (maxH > 0) and string.format("%d/%d (%d%%)", curH, maxH, pct) or string.format("%d%%", pct)
+                local dcDesc = table.concat({
+                    "```",
+                    string.format("🎮 %s: Alive | ❤️ %s", bossName, hpText),
+                    "```",
+                    "**🌐 SERVER**",
+                    string.format("**Game:** King Legacy (%s)", seaLabel),
+                    string.format("**Players:** %d/%d", pCount, pMax),
+                    "",
+                    "**📌 JobId PC**",
+                    "```",
+                    jobId,
+                    "```",
+                    "**📌 JobId Join Script**",
+                    "```lua",
+                    quickJoin,
+                    "```",
+                    "**💻 Executor**",
+                    execName,
+                }, "\n")
+                local dcPayload = {
+                    content = jobId,
+                    username = "YokaHub Boss Notifier",
+                    embeds = {
+                        {
+                            author = { name = "YokaHub Boss Notifier" },
+                            title = "🔥 BOSS DETECTED",
+                            description = dcDesc,
+                            color = 16724787,
+                            footer = { text = "YokaHub | Auto Detection System" },
+                        },
+                    },
+                }
+                task.spawn(function()
+                    net.httpRequest("POST", dcUrl, dcPayload)
+                end)
+            end
         end
 
         return net

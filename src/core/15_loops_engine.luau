@@ -2434,12 +2434,60 @@
     -- ========================================================
     -- VONG LAP NHE (SESSION + DAMAGE WATCHER)
     -- ========================================================
+    local function classifyReportBossSource(name: string): string?
+        local n = string.lower(name or "")
+        if n == "" or isIslandMobName(n) or string.find(n, "galleon", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil then
+            return nil
+        end
+        if isDepthKingBoss(n) then return "depth_king" end
+        if isDragonBoss(n) then return "sea_event" end
+        if isAbyssalBoss(n) then return "abyssal" end
+        if string.find(n, "kraken", 1, true) ~= nil then return "kraken" end
+        if isSerpentBoss(n) then return "serpent" end
+        if isCrabBoss(n) then return "crab" end
+        if string.find(n, "hydra", 1, true) ~= nil then return "hydra" end
+        if string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil then return "sea_king" end
+        if string.find(n, "ghost", 1, true) ~= nil then return "ghost_ship" end
+        return nil
+    end
+
+    local function scanAndReportAliveBosses()
+        local hasPriv = YokaNet.normalizeBaseUrl(hubState.privateBossApiUrl) ~= "" and hubState.privateBossApiReport ~= false
+        local hasDisc = (hubState.bossDiscordNotify ~= false) and ((YokaNet.normalizeDiscordWebhook(hubState.bossDiscordWebhook) ~= "") or (YokaNet.getBossDiscordWebhook() ~= ""))
+        if not hasPriv and not hasDisc then return end
+        if game.PlaceId ~= SEA3_PLACE and game.PlaceId ~= SEA2_PLACE then return end
+
+        local scanFolders: { Instance } = {}
+        for _, fName in ipairs({ "SeaMonster", "GhostMonster" }) do
+            local fld = workspace:FindFirstChild(fName)
+            if fld then table.insert(scanFolders, fld) end
+        end
+        local mon = workspace:FindFirstChild("Monster")
+        local bossF = mon and mon:FindFirstChild("Boss")
+        if bossF then table.insert(scanFolders, bossF) end
+
+        for _, fld in ipairs(scanFolders) do
+            for _, m in ipairs(fld:GetChildren()) do
+                if m:IsA("Model") and isModelAlive(m) then
+                    local srcTag = classifyReportBossSource(m.Name)
+                    if srcTag then
+                        local bHum = m:FindFirstChildOfClass("Humanoid")
+                        if bHum and bHum.Health > 0 then
+                            YokaNet.reportAliveBoss(m.Name, srcTag, bHum.Health, bHum.MaxHealth)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     task.spawn(function()
         local t = 0
         while genv._YokaHubToken == myToken do
             t += 1
             if t >= 1000000 then t = 0 end
             if t % 2 == 0 and updateSessionUI then updateSessionUI() end
+            if t % 3 == 0 then pcall(scanAndReportAliveBosses) end
             if dmgEnabled and refreshNearbyMobs then refreshNearbyMobs() end
             task.wait(1.5)
         end

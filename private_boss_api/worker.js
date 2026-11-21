@@ -115,20 +115,31 @@ export default {
 
       await env.BOSS_KV.put(KV_INDEX_KEY, JSON.stringify(rawMap));
 
-      // Gửi cảnh báo Boss mới xuất hiện lên Discord Webhook (nếu đã cấu hình DISCORD_WEBHOOK_URL trong Cloudflare Secret)
+      // Gửi cảnh báo Boss mới xuất hiện lên Discord Webhook đúng chuẩn thẻ BOSS DETECTED
       if (isNewBossRoom && env.DISCORD_WEBHOOK_URL) {
-        const seaLabel = placeId === 15759515082 ? "Sea 3" : (placeId === 6381829480 ? "Sea 2" : `Place ${placeId}`);
+        const seaLabel = placeId === 15759515082 ? "Sea 3" : (placeId === 6381829480 ? "Sea 2" : `Sea 1`);
+        const curH = hpObj.current ?? 100;
+        const maxH = hpObj.max ?? 100;
+        const pct = hpObj.percent ?? 100;
+        const quickJoin = `game:GetService("TeleportService"):TeleportToPlaceInstance(${placeId}, "${jobId}", game.Players.LocalPlayer)`;
         const discordPayload = {
-          username: "YokaHub Boss API",
+          content: jobId,
+          username: "YokaHub Boss Notifier",
           embeds: [
             {
-              title: `🚨 ${eventName} (${seaLabel})`,
+              author: { name: "YokaHub Boss Notifier" },
+              title: "🔥 BOSS DETECTED",
               description:
-                `• **Máu Boss:** ${hpObj.percent ?? 100}%\n` +
-                `• **Số người chơi:** ${plObj.current ?? "?"}/${plObj.max ?? 12}\n` +
-                `• **JobId:** \`${jobId}\`\n` +
-                `• **Nguồn:** \`${String(body.source || "yoka_private")}\``,
-              color: 3461096,
+                `\`\`\`\n🎮 ${eventName}: Alive | ❤️ ${curH}/${maxH} (${pct}%)\n\`\`\`\n` +
+                `**🌐 SERVER**\n` +
+                `**Game:** King Legacy (${seaLabel})\n` +
+                `**Players:** ${plObj.current ?? "?"}/${plObj.max ?? 12}\n\n` +
+                `**📌 JobId PC**\n` +
+                `\`\`\`\n${jobId}\n\`\`\`\n` +
+                `**📌 JobId Join Script**\n` +
+                `\`\`\`lua\n${quickJoin}\n\`\`\``,
+              color: 16724787,
+              footer: { text: "YokaHub | Auto Detection System" },
               timestamp: new Date().toISOString(),
             },
           ],

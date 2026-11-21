@@ -377,6 +377,8 @@
         privateBossApiKey: string?,
         privateBossApiReport: boolean?,
         smartPublicHop: boolean?,
+        bossDiscordWebhook: string?,
+        bossDiscordNotify: boolean?,
     }
 
     local function loadState(): HubState
@@ -522,6 +524,8 @@
             privateBossApiKey = "",
             privateBossApiReport = true,
             smartPublicHop = true,
+            bossDiscordWebhook = "",
+            bossDiscordNotify = true,
         }
         local d = readJson(stateFile)
         if typeof(d) == "table" then
@@ -670,6 +674,8 @@
             if typeof(d.privateBossApiKey) == "string" then st.privateBossApiKey = d.privateBossApiKey end
             if typeof(d.privateBossApiReport) == "boolean" then st.privateBossApiReport = d.privateBossApiReport end
             if typeof(d.smartPublicHop) == "boolean" then st.smartPublicHop = d.smartPublicHop end
+            if typeof(d.bossDiscordWebhook) == "string" then st.bossDiscordWebhook = d.bossDiscordWebhook end
+            if typeof(d.bossDiscordNotify) == "boolean" then st.bossDiscordNotify = d.bossDiscordNotify end
             if typeof(d.toolMode) == "string" then st.toolMode = d.toolMode end
             if typeof(d.m1SpamList) == "table" then
                 st.m1SpamList = d.m1SpamList

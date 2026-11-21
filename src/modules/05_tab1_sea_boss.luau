@@ -1156,3 +1156,31 @@
         end,
     }, "PrivateBossApiReportToggle")
 
+    IndependentApiSection:CreateToggle({
+        Name = "🚨 Tự Báo Boss Live Lên Discord (🔥 BOSS DETECTED)",
+        Description = "Khi gặp Boss (Depth King, Dragon, Abyssal, Kraken, Hydra, Sea King...) trong server đang đứng, tự động gửi thẻ 🔥 BOSS DETECTED kèm Máu & JobId lên kênh Discord báo Boss",
+        CurrentValue = (hubState.bossDiscordNotify ~= false),
+        Callback = function(Value: boolean)
+            hubState.bossDiscordNotify = Value
+            saveState(hubState)
+        end,
+    }, "BossDiscordNotifyToggle")
+
+    IndependentApiSection:CreateInput({
+        Name = "📢 Discord Webhook Chỉ Báo Boss (Kênh báo Server có Boss)",
+        PlaceholderText = "https://discord.com/api/webhooks/... (trống = dùng file local YokaHub_BossWebhook.txt)",
+        RemoveTextAfterFocusLost = false,
+        Callback = function(text: string)
+            local clean = YokaNet.normalizeDiscordWebhook(text)
+            hubState.bossDiscordWebhook = clean
+            saveState(hubState)
+            if clean ~= "" then
+                safeNotify("Discord Boss Alert", "Đã lưu Webhook kênh chỉ báo Boss!", "notifications")
+            elseif string.gsub(text, "%s+", "") == "" then
+                safeNotify("Discord Boss Alert", "Đã xóa link thủ công (sẽ dùng file local nếu có).", "info")
+            else
+                safeNotify("Discord Boss Alert", "Link Discord Webhook không đúng định dạng!", "warning")
+            end
+        end,
+    }, "BossDiscordWebhookInput")
+

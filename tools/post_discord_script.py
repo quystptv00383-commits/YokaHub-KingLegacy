@@ -56,36 +56,55 @@ def send_embed_webhook(webhook_url: str, username: str, title: str, description:
         print(f"[!] Failed to post to Discord {label} webhook:", exc)
     return False
 
-def post_api_announcement(summary_note: str = ""):
+def post_boss_detected(boss_name: str, sea_name: str, place_id: int, job_id: str, hp_cur: int, hp_max: int, p_cur: int, p_max: int = 12):
     webhook_url = load_webhook_url([BOSS_API_WEBHOOK_FILE])
     if not webhook_url:
-        print("[i] Discord Boss API post skipped: missing tools/webhook_boss_api.txt.")
+        print("[i] Discord Boss Alert skipped: missing tools/webhook_boss_api.txt.")
         return False
 
-    now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    note_line = f"\n📌 **Ghi chú:** {summary_note}\n" if summary_note else ""
+    pct = max(1, min(100, round((hp_cur / hp_max) * 100))) if hp_max > 0 else 100
+    quick_join = f'game:GetService("TeleportService"):TeleportToPlaceInstance({place_id}, "{job_id}", game.Players.LocalPlayer)'
     desc = (
-        f"⏰ **Cập nhật lúc:** {now_str} · Phiên bản YokaHub Độc Lập 100%\n"
-        f"{note_line}\n"
-        f"🌐 **1. HỆ THỐNG HOP SERVER & API ĐỘC LẬP (`YokaNet`):**\n"
-        f"• **Không phụ thuộc Wukong:** Đã tách chạy độc lập hoàn toàn (Wukong chỉ giữ comment dự phòng trong Loader).\n"
-        f"• **Smart Public Server Hop:** Tự lấy server công khai Roblox, lọc slot thoáng (`2` → `max-2` người) & ping thấp, phân trang chống lặp `JobId` (`150s`), bay kiểm tra đảo/boss thật trước khi hop.\n"
-        f"• **YokaHub Private Boss API:** Hỗ trợ gắn Cloudflare Worker / VPS riêng tại **Tab 1** (`Private Boss API URL` + `Secret Key`) + Telemetry tự báo Boss sống về API.\n\n"
-        f"🏆 **2. BẢNG ĐỘ ƯU TIÊN SĂN BOSS SEA 3 (API HOP):**\n"
-        f"`1.` **Depth King** (10đ) → `2.` **Dragon / Drakenfyr / Sea Dragon** (8đ) → `3.` **Abyssal Tyrant** (6đ) → `4.` **Kraken** (5đ) → `5.` **Serpent** (4đ) → `6.` **Giant Crab** (3đ) → `7.` **Sea Events** (1đ)\n\n"
-        f"🐍 **3. BẢNG ĐỘ ƯU TIÊN SĂN BOSS SEA 2 (API HOP):**\n"
-        f"`1.` **Rương Hydra** (7đ) → `2.` **Hydra** (6đ) → `3.` **Rương Sea King** (5đ) → `4.` **Sea King** (4đ) → `5.` **Serpent** (3đ) → `6.` **Rương Tàu Ma** (2đ) → `7.` **Tàu Ma** (1đ)\n\n"
-        f"📜 **SCRIPT CHẠY 1 DÒNG DUY NHẤT:**\n"
-        f"```lua\n{COMPACT_SCRIPT}\n```"
+        f"```\n🎮 {boss_name}: Alive | ❤️ {hp_cur}/{hp_max} ({pct}%)\n```\n"
+        f"**🌐 SERVER**\n"
+        f"**Game:** King Legacy ({sea_name})\n"
+        f"**Players:** {p_cur}/{p_max}\n\n"
+        f"**📌 JobId PC**\n"
+        f"```\n{job_id}\n```\n"
+        f"**📌 JobId Join Script**\n"
+        f"```lua\n{quick_join}\n```"
     )
-    return send_embed_webhook(
+    payload = {
+        "content": job_id,
+        "username": "YokaHub Boss Notifier",
+        "embeds": [
+            {
+                "author": {"name": "YokaHub Boss Notifier"},
+                "title": "🔥 BOSS DETECTED",
+                "description": desc,
+                "color": 16724787,
+                "footer": {"text": "YokaHub | Auto Detection System"},
+            }
+        ],
+    }
+    req = urllib.request.Request(
         webhook_url,
-        "YokaHub Boss API",
-        "🌐 YOKAHUB API & SMART BOSS HOP — THÔNG BÁO HỆ THỐNG MỚI",
-        desc,
-        "YokaHub Boss API • Độc Lập 100% • Auto Skills V3 • Smart Public Hop",
-        "#boss-api",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "YokaHub-BossDetector/1.0",
+        },
+        method="POST",
     )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            if resp.status in (200, 204):
+                print("[+] Discord #boss-alert sent successfully! Status:", resp.status)
+                return True
+            print("[!] Discord #boss-alert webhook returned status:", resp.status)
+    except Exception as exc:
+        print("[!] Failed to send #boss-alert:", exc)
+    return False
 
 def post_update(summary_note: str = ""):
     webhook_url = load_webhook_url()
@@ -117,9 +136,8 @@ def post_update(summary_note: str = ""):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    if "--boss-api" in args:
-        note = " ".join(a for a in args if a != "--boss-api").strip()
-        post_api_announcement(note)
+    if len(args) >= 8 and args[0] == "--boss-alert":
+        post_boss_detected(args[1], args[2], int(args[3]), args[4], int(args[5]), int(args[6]), int(args[7]), int(args[8]) if len(args) > 8 else 12)
     else:
         note = " ".join(args).strip()
         post_update(note)
