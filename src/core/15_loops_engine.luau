@@ -324,54 +324,54 @@
         local name = string.lower(targetModel.Name or "")
         local parentName = string.lower((targetModel.Parent and targetModel.Parent.Name) or "")
 
-        -- 1. Hydra (Sea 2) - Quét 3 đầu & vũng độc ăn mòn diện rộng -> Bay cao 75 studs
+        -- 1. Hydra (Sea 2) - Quét 3 đầu & vũng độc ăn mòn diện rộng -> Bay cao 80 studs
         if string.find(name, "hydra", 1, true) ~= nil then
+            return 80
+        end
+
+        -- 2. Drakenfyr / Dragon / Rồng Lửa (Sea 3) - Phun lửa hình nón, quạt đuôi & thiên thạch -> Bay cao 75 studs
+        if string.find(name, "dragon", 1, true) ~= nil or string.find(name, "draken", 1, true) ~= nil or string.find(name, "inferno", 1, true) ~= nil then
             return 75
         end
 
-        -- 2. Drakenfyr / Dragon / Rồng Lửa (Sea 3) - Phun lửa hình nón, quạt đuôi & thiên thạch -> Bay cao 70 studs
-        if string.find(name, "dragon", 1, true) ~= nil or string.find(name, "draken", 1, true) ~= nil or string.find(name, "inferno", 1, true) ~= nil then
+        -- 3. Sea King / Vua Biển (Sea 2) - Cột nước áp lực & lao mình sóng thần -> Bay cao 70 studs
+        if string.find(name, "sea king", 1, true) ~= nil or string.find(name, "seaking", 1, true) ~= nil then
             return 70
         end
 
-        -- 3. Sea King / Vua Biển (Sea 2) - Cột nước áp lực & lao mình sóng thần -> Bay cao 60 studs
-        if string.find(name, "sea king", 1, true) ~= nil or string.find(name, "seaking", 1, true) ~= nil then
-            return 60
-        end
-
-        -- 4. Depth King / Sunken Altar (Sea 3) - Càn quét đinh ba xoay & lốc xoáy nước -> Bay cao 50 studs
+        -- 4. Depth King / Sunken Altar (Sea 3) - Càn quét đinh ba xoay & lốc xoáy nước -> Bay cao 75 studs
         if string.find(name, "depth king", 1, true) ~= nil or string.find(name, "depthking", 1, true) ~= nil or string.find(name, "altar", 1, true) ~= nil then
-            return 50
+            return 75
         end
 
-        -- 5. Abyssal Tyrant / Bạo Chúa Biển Sâu (Sea 3) - Sóng xung kích giậm đất & khiên giáp -> Bay cao 48 studs
+        -- 5. Abyssal Tyrant / Bạo Chúa Biển Sâu (Sea 3) - Sóng xung kích giậm đất & lốc xoáy vòi rồng thẳng đứng -> Bay cao 80 studs
         if string.find(name, "tyrant", 1, true) ~= nil or string.find(name, "abyssal", 1, true) ~= nil then
+            return 80
+        end
+
+        -- 6. Tàu Ghost Ship / Galleon / Ghost Galleon - Đạn pháo bay ngang tầm thấp -> Bay cao 48 studs
+        if string.find(name, "ghost", 1, true) ~= nil or string.find(name, "galleon", 1, true) ~= nil or string.find(name, "ship", 1, true) ~= nil then
             return 48
         end
 
-        -- 6. Tàu Ghost Ship / Galleon / Ghost Galleon - Đạn pháo bay ngang tầm thấp -> Bay cao 45 studs
-        if string.find(name, "ghost", 1, true) ~= nil or string.find(name, "galleon", 1, true) ~= nil or string.find(name, "ship", 1, true) ~= nil then
+        -- 7. Giant Crab / Cua Khổng Lồ (Sea 3) - Kẹp càng & bọt nước -> Bay cao 45 studs
+        if string.find(name, "crab", 1, true) ~= nil then
             return 45
         end
 
-        -- 7. Giant Crab / Cua Khổng Lồ (Sea 3) - Kẹp càng & bọt nước -> Bay cao 40 studs
-        if string.find(name, "crab", 1, true) ~= nil then
-            return 40
-        end
-
-        -- 8. Serpent / Rắn Biển (Sea 2 & 3) - Trườn sóng và táp thẳng -> Bay cao 38 studs
+        -- 8. Serpent / Rắn Biển (Sea 2 & 3) - Trườn sóng và táp thẳng -> Bay cao 42 studs
         if string.find(name, "serpent", 1, true) ~= nil then
-            return 38
-        end
-
-        -- 9. Sea Beast / Quái Thú Biển -> Bay cao 42 studs
-        if string.find(name, "sea beast", 1, true) ~= nil or string.find(name, "seabeast", 1, true) ~= nil then
             return 42
         end
 
-        -- 10. Kraken & Xúc Tu -> Bay cao 55 studs
+        -- 9. Sea Beast / Quái Thú Biển -> Bay cao 45 studs
+        if string.find(name, "sea beast", 1, true) ~= nil or string.find(name, "seabeast", 1, true) ~= nil then
+            return 45
+        end
+
+        -- 10. Kraken & Xúc Tu -> Bay cao 60 studs
         if string.find(name, "kraken", 1, true) ~= nil or string.find(name, "tentacle", 1, true) ~= nil then
-            return 55
+            return 60
         end
 
         -- 11. Boss Đảo (Hephaestus, Saber, Gazelle Man, Whitebeard, Kaido, Big Mom, hoặc nằm trong Folder Monster / Boss / AllNPC)
@@ -1275,6 +1275,7 @@
     end
 
     local lastHakiClock = 0
+    local lastKenClock = 0
     local isCastingSkills = false
 
     local function castConfiguredSkills(char: Model, hum: Humanoid, targetModel: Model?)
@@ -1284,26 +1285,34 @@
         end
 
         -- 1. Tự bật Haki Vũ Trang (Armament) & Quan Sát (Ken) chuẩn King Legacy
-        if hubState.autoHaki and (os.clock() - lastHakiClock) >= 6.0 then
-            lastHakiClock = os.clock()
+        local nowHaki = os.clock()
+        if hubState.autoHaki and (nowHaki - lastHakiClock) >= 5.0 then
+            lastHakiClock = nowHaki
             pcall(function()
                 genv.haki = true
                 genv.hakivutrangv2 = true
                 local chest = sharedRS:FindFirstChild("Chest")
                 local rem = chest and chest:FindFirstChild("Remotes")
                 local evts = rem and rem:FindFirstChild("Events")
-                local funcs = rem and rem:FindFirstChild("Functions")
                 if evts and evts:FindFirstChild("Armament") then
                     local hakiOn = (char:GetAttribute("Armament") == true) or (char:FindFirstChild("Haki") ~= nil) or (char:FindFirstChild("Armament") ~= nil)
                     if not hakiOn then
                         evts.Armament:FireServer()
                     end
                 end
-                if (hubState.autoKenHaki ~= false) and funcs and funcs:FindFirstChild("KenEvent") then
+            end)
+        end
+        if (hubState.autoKenHaki ~= false) and (nowHaki - lastKenClock) >= 2.0 then
+            lastKenClock = nowHaki
+            pcall(function()
+                local chest = sharedRS:FindFirstChild("Chest")
+                local rem = chest and chest:FindFirstChild("Remotes")
+                local funcs = rem and rem:FindFirstChild("Functions")
+                if funcs and funcs:FindFirstChild("KenEvent") then
                     genv.hakiquansatv2 = true
                     local kenOn = (char:GetAttribute("Ken") == true) or (player:GetAttribute("Ken") == true)
                     if not kenOn then
-                        pcall(function() funcs.KenEvent:InvokeServer(true) end)
+                        funcs.KenEvent:InvokeServer(true)
                     end
                 end
             end)
@@ -1719,10 +1728,72 @@
                         if bRoot then
                             setCurrentCombatTarget(targetBoss)
                             local sHeight = getBossHoverHeight(targetBoss, false)
+
+                            local curHp = hum.Health
+                            local maxHp = hum.MaxHealth
+                            local hpPct = (maxHp > 0) and (curHp / maxHp) or 1
+                            local isEmergencyHp = (hpPct < 0.40)
+
+                            -- 1. Tự động dùng Gậy Scepter / Hồi máu khẩn cấp khi máu tụt dưới 50%
+                            if hpPct < 0.50 then
+                                local healTool = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter")
+                                    or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
+                                if healTool then
+                                    if healTool.Parent == player.Backpack then
+                                        pcall(function() hum:EquipTool(healTool) end)
+                                    end
+                                    pcall(function() healTool:Activate() end)
+                                end
+                                -- Tự động bật lại Haki Quan Sát (Ken Haki) nếu vừa bị bào sạch dodges
+                                if (hubState.autoKenHaki ~= false) then
+                                    pcall(function()
+                                        local chest = sharedRS:FindFirstChild("Chest")
+                                        local rem = chest and chest:FindFirstChild("Remotes")
+                                        local funcs = rem and rem:FindFirstChild("Functions")
+                                        if funcs and funcs:FindFirstChild("KenEvent") then
+                                            funcs.KenEvent:InvokeServer(true)
+                                        end
+                                    end)
+                                end
+                            end
+
+                            -- 2. Tự động tăng vọt độ cao thoát hiểm khẩn cấp (Emergency Altitude) nếu máu tụt dưới 40%
+                            if isEmergencyHp then
+                                sHeight = sHeight + 45 -- Bay vọt lên thêm 45 studs (> 125 studs), hoàn toàn thoát khỏi cột sát thương lốc xoáy
+                            end
+
+                            -- 3. Dynamic Orbital Evasion (Quỹ đạo bay lượn vòng né tâm chiêu thẳng đứng):
+                            -- Thay vì đậu cố định tại trục tâm (0, sHeight, 0) - nơi lốc xoáy/cột nước phụt thẳng từ mặt biển lên trời,
+                            -- cho nhân vật liên tục lượn vòng tròn xung quanh Boss với bán kính 36-52 studs.
+                            local bossNameLower = string.lower(targetBoss.Name or "")
+                            local isSeaRaidBoss = string.find(bossNameLower, "tyrant", 1, true) ~= nil
+                                or string.find(bossNameLower, "abyssal", 1, true) ~= nil
+                                or string.find(bossNameLower, "depth", 1, true) ~= nil
+                                or string.find(bossNameLower, "hydra", 1, true) ~= nil
+                                or string.find(bossNameLower, "dragon", 1, true) ~= nil
+                                or string.find(bossNameLower, "sea king", 1, true) ~= nil
+                                or string.find(bossNameLower, "seaking", 1, true) ~= nil
+
+                            local orbitRadius = 0
+                            if isSeaRaidBoss then
+                                orbitRadius = isEmergencyHp and 52 or 38
+                            end
+
+                            local orbitOffsetX = 0
+                            local orbitOffsetZ = 0
+                            if orbitRadius > 0 then
+                                local orbitClock = os.clock() * 1.3
+                                orbitOffsetX = math.cos(orbitClock) * orbitRadius
+                                orbitOffsetZ = math.sin(orbitClock) * orbitRadius
+                            end
+
                             local aimPos = getAimPoint(targetBoss, bRoot)
-                            local hoverPos = bRoot.Position + Vector3.new(0, sHeight, 0)
+                            local hoverPos = bRoot.Position + Vector3.new(orbitOffsetX, sHeight, orbitOffsetZ)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 55)
-                            if (hrp.Position - hoverPos).Magnitude <= math.max(50, sHeight * 0.75) then
+
+                            -- Chỉ xả chiêu khi không ở trạng thái khẩn cấp thoát hiểm và đã tiếp cận cự ly bay an toàn
+                            local distToHover = (hrp.Position - hoverPos).Magnitude
+                            if not isEmergencyHp and distToHover <= math.max(48, sHeight * 0.70) then
                                 castConfiguredSkills(char, hum, targetBoss)
                             end
                             pcall(function()
