@@ -355,6 +355,7 @@
         autoCollectChest: boolean?,
         bossSafeHeight: number?,
         smartBossHeight: boolean?,
+        apiHopInterval: number?,
         ignoreKraken: boolean?,
         ignoreGalleon: boolean?,
         fightSea3DepthKing: boolean?,
@@ -495,6 +496,7 @@
             autoCollectChest = true,
             bossSafeHeight = 35,
             smartBossHeight = true,
+            apiHopInterval = 4,
             ignoreKraken = false,
             ignoreGalleon = false,
             fightSea3DepthKing = false,
@@ -638,6 +640,7 @@
             if typeof(d.autoCollectChest) == "boolean" then st.autoCollectChest = d.autoCollectChest end
             if typeof(d.bossSafeHeight) == "number" then st.bossSafeHeight = math.clamp(math.floor(d.bossSafeHeight), 10, 150) end
             if typeof(d.smartBossHeight) == "boolean" then st.smartBossHeight = d.smartBossHeight end
+            if typeof(d.apiHopInterval) == "number" then st.apiHopInterval = math.clamp(math.floor(d.apiHopInterval), 2, 10) end
             if typeof(d.ignoreKraken) == "boolean" then st.ignoreKraken = d.ignoreKraken end
             if typeof(d.ignoreGalleon) == "boolean" then st.ignoreGalleon = d.ignoreGalleon end
             if typeof(d.fightSea3DepthKing) == "boolean" then st.fightSea3DepthKing = d.fightSea3DepthKing end

@@ -181,9 +181,9 @@
     genv._YokaHubToken = myToken
     genv._KingAutoHopMode = currentMode
     genv._KingSoloTarget = currentSoloTarget
-    genv._AutoSeaEventApiHop = (currentMode == "sea3")
-    genv._AutoSea2PriorityApiHop = (currentMode == "sea2")
-    genv._AutoDepthKingOnlyApiHop = (currentMode == "solo" and getSoloKey(currentSoloTarget) == "depth_king")
+    genv._AutoSeaEventApiHop = false
+    genv._AutoSea2PriorityApiHop = false
+    genv._AutoDepthKingOnlyApiHop = false
 
     local function recordHop()
         session.hops += 1
@@ -239,8 +239,9 @@
             clearErrPending = false
             dismissRobloxPromptGui()
             print("[YokaHub][Auto-Dismiss]", reason)
-            local isServerFail = string.find(reason, "773") ~= nil or string.find(reason, "772") ~= nil or string.find(reason, "774") ~= nil or string.find(reason, "restricted") ~= nil or string.find(reason, "full") ~= nil
-            if isDisconnect or isServerFail then
+            -- Khi đang chạy Auto Hop (sea3 / sea2 / solo), burstHopCandidates sẽ tự chuyển sang phòng Boss kế tiếp trên API,
+            -- tuyệt đối KHÔNG gọi teleportToSea ngẫu nhiên vào phòng công khai không có Boss!
+            if isDisconnect then
                 task.wait(2.5)
                 pcall(function()
                     local targetPlace = lastAttemptedPlace
@@ -252,8 +253,8 @@
                         end
                     end
                     if targetPlace and targetPlace ~= 0 then
-                        print("[YokaHub][Auto-Rescue] Fallback teleport to place:", targetPlace)
-                        safeNotify("Tự động cứu hộ", "Đang tự kết nối lại phòng mới...", "refresh")
+                        print("[YokaHub][Auto-Rescue] Reconnecting after disconnect to place:", targetPlace)
+                        safeNotify("Tự động cứu hộ", "Mất kết nối — Đang tự kết nối lại phòng mới...", "refresh")
                         if teleportToSea then
                             teleportToSea(targetPlace)
                         else
@@ -1639,7 +1640,6 @@
             render(true)
             table.insert(self.toggles, obj)
             self:_register(row, name, opts.Description)
-            if obj.CurrentValue then fire() end
             self:_recount()
             return obj
         end
@@ -2548,10 +2548,24 @@
                         local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
                         if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
                             local matched = nil
+                            local pkLow = string.lower(preferKey)
                             for _, entry in ipairs(snap.entries) do
-                                if tonumber(entry.placeId) == targetPlace and entry.players and (entry.players.current or 0) < (entry.players.max or 12) then
+                                if entry.alive == true and tonumber(entry.placeId) == targetPlace and entry.players and (entry.players.current or 0) < (entry.players.max or 12) then
                                     local en = string.lower(tostring(entry.eventName or ""))
-                                    if en:find(string.lower(preferKey)) then
+                                    local hit = false
+                                    if pkLow == "dragon" or string.find(pkLow, "dragon", 1, true) ~= nil or string.find(pkLow, "drakenfyr", 1, true) ~= nil then
+                                        hit = (string.find(en, "drakenfyr", 1, true) ~= nil or string.find(en, "inferno king", 1, true) ~= nil or string.find(en, "sea dragon", 1, true) ~= nil or string.find(en, "dragon", 1, true) ~= nil)
+                                            and string.find(en, "abyssal", 1, true) == nil and string.find(en, "tyrant", 1, true) == nil and string.find(en, "depth", 1, true) == nil
+                                    elseif pkLow == "abyssal" or string.find(pkLow, "abyssal", 1, true) ~= nil then
+                                        hit = (string.find(en, "abyssal", 1, true) ~= nil or string.find(en, "tyrant", 1, true) ~= nil)
+                                            and string.find(en, "drakenfyr", 1, true) == nil and string.find(en, "dragon", 1, true) == nil
+                                    elseif pkLow == "depth" or string.find(pkLow, "depth", 1, true) ~= nil then
+                                        hit = string.find(en, "depth", 1, true) ~= nil
+                                            and string.find(en, "abyssal", 1, true) == nil and string.find(en, "drakenfyr", 1, true) == nil and string.find(en, "dragon", 1, true) == nil
+                                    else
+                                        hit = string.find(en, pkLow, 1, true) ~= nil
+                                    end
+                                    if hit then
                                         matched = entry
                                         break
                                     end

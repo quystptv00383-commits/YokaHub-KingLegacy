@@ -280,28 +280,28 @@
 
         -- 1. Depth King (Top 1)
         if isDepthKingBoss(n) then
-            return hubState.fightSea3DepthKing ~= false
+            return hubState.fightSea3DepthKing == true
         end
         -- 2. Drakenfyr / Dragon / Sea Dragon (Top 2)
         if isDragonBoss(n) then
-            return hubState.fightSea3Dragon ~= false
+            return hubState.fightSea3Dragon == true
         end
         -- 3. Abyssal Tyrant (Top 3)
         if isAbyssalBoss(n) then
-            return hubState.fightSea3Abyssal ~= false
+            return hubState.fightSea3Abyssal == true
         end
         -- 4. Kraken & Xúc tu (Top 4)
         if isKrakenBoss(n) then
             if hubState.ignoreKraken == true then return false end
-            return hubState.fightSea3Kraken ~= false
+            return hubState.fightSea3Kraken == true
         end
         -- 5. Rắn biển Serpent (Top 5 - Ưu tiên cao hơn Cua & Tàu)
         if isSerpentBoss(n) then
-            return hubState.fightSea3Serpent ~= false
+            return hubState.fightSea3Serpent == true
         end
         -- 6. Cua biển (Top 6)
         if isCrabBoss(n) then
-            return hubState.fightSea3Crab ~= false
+            return hubState.fightSea3Crab == true
         end
         -- 7. Các Sea Events thường khác (Galleon / Ghost / Sea Beast)
         if isSeaEventMiscBoss(n) then
@@ -313,10 +313,10 @@
 
     local function isSea2BossEnabled(name: string): boolean
         local n = string.lower(name)
-        if string.find(n, "hydra", 1, true) ~= nil then return hubState.fightSea2Hydra ~= false end
-        if string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil then return hubState.fightSea2SeaKing ~= false end
-        if string.find(n, "ghost", 1, true) ~= nil then return hubState.fightSea2GhostShip ~= false end
-        if string.find(n, "serpent", 1, true) ~= nil then return hubState.fightSea2Serpent ~= false end
+        if string.find(n, "hydra", 1, true) ~= nil then return hubState.fightSea2Hydra == true end
+        if string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil then return hubState.fightSea2SeaKing == true end
+        if string.find(n, "ghost", 1, true) ~= nil then return hubState.fightSea2GhostShip == true end
+        if string.find(n, "serpent", 1, true) ~= nil then return hubState.fightSea2Serpent == true end
         return false
     end
 
@@ -1902,33 +1902,33 @@
             end
         end
         if mode == "sea3" then
-            if hubState.fightSea3DepthKing ~= false and (string.find(n, "depth", 1, true) ~= nil and string.find(n, "abyssal", 1, true) == nil) then return true end
-            if hubState.fightSea3Dragon ~= false and (string.find(n, "dragon", 1, true) ~= nil or string.find(n, "drakenfyr", 1, true) ~= nil) then return true end
-            if hubState.fightSea3Abyssal ~= false and string.find(n, "abyssal", 1, true) ~= nil then return true end
-            if hubState.fightSea3Kraken ~= false and hubState.ignoreKraken ~= true and string.find(n, "kraken", 1, true) ~= nil then return true end
+            if hubState.fightSea3DepthKing == true and (string.find(n, "depth", 1, true) ~= nil and string.find(n, "abyssal", 1, true) == nil) then return true end
+            if hubState.fightSea3Dragon == true and (string.find(n, "dragon", 1, true) ~= nil or string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno", 1, true) ~= nil) and string.find(n, "abyssal", 1, true) == nil and string.find(n, "depth", 1, true) == nil then return true end
+            if hubState.fightSea3Abyssal == true and (string.find(n, "abyssal", 1, true) ~= nil or string.find(n, "tyrant", 1, true) ~= nil) then return true end
+            if hubState.fightSea3Kraken == true and hubState.ignoreKraken ~= true and string.find(n, "kraken", 1, true) ~= nil and string.find(n, "galleon", 1, true) == nil then return true end
             if hubState.fightSea3Serpent == true and string.find(n, "serpent", 1, true) ~= nil then return true end
-            if hubState.fightSea3Crab ~= false and string.find(n, "crab", 1, true) ~= nil then return true end
-            if hubState.fightSea3Events == true and ((hubState.ignoreGalleon ~= true and string.find(n, "galleon", 1, true) ~= nil) or string.find(n, "sea", 1, true) ~= nil) then return true end
+            if hubState.fightSea3Crab == true and string.find(n, "crab", 1, true) ~= nil then return true end
+            if hubState.fightSea3Events == true and ((hubState.ignoreGalleon ~= true and string.find(n, "galleon", 1, true) ~= nil) or string.find(n, "sea beast", 1, true) ~= nil) then return true end
             return false
         elseif mode == "sea2" then
-            if hubState.fightSea2Hydra ~= false and string.find(n, "hydra", 1, true) ~= nil then return true end
-            if hubState.fightSea2SeaKing ~= false and (string.find(n, "legacy", 1, true) ~= nil or string.find(n, "sea island", 1, true) ~= nil or string.find(n, "sea king", 1, true) ~= nil) then return true end
-            if hubState.fightSea2GhostShip ~= false and string.find(n, "ghost", 1, true) ~= nil then return true end
-            if hubState.fightSea2Serpent ~= false and string.find(n, "serpent", 1, true) ~= nil then return true end
+            if hubState.fightSea2Hydra == true and string.find(n, "hydra", 1, true) ~= nil then return true end
+            if hubState.fightSea2SeaKing == true and (string.find(n, "legacy", 1, true) ~= nil or string.find(n, "sea island", 1, true) ~= nil or string.find(n, "sea king", 1, true) ~= nil) then return true end
+            if hubState.fightSea2GhostShip == true and string.find(n, "ghost", 1, true) ~= nil then return true end
+            if hubState.fightSea2Serpent == true and string.find(n, "serpent", 1, true) ~= nil then return true end
             return false
         end
         return false
     end
 
     local function findSeaEventIslandPos(soloKey: string?, mode: string?): (Vector3?, string?)
-        -- 1. Kiểm tra trực tiếp tọa độ sự kiện biển từ Wukong SeaEvent API nếu có
+        -- 1. Kiểm tra trực tiếp tọa độ sự kiện biển từ Wukong SeaEvent API nếu khớp ĐÚNG Boss đang bật
         if typeof(genv.WK_SeaEvent) == "table" and typeof(genv.WK_SeaEvent.GetState) == "function" then
             local okS, st = pcall(genv.WK_SeaEvent.GetState)
-            if okS and typeof(st) == "table" and st.phase and st.phase ~= "inactive" then
+            if okS and typeof(st) == "table" and st.phase and st.phase ~= "inactive" and st.phase ~= "waiting" and st.phase ~= "cooldown" and st.phase ~= "none" then
                 local ek = string.lower(tostring(st.eventKey or st.eventName or st.name or st.phase or ""))
                 if (hubState.ignoreGalleon ~= true or string.find(ek, "galleon", 1, true) == nil)
                    and (hubState.ignoreKraken ~= true or (string.find(ek, "kraken", 1, true) == nil and string.find(ek, "tentacle", 1, true) == nil)) then
-                    if isIslandWanted(ek, soloKey, mode) or string.find(ek, "sea", 1, true) ~= nil or string.find(ek, "event", 1, true) ~= nil then
+                    if isIslandWanted(ek, soloKey, mode) then
                         local rawPos = st.position or st.Position or st.targetPos or st.TargetPos or st.spawnPos or st.SpawnPos
                             or (typeof(st.cframe) == "CFrame" and st.cframe.Position)
                             or (typeof(st.CFrame) == "CFrame" and st.CFrame.Position)
@@ -2443,6 +2443,10 @@
         end
     end
 
+    local function getApiHopWait(): number
+        return math.clamp(tonumber(hubState.apiHopInterval or genv.ApiHopInterval) or 4.0, 2.0, 15.0)
+    end
+
     local function getSlotTier(e: any): number
         local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
         local pMax = typeof(e.players) == "table" and (tonumber(e.players.max) or 12) or 12
@@ -2460,6 +2464,10 @@
     local function getSea3Prio(e: any): number
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
+        local phase = string.lower(tostring(e.phase or e.status or e.state or ""))
+        if phase == "inactive" or phase == "dead" or phase == "cooldown" or phase == "waiting" or phase == "none" then
+            return 0
+        end
 
         -- CHẶN TRIỆT ĐỂ BỎ QUA GALLEON (BAO GỒM KRAKEN GALLEON) & KRAKEN THẬT (QUÁI BIỂN)
         if hubState.ignoreGalleon == true and (string.find(nm, "galleon", 1, true) ~= nil or string.find(src, "galleon", 1, true) ~= nil) then
@@ -2470,43 +2478,47 @@
             return 0
         end
 
+        -- Nhận diện chính xác theo tên Boss (eventName) trước để không bị trùng khi source = "depth_king"
+        local isDragonMatch = (string.find(nm, "drakenfyr", 1, true) ~= nil
+            or string.find(nm, "inferno king", 1, true) ~= nil
+            or string.find(nm, "sea dragon", 1, true) ~= nil
+            or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil))
+            and string.find(nm, "abyssal", 1, true) == nil
+            and string.find(nm, "tyrant", 1, true) == nil
+            and string.find(nm, "depth", 1, true) == nil
+
+        local isAbyssalMatch = (string.find(nm, "abyssal", 1, true) ~= nil
+            or string.find(nm, "tyrant", 1, true) ~= nil
+            or src == "abyssal" or src == "tyrant")
+            and string.find(nm, "swordsman", 1, true) == nil
+            and not isDragonMatch
+
+        local isDepthKingMatch = (not isDragonMatch and not isAbyssalMatch)
+            and (string.find(nm, "depth king", 1, true) ~= nil
+                or nm == "depthking"
+                or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)
+                or (src == "depth_king" and string.find(nm, "kraken", 1, true) == nil and string.find(nm, "serpent", 1, true) == nil and string.find(nm, "crab", 1, true) == nil and string.find(nm, "galleon", 1, true) == nil))
+
         -- Top 1: Depth King (Sea 3) - Ưu tiên cao nhất (10 điểm)
-        if (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil then
+        if isDepthKingMatch then
             if hubState.fightSea3DepthKing ~= true then return 0 end
             return 10
         end
 
         -- Top 2: Drakenfyr the Inferno King / Dragon / Sea Dragon (Sea 3) - Ưu tiên số 2 (8 điểm)
-        local isDragonMatch = (src == "sea_event" and (string.find(nm, "dragon", 1, true) ~= nil or string.find(nm, "drakenfyr", 1, true) ~= nil))
-            or string.find(nm, "drakenfyr", 1, true) ~= nil
-            or string.find(nm, "inferno king", 1, true) ~= nil
-            or string.find(nm, "sea dragon", 1, true) ~= nil
-            or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil)
-        local notDragonOther = string.find(nm, "abyssal", 1, true) == nil
-            and string.find(nm, "tyrant", 1, true) == nil
-            and string.find(nm, "depth", 1, true) == nil
-            and string.find(src, "abyssal", 1, true) == nil
-            and string.find(src, "depth", 1, true) == nil
-        if isDragonMatch and notDragonOther then
+        if isDragonMatch then
             if hubState.fightSea3Dragon ~= true then return 0 end
             return 8
         end
 
         -- Top 3: Abyssal Tyrant (Sea 3) - Ưu tiên số 3 (6 điểm)
-        local isAbyssalMatch = (src == "abyssal" or src == "tyrant" or string.find(src, "abyssal", 1, true) ~= nil or string.find(src, "tyrant", 1, true) ~= nil)
-            or string.find(nm, "abyssal", 1, true) ~= nil
-            or string.find(nm, "tyrant", 1, true) ~= nil
-        local notAbyssalOther = string.find(nm, "swordsman", 1, true) == nil
-            and string.find(nm, "dragon", 1, true) == nil
-            and string.find(nm, "drakenfyr", 1, true) == nil
-            and (string.find(nm, "king", 1, true) == nil or string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil)
-        if isAbyssalMatch and notAbyssalOther then
+        if isAbyssalMatch then
             if hubState.fightSea3Abyssal ~= true then return 0 end
             return 6
         end
 
         -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (5 điểm) - CHỈ dành cho Boss Quái Biển Kraken, không nhận nhầm Tàu Kraken Galleon
-        if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) and string.find(nm, "galleon", 1, true) == nil then
+        if (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) and string.find(nm, "galleon", 1, true) == nil then
             if hubState.ignoreKraken == true or hubState.fightSea3Kraken ~= true then return 0 end
             return 5
         end
@@ -2522,14 +2534,6 @@
             if hubState.fightSea3Crab ~= true then return 0 end
             return 3
         end
-
-        -- Tuyệt đối không để Depth King, Dragon hoặc Abyssal bị người dùng tắt mà lại lọt qua Top 7
-        local isDkRoom = (src == "depth_king" or string.find(nm, "depth", 1, true) ~= nil)
-        local isAbRoom = (string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil)
-        local isDgRoom = (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "inferno king", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "dragon", 1, true) ~= nil))
-        if isDkRoom and hubState.fightSea3DepthKing ~= true then return 0 end
-        if isAbRoom and hubState.fightSea3Abyssal ~= true then return 0 end
-        if isDgRoom and hubState.fightSea3Dragon ~= true then return 0 end
 
         -- Top 7: Sea Events Thường & Tàu Galleon Boss (1 điểm - CHỈ khi người dùng bật toggle Sea Event Thường)
         if src == "sea_event" or src == "ship_ability" or string.find(nm, "sea beast", 1, true) ~= nil or string.find(nm, "galleon", 1, true) ~= nil then
@@ -2568,40 +2572,33 @@
         local pid = tonumber(e.placeId)
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
+        local phase = string.lower(tostring(e.phase or e.status or e.state or ""))
+        if phase == "inactive" or phase == "dead" or phase == "cooldown" or phase == "waiting" or phase == "none" then
+            return 0
+        end
+        local isDragonMatch = (string.find(nm, "drakenfyr", 1, true) ~= nil
+            or string.find(nm, "inferno king", 1, true) ~= nil
+            or string.find(nm, "sea dragon", 1, true) ~= nil
+            or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil))
+            and string.find(nm, "abyssal", 1, true) == nil
+            and string.find(nm, "tyrant", 1, true) == nil
+            and string.find(nm, "depth", 1, true) == nil
+        local isAbyssalMatch = (string.find(nm, "abyssal", 1, true) ~= nil
+            or string.find(nm, "tyrant", 1, true) ~= nil
+            or src == "abyssal" or src == "tyrant")
+            and string.find(nm, "swordsman", 1, true) == nil
+            and not isDragonMatch
         if soloKey == "dragon" then
-            if pid == SEA3_PLACE then
-                local isDragonMatch = (src == "sea_event" and (string.find(nm, "dragon", 1, true) ~= nil or string.find(nm, "drakenfyr", 1, true) ~= nil))
-                    or string.find(nm, "drakenfyr", 1, true) ~= nil
-                    or string.find(nm, "inferno king", 1, true) ~= nil
-                    or string.find(nm, "sea dragon", 1, true) ~= nil
-                    or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil)
-                local notOther = string.find(nm, "abyssal", 1, true) == nil
-                    and string.find(nm, "tyrant", 1, true) == nil
-                    and string.find(nm, "depth", 1, true) == nil
-                    and string.find(src, "abyssal", 1, true) == nil
-                    and string.find(src, "depth", 1, true) == nil
-                if isDragonMatch and notOther then
-                    return (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil) and 2 or 1
-                end
+            if pid == SEA3_PLACE and isDragonMatch then
+                return (string.find(nm, "drakenfyr", 1, true) ~= nil or string.find(nm, "sea dragon", 1, true) ~= nil) and 2 or 1
             end
         elseif soloKey == "abyssal_tyrant" then
-            if pid == SEA3_PLACE then
-                local isAbyssalMatch = (src == "abyssal" or src == "tyrant" or string.find(src, "abyssal", 1, true) ~= nil or string.find(src, "tyrant", 1, true) ~= nil)
-                    or string.find(nm, "abyssal", 1, true) ~= nil
-                    or string.find(nm, "tyrant", 1, true) ~= nil
-                local notOther = string.find(nm, "swordsman", 1, true) == nil
-                    and string.find(nm, "dragon", 1, true) == nil
-                    and string.find(nm, "drakenfyr", 1, true) == nil
-                    and (string.find(nm, "king", 1, true) == nil or string.find(nm, "abyssal", 1, true) ~= nil or string.find(nm, "tyrant", 1, true) ~= nil)
-                if isAbyssalMatch and notOther then
-                    return 2
-                end
+            if pid == SEA3_PLACE and isAbyssalMatch then
+                return 2
             end
         elseif soloKey == "depth_king" then
-            if pid == SEA3_PLACE and (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) then
-                if string.find(nm, "abyssal", 1, true) == nil and string.find(nm, "tyrant", 1, true) == nil then
-                    return 2
-                end
+            if pid == SEA3_PLACE and not isDragonMatch and not isAbyssalMatch and (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) then
+                return 2
             end
         elseif soloKey == "kraken" then
             if pid == SEA3_PLACE and src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) then return 2 end
@@ -2655,37 +2652,22 @@
 
         if soloKey == "depth_king" or soloKey == "abyssal_tyrant" or soloKey == "dragon" or soloKey == "kraken" or soloKey == "crab" or soloKey == "sea3_events" then
             if game.PlaceId ~= SEA3_PLACE then return "none", "wrong_sea" end
-            if typeof(genv.WK_SeaEvent) == "table" and typeof(genv.WK_SeaEvent.GetState) == "function" then
-                local ok, st = pcall(genv.WK_SeaEvent.GetState)
-                if ok and typeof(st) == "table" and st.phase and st.phase ~= "inactive" then
-                    local ek = string.lower(tostring(st.eventKey or ""))
-                    local isAbyssal = isAbyssalBoss(ek)
-                    local isDk = isDepthKingBoss(ek)
-                    local isDg = isDragonBoss(ek)
-                    if soloKey == "abyssal_tyrant" and isAbyssal then return "boss", tostring(st.eventKey or "Abyssal Tyrant")
-                    elseif soloKey == "depth_king" and isDk then return "boss", tostring(st.eventKey or "Depth King")
-                    elseif soloKey == "dragon" and isDg then return "boss", tostring(st.eventKey or "Drakenfyr")
-                    elseif soloKey == "kraken" and isKrakenBoss(ek) then return "boss", tostring(st.eventKey)
-                    elseif soloKey == "crab" and isCrabBoss(ek) then return "boss", tostring(st.eventKey)
-                    elseif soloKey == "sea3_events" and not isDk and not isAbyssal then return "boss", tostring(st.eventKey or st.phase)
-                    end
-                end
-            end
             local sm = workspace:FindFirstChild("SeaMonster")
             if sm then
                 for _, m in ipairs(sm:GetChildren()) do
-                    local n = string.lower(m.Name)
-                    local match = false
-                    if soloKey == "abyssal_tyrant" then match = isAbyssalBoss(n)
-                    elseif soloKey == "depth_king" then match = isDepthKingBoss(n)
-                    elseif soloKey == "dragon" then match = isDragonBoss(n)
-                    elseif soloKey == "kraken" then match = isKrakenBoss(n)
-                    elseif soloKey == "crab" then match = isCrabBoss(n)
-                    elseif soloKey == "sea3_events" then match = not isDepthKingBoss(n) and not isAbyssalBoss(n) and (isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n) or isSerpentBoss(n) or isSeaEventMiscBoss(n))
-                    end
-                    if match then
-                        local hum = m:FindFirstChildOfClass("Humanoid")
-                        if hum and hum.Health > 0 then return "boss", m.Name end
+                    if m:IsA("Model") and isModelAlive(m) then
+                        local n = string.lower(m.Name)
+                        local match = false
+                        if soloKey == "abyssal_tyrant" then match = isAbyssalBoss(n)
+                        elseif soloKey == "depth_king" then match = isDepthKingBoss(n)
+                        elseif soloKey == "dragon" then match = isDragonBoss(n)
+                        elseif soloKey == "kraken" then match = isKrakenBoss(n)
+                        elseif soloKey == "crab" then match = isCrabBoss(n)
+                        elseif soloKey == "sea3_events" then match = not isDepthKingBoss(n) and not isAbyssalBoss(n) and (isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n) or isSerpentBoss(n) or isSeaEventMiscBoss(n))
+                        end
+                        if match then
+                            return "boss", m.Name
+                        end
                     end
                 end
             end
@@ -2693,18 +2675,19 @@
             local bossF = mon and mon:FindFirstChild("Boss")
             if bossF then
                 for _, m in ipairs(bossF:GetChildren()) do
-                    local n = string.lower(m.Name)
-                    local match = false
-                    if soloKey == "abyssal_tyrant" then match = isAbyssalBoss(n)
-                    elseif soloKey == "depth_king" then match = isDepthKingBoss(n)
-                    elseif soloKey == "dragon" then match = isDragonBoss(n)
-                    elseif soloKey == "kraken" then match = isKrakenBoss(n)
-                    elseif soloKey == "crab" then match = isCrabBoss(n)
-                    elseif soloKey == "sea3_events" then match = not isDepthKingBoss(n) and not isAbyssalBoss(n) and (isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n))
-                    end
-                    if match then
-                        local hum = m:FindFirstChildOfClass("Humanoid")
-                        if hum and hum.Health > 0 then return "boss", m.Name end
+                    if m:IsA("Model") and isModelAlive(m) then
+                        local n = string.lower(m.Name)
+                        local match = false
+                        if soloKey == "abyssal_tyrant" then match = isAbyssalBoss(n)
+                        elseif soloKey == "depth_king" then match = isDepthKingBoss(n)
+                        elseif soloKey == "dragon" then match = isDragonBoss(n)
+                        elseif soloKey == "kraken" then match = isKrakenBoss(n)
+                        elseif soloKey == "crab" then match = isCrabBoss(n)
+                        elseif soloKey == "sea3_events" then match = not isDepthKingBoss(n) and not isAbyssalBoss(n) and (isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n))
+                        end
+                        if match then
+                            return "boss", m.Name
+                        end
                     end
                 end
             end
@@ -2797,45 +2780,38 @@
 
     local function checkSea3Server(): (boolean, string)
         if game.PlaceId ~= SEA3_PLACE then return false, "wrong_sea" end
-        if typeof(genv.WK_SeaEvent) == "table" and typeof(genv.WK_SeaEvent.GetState) == "function" then
-            local ok, st = pcall(genv.WK_SeaEvent.GetState)
-            if ok and typeof(st) == "table" and st.phase and st.phase ~= "inactive" then
-                local evName = tostring(st.eventKey or st.phase or "")
-                if isSea3BossEnabled(evName) then
-                    return true, evName
-                end
-            end
-        end
         -- 1. Quet trong Workspace.SeaMonster (noi spawn Depth King / SeaDragon / Kraken / Crab / Serpent)
         local sm = workspace:FindFirstChild("SeaMonster")
         if sm then
             for _, m in ipairs(sm:GetChildren()) do
-                local mName = string.lower(m.Name)
-                if (hubState.ignoreGalleon ~= true or string.find(mName, "galleon", 1, true) == nil)
-                   and (hubState.ignoreKraken ~= true or (string.find(mName, "kraken", 1, true) == nil and string.find(mName, "tentacle", 1, true) == nil)) then
-                    if isSea3BossEnabled(m.Name) then
-                        local hum = m:FindFirstChildOfClass("Humanoid")
-                        if hum and hum.Health > 0 then return true, m.Name end
+                if m:IsA("Model") and isModelAlive(m) then
+                    local mName = string.lower(m.Name)
+                    if (hubState.ignoreGalleon ~= true or string.find(mName, "galleon", 1, true) == nil)
+                       and (hubState.ignoreKraken ~= true or (string.find(mName, "kraken", 1, true) == nil and string.find(mName, "tentacle", 1, true) == nil)) then
+                        if isSea3BossEnabled(m.Name) then
+                            return true, m.Name
+                        end
                     end
                 end
             end
         end
-        -- 2. Quet trong Workspace.Monster.Boss CHI KHOP TEN CHINH XAC (tranh nham Inferno Diver / Abyssal Swordsman)
+        -- 2. Quet trong Workspace.Monster.Boss CHI KHOP MODEL SONG THUC TE (tranh nham model chua spawn hoac WK_SeaEvent ao)
         local mon = workspace:FindFirstChild("Monster")
         local bossF = mon and mon:FindFirstChild("Boss")
         if bossF then
             for _, m in ipairs(bossF:GetChildren()) do
-                local mName = string.lower(m.Name)
-                if (hubState.ignoreGalleon ~= true or string.find(mName, "galleon", 1, true) == nil)
-                   and (hubState.ignoreKraken ~= true or (string.find(mName, "kraken", 1, true) == nil and string.find(mName, "tentacle", 1, true) == nil)) then
-                    if isSea3BossEnabled(m.Name) then
-                        local hum = m:FindFirstChildOfClass("Humanoid")
-                        if hum and hum.Health > 0 then return true, m.Name end
+                if m:IsA("Model") and isModelAlive(m) then
+                    local mName = string.lower(m.Name)
+                    if (hubState.ignoreGalleon ~= true or string.find(mName, "galleon", 1, true) == nil)
+                       and (hubState.ignoreKraken ~= true or (string.find(mName, "kraken", 1, true) == nil and string.find(mName, "tentacle", 1, true) == nil)) then
+                        if isSea3BossEnabled(m.Name) then
+                            return true, m.Name
+                        end
                     end
                 end
             end
         end
-        if genv.DepthKingChestWaitStarted == true and genv.DepthKingChestReadyToHop == false and hubState.fightSea3DepthKing ~= false then
+        if genv.DepthKingChestWaitStarted == true and genv.DepthKingChestReadyToHop == false and (hubState.fightSea3DepthKing == true or hubState.fightSea3Abyssal == true) then
             return true, "Đang mở rương Depth King"
         end
         if genv.SeaKingChestWaitStarted == true and genv.SeaKingChestReadyToHop == false and hubState.fightSea3Events == true then
@@ -3004,8 +2980,9 @@
         end
         if not didInitialRoomSettle then
             didInitialRoomSettle = true
-            setStatus("Đang kiểm tra và nạp dữ liệu phòng hiện tại (chờ 6.5s)...")
-            smartWait(6.5, mode)
+            local initWait = math.min(getApiHopWait(), 4.0)
+            setStatus(string.format("Đang kiểm tra và nạp dữ liệu phòng hiện tại (chờ %.0fs)...", initWait))
+            smartWait(initWait, mode)
             continue
         end
 
@@ -3164,53 +3141,52 @@
                     return a._hp > b._hp
                 end)
 
+                local hopWait = getApiHopWait()
                 if #candidates > 0 then
                     burstHopCandidates(candidates, visited, visitedSoloFile, "solo", shortCd, vPrefix)
                 else
                     if fullRooms > 0 then
-                        setStatus(string.format("Có %d phòng %s đều đầy 12/12 — Chờ slot trống (quét lại sau 8s)...", fullRooms, soloOpt))
+                        setStatus(string.format("Có %d phòng %s đều đầy 12/12 — Chờ slot trống (quét lại sau %.0fs)...", fullRooms, soloOpt, hopWait))
                     elseif visitedRooms > 0 then
-                        setStatus(string.format("Có %d phòng %s vừa ghé — Chờ phòng mới (quét lại sau 8s)...", visitedRooms, soloOpt))
+                        setStatus(string.format("Có %d phòng %s vừa ghé — Chờ phòng mới (quét lại sau %.0fs)...", visitedRooms, soloOpt, hopWait))
                     else
-                        setStatus("Chưa có phòng API có sẵn cho " .. soloOpt .. " — Đang chờ phòng mới (quét lại sau 8s)...")
+                        setStatus(string.format("Chưa có phòng API có sẵn cho %s — Đang chờ phòng mới (quét lại sau %.0fs)...", soloOpt, hopWait))
                     end
-                    smartWait(8.0, "solo")
+                    smartWait(hopWait, "solo")
                 end
             else
-                setStatus("Đang chờ dữ liệu API phòng " .. soloOpt .. " (quét lại sau 8s)...")
-                smartWait(8.0, "solo")
+                local hopWait = getApiHopWait()
+                setStatus(string.format("Đang chờ dữ liệu API phòng %s (quét lại sau %.0fs)...", soloOpt, hopWait))
+                smartWait(hopWait, "solo")
             end
 
         elseif mode == "sea3" then
-            local preferSea3Boss = (hubState.fightSea3DepthKing ~= false and "depth")
-                or (hubState.fightSea3Dragon ~= false and "dragon")
-                or (hubState.fightSea3Abyssal ~= false and "abyssal")
-                or (hubState.fightSea3Kraken ~= false and "kraken")
+            local preferSea3Boss = (hubState.fightSea3DepthKing == true and "depth")
+                or (hubState.fightSea3Dragon == true and "dragon")
+                or (hubState.fightSea3Abyssal == true and "abyssal")
+                or (hubState.fightSea3Kraken == true and "kraken")
                 or (hubState.fightSea3Serpent == true and "serpent")
-                or (hubState.fightSea3Crab ~= false and "crab")
-                or "depth"
+                or (hubState.fightSea3Crab == true and "crab")
+                or "dragon"
             if game.PlaceId ~= SEA3_PLACE then
                 ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Lệch Sea", preferSea3Boss)
                 smartWait(15.0, "sea3")
                 continue
             end
             pcall(function()
-                genv.AutoDepthKing = (hubState.fightSea3DepthKing ~= false)
-                genv.SeaEvent = (hubState.fightSea3Dragon ~= false or hubState.fightSea3Abyssal ~= false or hubState.fightSea3Kraken ~= false or hubState.fightSea3Serpent == true or hubState.fightSea3Crab ~= false or hubState.fightSea3Events == true)
-                genv.Serpent = (hubState.fightSea3Serpent == true or hubState.fightSea2Serpent ~= false)
-                genv.utienSeaEvent = true
+                genv._AutoSeaEventApiHop = false
+                genv._AutoSea2PriorityApiHop = false
+                genv._AutoDepthKingOnlyApiHop = false
+                genv.AutoDepthKing = false
+                genv.SeaEvent = false
+                genv.Serpent = false
+                genv.utienSeaEvent = false
                 genv.autoskillsea = true
                 genv.autoskhdhop = false
                 genv.HopDepthKing = false
                 genv.HopDepthKingApi = false
                 genv.hopSerpent = false
                 genv.hopSerpentApi = false
-                genv.AutoHop = false
-                genv.PlayerAutoHop = false
-                genv.AutoHopConquest = false
-                genv.HalloweenHopBoss = false
-                genv.HopJackOLantern = false
-                genv.HopJackOLanternPremium = false
                 genv.AutoHop = false
                 genv.PlayerAutoHop = false
                 genv.AutoHopConquest = false
@@ -3274,12 +3250,14 @@
                 if #candidates > 0 then
                     burstHopCandidates(candidates, visited, visitedSea3File, "sea3")
                 else
-                    setStatus("Chưa có phòng Boss Sea 3 trống trên API — Đang chờ phòng mới (quét lại sau 8s)...")
-                    smartWait(8.0, "sea3")
+                    local hopWait = getApiHopWait()
+                    setStatus(string.format("Chưa có phòng Boss Sea 3 trống trên API — Đang chờ phòng mới (quét lại sau %.0fs)...", hopWait))
+                    smartWait(hopWait, "sea3")
                 end
             else
-                setStatus("Đang chờ dữ liệu API Boss Sea 3 (quét lại sau 8s)...")
-                smartWait(8.0, "sea3")
+                local hopWait = getApiHopWait()
+                setStatus(string.format("Đang chờ dữ liệu API Boss Sea 3 (quét lại sau %.0fs)...", hopWait))
+                smartWait(hopWait, "sea3")
             end
 
         elseif mode == "sea2" then
@@ -3404,14 +3382,16 @@
                         if #fallback > 0 then
                             burstHopCandidates(fallback, visUse, visitedSea2File, "sea2")
                         else
-                            setStatus("Chưa có phòng Boss / Rương Sea 2 trống trên API — Đang chờ phòng mới (quét lại sau 8s)...")
-                            smartWait(8.0, "sea2")
+                            local hopWait = getApiHopWait()
+                            setStatus(string.format("Chưa có phòng Boss / Rương Sea 2 trống trên API — Đang chờ phòng mới (quét lại sau %.0fs)...", hopWait))
+                            smartWait(hopWait, "sea2")
                         end
                     end
                 end
             else
-                setStatus("Đang chờ dữ liệu API Boss Sea 2 (quét lại sau 8s)...")
-                smartWait(8.0, "sea2")
+                local hopWait = getApiHopWait()
+                setStatus(string.format("Đang chờ dữ liệu API Boss Sea 2 (quét lại sau %.0fs)...", hopWait))
+                smartWait(hopWait, "sea2")
             end
         end
     end
