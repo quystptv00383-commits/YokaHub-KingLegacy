@@ -148,9 +148,9 @@
                 end)
                 saveState(hubState)
 
-                if AutoM1SwordToggleObj and AutoM1SwordToggleObj.Set then pcall(function() AutoM1SwordToggleObj:Set(hasSword) end) end
-                if AutoM1MeleeToggleObj and AutoM1MeleeToggleObj.Set then pcall(function() AutoM1MeleeToggleObj:Set(hasMelee) end) end
-                if AutoM1FruitToggleObj and AutoM1FruitToggleObj.Set then pcall(function() AutoM1FruitToggleObj:Set(hasFruit) end) end
+                if AutoM1SwordToggleObj and AutoM1SwordToggleObj.Set then pcall(function() AutoM1SwordToggleObj:Set({ CurrentValue = hasSword }) end) end
+                if AutoM1MeleeToggleObj and AutoM1MeleeToggleObj.Set then pcall(function() AutoM1MeleeToggleObj:Set({ CurrentValue = hasMelee }) end) end
+                if AutoM1FruitToggleObj and AutoM1FruitToggleObj.Set then pcall(function() AutoM1FruitToggleObj:Set({ CurrentValue = hasFruit }) end) end
                 isSyncingM1 = false
             end,
         }, "M1SpamMultiDropdown")

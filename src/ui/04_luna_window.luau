@@ -1023,7 +1023,7 @@
             card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 52)
             if ttl and ttl:IsA("TextLabel") then
                 ttl.Position = UDim2.new(0, 14, 0, 8)
-                ttl.Size = UDim2.new(1, -75, 0, 18)
+                ttl.Size = UDim2.new(1, -105, 0, 18)
                 ttl.TextTruncate = Enum.TextTruncate.AtEnd
             end
             local valLbl = card:FindFirstChild("Value") or card:FindFirstChild("Current")
@@ -1369,6 +1369,7 @@
                                     sec.Font = Enum.Font.GothamBold
                                     sec.TextColor3 = THEME.secTitle
                                     sec.TextSize = 14
+                                    sec.TextWrapped = true
                                     sec.AutomaticSize = Enum.AutomaticSize.Y
                                     local holder = sec:FindFirstChild("Frame")
                                     if holder and holder:IsA("GuiObject") then
