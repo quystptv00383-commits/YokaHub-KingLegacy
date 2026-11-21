@@ -1054,10 +1054,14 @@
         end)
     end
 
+    local isCastingSkills = false
     local m1CycleIndex = 1
     local lastM1FireClock = 0
 
     local function equipAndFireSelectedM1(char: Model, hum: Humanoid): Tool?
+        if isCastingSkills or isHoldingSkill then
+            return nil
+        end
         -- CHỈ ĐÁNH KHI CÓ MỤC TIÊU SỐNG TRONG TẦM CẬN CHIẾN (<= 50 STUDS, MỞ RỘNG 140 STUDS KHI ĐÁNH BOSS/SEA EVENT)
         if currentCombatTarget and isModelAlive(currentCombatTarget) then
             local curName = string.lower(currentCombatTarget.Name)
@@ -1153,8 +1157,8 @@
                 continue
             end
 
-            -- Chỉ kích hoạt Auto M1 khi có ít nhất 1 loại vũ khí được tích chọn và người chơi đang không câu cá
-            if not hubState.autoFish and not isHoldingSkill and os.clock() >= dodgeUntilClock then
+            -- Chỉ kích hoạt Auto M1 khi có ít nhất 1 loại vũ khí được tích chọn và người chơi đang không câu cá / không đang tung skill
+            if not hubState.autoFish and not isHoldingSkill and not isCastingSkills and os.clock() >= dodgeUntilClock then
                 local checkDist = 50
                 if currentCombatTarget and isModelAlive(currentCombatTarget) then
                     if isSeaEventMob(currentCombatTarget) or isSea3BossEnabled(currentCombatTarget.Name) or isSea2BossEnabled(currentCombatTarget.Name) then
@@ -1222,8 +1226,15 @@
         end
     end
 
+    local lastSkillKeyCastAt: { [string]: number } = {}
+
     local function isSkillReadyToCast(cat: string, key: string, tool: Tool?): boolean
         local prefix = getSkillPrefix(cat)
+        local cdKey = prefix .. "_" .. key
+        if lastSkillKeyCastAt[cdKey] and (os.clock() - lastSkillKeyCastAt[cdKey]) < 1.15 then
+            return false
+        end
+
         local myStat = getPlayerStatForCategory(cat)
 
         -- 1. Kiểm tra thẳng chỉ số mở khóa từ SkillData (ZRequire, XRequire, CRequire, VRequire, ERequire)
@@ -1245,7 +1256,7 @@
             end
         end
 
-        -- 3. Kiểm tra giao diện SkillCooldown (Locked & SkillsRequire [số])
+        -- 3. Kiểm tra giao diện SkillCooldown chuẩn King Legacy (Locked, SkillsRequire & thanh hồi chiêu slot.Frame.Frame)
         local pgui = player:FindFirstChild("PlayerGui")
         local scGui = pgui and pgui:FindFirstChild("SkillCooldown")
         local frame = scGui and scGui:FindFirstChild(prefix .. "Frame")
@@ -1261,6 +1272,12 @@
                 if reqNum and reqNum > 0 and myStat < reqNum then
                     return false
                 end
+            end
+            -- Thanh hồi chiêu thực tế của King Legacy (SkillCooldown[prefix.."Frame"][key].Frame.Frame.Size.X.Scale)
+            local outerBar = slot:FindFirstChild("Frame")
+            local innerBar = outerBar and outerBar:FindFirstChild("Frame")
+            if innerBar and innerBar:IsA("GuiObject") and innerBar.Visible and innerBar.Size.X.Scale > 0.03 then
+                return false
             end
             local cdObj = slot:FindFirstChild("Cooldown") or slot:FindFirstChild("CD")
             if cdObj and cdObj:IsA("GuiObject") and cdObj.Visible then
@@ -1394,7 +1411,6 @@
 
     local lastHakiClock = 0
     local lastKenClock = 0
-    local isCastingSkills = false
 
     local function castConfiguredSkills(char: Model, hum: Humanoid, targetModel: Model?)
         if os.clock() < dodgeUntilClock then return end
@@ -1436,13 +1452,13 @@
             end)
         end
 
-        -- 2. Đánh M1 tốc độ cao chuẩn vũ khí đang dùng (Fruit / Sword / Melee)
-        if not isHoldingSkill then
+        -- 2. Đánh M1 tốc độ cao chuẩn vũ khí đang dùng (Fruit / Sword / Melee) khi không đang giữ/xả skill
+        if not isHoldingSkill and not isCastingSkills then
             equipAndFireSelectedM1(char, hum)
         end
 
-        -- 3. Xả chiêu thông minh BẤT ĐỒNG BỘ (không làm khựng vòng bay Hover Lock, chỉ dùng đúng nút người dùng bật!)
-        if not hubState.autoSkills or isCastingSkills then return end
+        -- 3. Xả chiêu thông minh BẤT ĐỒNG BỘ 3 LỚP (ClientSkillHandler + SkillAction Remote + VIM)
+        if hubState.autoSkills == false or isCastingSkills then return end
 
         local m1Cats = getActiveM1Categories()
         local curHeldTool = char:FindFirstChildOfClass("Tool")
@@ -1451,11 +1467,6 @@
             or (#m1Cats == 1 and m1Cats[1]) or (curHeldTool and classifyKingLegacyTool(curHeldTool)) or "fruit"
 
         local catPlan: { { cat: string, keys: { string }, prio: number } } = {}
-        local function addPlan(cat: string, opt: any, fb: { string }?, defKeys: { string })
-            local kList = parseKeysFromOption(opt, fb)
-            if #kList == 0 then kList = defKeys end
-            table.insert(catPlan, { cat = cat, keys = kList, prio = (cat == primaryCat and 2 or 1) })
-        end
 
         local allowFruit = (mode == "Fruit" or mode == "Auto Mode") and (hubState.skillFruit ~= false)
         local allowSword = (mode == "Sword" or mode == "Auto Mode") and (hubState.skillSword ~= false)
@@ -1463,21 +1474,24 @@
 
         if allowFruit then
             local fOpt = (typeof(hubState.fruitSkillsList) == "table") and hubState.fruitSkillsList or hubState.skillFruitKeys
-            local kList = parseKeysFromOption(fOpt, genv.CombatSkillFruit)
+            local kList = parseKeysFromOption(fOpt, genv.CombatSkillFruit or { "Z", "X", "C", "E" })
+            if (hubState.autoTransform ~= false) and not table.find(kList, "V") then
+                table.insert(kList, "V")
+            end
             if #kList > 0 then
                 table.insert(catPlan, { cat = "fruit", keys = kList, prio = (primaryCat == "fruit" and 2 or 1) })
             end
         end
         if allowSword then
             local sOpt = (typeof(hubState.swordSkillsList) == "table") and hubState.swordSkillsList or hubState.skillSwordKeys
-            local kList = parseKeysFromOption(sOpt, genv.CombatSkillSword)
+            local kList = parseKeysFromOption(sOpt, genv.CombatSkillSword or { "Z", "X" })
             if #kList > 0 then
                 table.insert(catPlan, { cat = "sword", keys = kList, prio = (primaryCat == "sword" and 2 or 1) })
             end
         end
         if allowMelee then
             local mOpt = (typeof(hubState.meleeSkillsList) == "table") and hubState.meleeSkillsList or hubState.skillMeleeKeys
-            local kList = parseKeysFromOption(mOpt, genv.CombatSkillMelee)
+            local kList = parseKeysFromOption(mOpt, genv.CombatSkillMelee or { "Z", "X", "C", "V" })
             if #kList > 0 then
                 table.insert(catPlan, { cat = "melee", keys = kList, prio = (primaryCat == "melee" and 2 or 1) })
             end
@@ -1485,29 +1499,56 @@
         if #catPlan == 0 then return end
         table.sort(catPlan, function(a, b) return a.prio > b.prio end)
 
+        -- Kiểm tra xem có ít nhất 1 chiêu sẵn sàng trước khi khóa luồng M1
+        local hasReadySkill = false
+        for _, plan in ipairs(catPlan) do
+            local tool = findToolByCategory(plan.cat)
+            if tool then
+                for _, k in ipairs(plan.keys) do
+                    if isSkillReadyToCast(plan.cat, k, tool) then
+                        hasReadySkill = true
+                        break
+                    end
+                end
+            end
+            if hasReadySkill then break end
+        end
+        if not hasReadySkill then return end
+
         isCastingSkills = true
         task.spawn(function()
             local okCast, _ = pcall(function()
                 local castsDone = 0
                 local maxCastsPerTick = 2
                 local switchedAway = false
+                local sa = getSkillActionRemote()
 
                 for _, plan in ipairs(catPlan) do
                     if castsDone >= maxCastsPerTick or os.clock() < dodgeUntilClock then break end
                     if targetModel and not isModelAlive(targetModel) then break end
                     local tool = findToolByCategory(plan.cat)
                     if tool then
+                        local prefix = getSkillPrefix(plan.cat)
+                        local modTbl = getClientSkillModule(tool.Name, plan.cat)
                         for _, k in ipairs(plan.keys) do
                             if castsDone >= maxCastsPerTick or os.clock() < dodgeUntilClock then break end
                             if targetModel and not isModelAlive(targetModel) then break end
                             if isSkillReadyToCast(plan.cat, k, tool) then
                                 local keyEnum = (Enum.KeyCode :: any)[k]
-                                if keyEnum and sharedVim then
-                                    if tool.Parent == player.Backpack then
-                                        hum:EquipTool(tool)
-                                        if plan.cat ~= primaryCat then switchedAway = true end
-                                        task.wait(0.04)
+                                -- Khóa cứng Auto M1 trước khi đổi sang vũ khí tung chiêu để M1 không giật lại vũ khí
+                                isHoldingSkill = true
+                                if tool.Parent ~= char then
+                                    pcall(function() hum:EquipTool(tool) end)
+                                    if plan.cat ~= primaryCat then switchedAway = true end
+                                    local waited = 0
+                                    while tool.Parent ~= char and waited < 0.18 and genv._YokaHubToken == myToken do
+                                        task.wait(0.02)
+                                        waited += 0.02
                                     end
+                                    task.wait(0.05)
+                                end
+
+                                if tool.Parent == char then
                                     local tModel, tRoot = targetModel, getModelRoot(targetModel)
                                     if not (tModel and tRoot) then
                                         tModel, tRoot = getBestCombatTarget(450)
@@ -1517,7 +1558,7 @@
                                         aimPos = getAimPoint(tModel, tRoot)
                                         _G.MouseHit = CFrame.new(aimPos)
                                         local myHrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-                                        if myHrp and aimPos then
+                                        if myHrp and aimPos and (hubState.skillAimbot ~= false) then
                                             pcall(function()
                                                 myHrp.CFrame = CFrame.lookAt(myHrp.Position, Vector3.new(aimPos.X, myHrp.Position.Y, aimPos.Z))
                                             end)
@@ -1526,10 +1567,33 @@
 
                                     local holdDur = (hubState.smartSkillHold ~= false) and getOptimalSkillHoldTime(tool, plan.cat, k) or 0.08
                                     lastPlayerSkillCastClock = os.clock()
+                                    lastSkillKeyCastAt[prefix .. "_" .. k] = os.clock()
+                                    local actionName = prefix .. "_" .. tool.Name .. "_" .. k
+
                                     pcall(function()
-                                        sharedVim:SendKeyEvent(true, keyEnum, false, game)
-                                        if holdDur > 0.12 then
-                                            isHoldingSkill = true
+                                        local downCF = aimPos and CFrame.new(aimPos) or (_G.MouseHit or CFrame.new())
+                                        -- Lớp 1: Gửi trực tiếp gói tin SkillAction Down lên Server King Legacy
+                                        if sa then
+                                            task.spawn(function()
+                                                pcall(function()
+                                                    sa:InvokeServer(actionName, { Type = "Down", MouseHit = downCF })
+                                                end)
+                                            end)
+                                        end
+                                        -- Lớp 2: Kích hoạt hàm kỹ năng gốc trong ClientSkillHandler (<Tool>_Client[k])
+                                        if modTbl and typeof(modTbl[k]) == "function" then
+                                            task.spawn(function()
+                                                pcall(modTbl[k])
+                                            end)
+                                        end
+                                        -- Lớp 3: Giả lập phím VIM đồng bộ UI
+                                        if keyEnum and sharedVim then
+                                            pcall(function()
+                                                sharedVim:SendKeyEvent(true, keyEnum, false, game)
+                                            end)
+                                        end
+
+                                        if holdDur > 0.10 then
                                             local held = 0
                                             while held < holdDur and genv._YokaHubToken == myToken and os.clock() >= dodgeUntilClock do
                                                 if hum.Health <= 0 then break end
@@ -1538,7 +1602,7 @@
                                                     local liveAim = getAimPoint(tModel, tRoot)
                                                     _G.MouseHit = CFrame.new(liveAim)
                                                     local myHrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-                                                    if myHrp and liveAim then
+                                                    if myHrp and liveAim and (hubState.skillAimbot ~= false) then
                                                         pcall(function()
                                                             myHrp.CFrame = CFrame.lookAt(myHrp.Position, Vector3.new(liveAim.X, myHrp.Position.Y, liveAim.Z))
                                                         end)
@@ -1548,15 +1612,33 @@
                                                 task.wait(slice)
                                                 held += slice
                                             end
-                                            isHoldingSkill = false
                                         else
-                                            task.wait(holdDur)
+                                            task.wait(math.max(0.06, holdDur))
                                         end
-                                        sharedVim:SendKeyEvent(false, keyEnum, false, game)
+
+                                        local upCF = _G.MouseHit or downCF
+                                        if keyEnum and sharedVim then
+                                            pcall(function()
+                                                sharedVim:SendKeyEvent(false, keyEnum, false, game)
+                                            end)
+                                        end
+                                        if modTbl and typeof(modTbl.Deactive) == "function" then
+                                            task.spawn(function()
+                                                pcall(modTbl.Deactive, k)
+                                            end)
+                                        end
+                                        if sa then
+                                            task.spawn(function()
+                                                pcall(function()
+                                                    sa:InvokeServer(actionName, { Type = "Up", MouseHit = upCF })
+                                                end)
+                                            end)
+                                        end
                                     end)
                                     castsDone += 1
-                                    task.wait(0.04)
+                                    task.wait(0.05)
                                 end
+                                isHoldingSkill = false
                             end
                         end
                     end
@@ -1575,6 +1657,34 @@
             isCastingSkills = false
         end)
     end
+
+    -- ========================================================
+    -- [NATIVE AUTO SKILLS WORKER (FRUIT / SWORD / MELEE: Z, X, C, V, E)]
+    -- Luồng độc lập tự động xả chiêu thông minh khi có mục tiêu trong tầm giao chiến
+    -- ========================================================
+    task.spawn(function()
+        while genv._YokaHubToken == myToken do
+            task.wait(0.14)
+            if (hubState.autoSkills ~= false) and not hubState.autoFish and not isCastingSkills and os.clock() >= dodgeUntilClock then
+                local checkDist = 65
+                if currentCombatTarget and isModelAlive(currentCombatTarget) then
+                    if isSeaEventMob(currentCombatTarget) or isSea3BossEnabled(currentCombatTarget.Name) or isSea2BossEnabled(currentCombatTarget.Name) or isBossModel(currentCombatTarget) then
+                        checkDist = 180
+                    end
+                end
+                local tModel, _ = getBestCombatTarget(checkDist)
+                if tModel then
+                    pcall(function()
+                        local char = player.Character
+                        local hum = char and char:FindFirstChildOfClass("Humanoid")
+                        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                        if not (char and hum and hrp and hum.Health > 0) then return end
+                        castConfiguredSkills(char, hum, tModel)
+                    end)
+                end
+            end
+        end
+    end)
 
     -- ========================================================
     -- [UNIVERSAL EMERGENCY HEAL & LIFESTEAL SYSTEM]
@@ -2083,7 +2193,8 @@
 
                             -- Chỉ xả chiêu khi không ở trạng thái khẩn cấp thoát hiểm và đã tiếp cận cự ly bay an toàn
                             local distToHover = (hrp.Position - hoverPos).Magnitude
-                            if not isEmergencyHp and distToHover <= math.max(48, sHeight * 0.70) then
+                            local distToBoss = (hrp.Position - bRoot.Position).Magnitude
+                            if not isEmergencyHp and (distToHover <= math.max(55, sHeight * 0.85) or distToBoss <= math.max(150, sHeight + 75)) then
                                 castConfiguredSkills(char, hum, targetBoss)
                             end
                             pcall(function()
@@ -4003,8 +4114,9 @@ end)
                             end
 
                             local distToHover = (hrp.Position - hoverPos).Magnitude
-                            local castRange = isBoss and math.max(35, sHeight * 0.70) or 28
-                            if not isEmergencyHp and distToHover <= castRange then
+                            local distToMob = (hrp.Position - mRoot.Position).Magnitude
+                            local castRange = isBoss and math.max(55, sHeight * 0.85) or 42
+                            if not isEmergencyHp and (distToHover <= castRange or distToMob <= castRange + sHeight + 18) then
                                 castConfiguredSkills(char, hum, targetMob)
                             end
                         end
@@ -4187,8 +4299,9 @@ end)
                             end
 
                             local distToHover = (hrp.Position - hoverPos).Magnitude
-                            local castRange = isBoss and math.max(35, sHeight * 0.70) or 32
-                            if not isEmergencyHp and distToHover <= castRange then
+                            local distToMob = (hrp.Position - mRoot.Position).Magnitude
+                            local castRange = isBoss and math.max(55, sHeight * 0.85) or 42
+                            if not isEmergencyHp and (distToHover <= castRange or distToMob <= castRange + sHeight + 18) then
                                 castConfiguredSkills(char, hum, targetMob)
                             end
                         end
@@ -4382,21 +4495,24 @@ end)
                                 end)
                             end
 
-                            -- Trang bị vũ khí theo Dungeon Weapon Mode nếu có chỉ định
-                            local dWep = hubState.dungeonWeaponMode or "Auto Mode"
-                            if string.find(dWep, "Fruit") then
-                                local t = findToolByCategory("fruit")
-                                if t and t.Parent == player.Backpack then hum:EquipTool(t) end
-                            elseif string.find(dWep, "Sword") then
-                                local t = findToolByCategory("sword")
-                                if t and t.Parent == player.Backpack then hum:EquipTool(t) end
-                            elseif string.find(dWep, "Melee") then
-                                local t = findToolByCategory("melee")
-                                if t and t.Parent == player.Backpack then hum:EquipTool(t) end
+                            -- Trang bị vũ khí theo Dungeon Weapon Mode nếu có chỉ định (không giật vũ khí khi đang tung chiêu)
+                            if not isCastingSkills and not isHoldingSkill then
+                                local dWep = hubState.dungeonWeaponMode or "Auto Mode"
+                                if string.find(dWep, "Fruit") then
+                                    local t = findToolByCategory("fruit")
+                                    if t and t.Parent == player.Backpack then hum:EquipTool(t) end
+                                elseif string.find(dWep, "Sword") then
+                                    local t = findToolByCategory("sword")
+                                    if t and t.Parent == player.Backpack then hum:EquipTool(t) end
+                                elseif string.find(dWep, "Melee") then
+                                    local t = findToolByCategory("melee")
+                                    if t and t.Parent == player.Backpack then hum:EquipTool(t) end
+                                end
                             end
 
                             -- Xả chiêu thức
-                            if not isEmergency and (hrp.Position - hoverPos).Magnitude <= math.max(38, sHeight + 15) then
+                            local distToDungeonMob = (hrp.Position - mRoot.Position).Magnitude
+                            if not isEmergency and ((hrp.Position - hoverPos).Magnitude <= math.max(45, sHeight + 20) or distToDungeonMob <= math.max(70, sHeight + 35)) then
                                 castConfiguredSkills(char, hum, targetMob)
                             end
                         end
