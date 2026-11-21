@@ -273,6 +273,94 @@
         return false
     end
 
+    local function getBossHoverHeight(targetModel: Model?, isIslandHint: boolean?): number
+        local manualFallback = math.clamp(tonumber(hubState.bossSafeHeight) or 35, 8, 150)
+        if hubState.smartBossHeight == false then
+            return manualFallback
+        end
+
+        if not targetModel then
+            if isIslandHint then
+                return 26
+            end
+            return manualFallback
+        end
+
+        local name = string.lower(targetModel.Name or "")
+        local parentName = string.lower((targetModel.Parent and targetModel.Parent.Name) or "")
+
+        -- 1. Hydra (Sea 2) - Quét 3 đầu & vũng độc ăn mòn diện rộng -> Bay cao 75 studs
+        if string.find(name, "hydra", 1, true) ~= nil then
+            return 75
+        end
+
+        -- 2. Drakenfyr / Dragon / Rồng Lửa (Sea 3) - Phun lửa hình nón, quạt đuôi & thiên thạch -> Bay cao 70 studs
+        if string.find(name, "dragon", 1, true) ~= nil or string.find(name, "draken", 1, true) ~= nil or string.find(name, "inferno", 1, true) ~= nil then
+            return 70
+        end
+
+        -- 3. Sea King / Vua Biển (Sea 2) - Cột nước áp lực & lao mình sóng thần -> Bay cao 60 studs
+        if string.find(name, "sea king", 1, true) ~= nil or string.find(name, "seaking", 1, true) ~= nil then
+            return 60
+        end
+
+        -- 4. Depth King / Sunken Altar (Sea 3) - Càn quét đinh ba xoay & lốc xoáy nước -> Bay cao 50 studs
+        if string.find(name, "depth king", 1, true) ~= nil or string.find(name, "depthking", 1, true) ~= nil or string.find(name, "altar", 1, true) ~= nil then
+            return 50
+        end
+
+        -- 5. Abyssal Tyrant / Bạo Chúa Biển Sâu (Sea 3) - Sóng xung kích giậm đất & khiên giáp -> Bay cao 48 studs
+        if string.find(name, "tyrant", 1, true) ~= nil or string.find(name, "abyssal", 1, true) ~= nil then
+            return 48
+        end
+
+        -- 6. Tàu Ghost Ship / Galleon / Ghost Galleon - Đạn pháo bay ngang tầm thấp -> Bay cao 45 studs
+        if string.find(name, "ghost", 1, true) ~= nil or string.find(name, "galleon", 1, true) ~= nil or string.find(name, "ship", 1, true) ~= nil then
+            return 45
+        end
+
+        -- 7. Giant Crab / Cua Khổng Lồ (Sea 3) - Kẹp càng & bọt nước -> Bay cao 40 studs
+        if string.find(name, "crab", 1, true) ~= nil then
+            return 40
+        end
+
+        -- 8. Serpent / Rắn Biển (Sea 2 & 3) - Trườn sóng và táp thẳng -> Bay cao 38 studs
+        if string.find(name, "serpent", 1, true) ~= nil then
+            return 38
+        end
+
+        -- 9. Sea Beast / Quái Thú Biển -> Bay cao 42 studs
+        if string.find(name, "sea beast", 1, true) ~= nil or string.find(name, "seabeast", 1, true) ~= nil then
+            return 42
+        end
+
+        -- 10. Kraken & Xúc Tu -> Bay cao 55 studs
+        if string.find(name, "kraken", 1, true) ~= nil or string.find(name, "tentacle", 1, true) ~= nil then
+            return 55
+        end
+
+        -- 11. Boss Đảo (Hephaestus, Saber, Gazelle Man, Whitebeard, Kaido, Big Mom, hoặc nằm trong Folder Monster / Boss / AllNPC)
+        -- Cần bay ở tầm 26 studs: Tuyệt đối an toàn khỏi đòn cận chiến, đồng thời 100% chiêu thức và M1 đều trúng đích
+        if isIslandHint or parentName == "boss" or parentName == "monster" or parentName == "allnpc"
+            or string.find(name, "saber", 1, true) ~= nil
+            or string.find(name, "gazelle", 1, true) ~= nil
+            or string.find(name, "hephaestus", 1, true) ~= nil
+            or string.find(name, "whitebeard", 1, true) ~= nil
+            or string.find(name, "kaido", 1, true) ~= nil
+            or string.find(name, "big mom", 1, true) ~= nil
+            or string.find(name, "buddha", 1, true) ~= nil
+            or string.find(name, "lucy", 1, true) ~= nil
+            or string.find(name, "smoker", 1, true) ~= nil
+            or string.find(name, "tashigi", 1, true) ~= nil
+            or string.find(name, "law", 1, true) ~= nil
+            or string.find(name, "doflamingo", 1, true) ~= nil
+            or string.find(name, "katakuri", 1, true) ~= nil then
+            return 26
+        end
+
+        return manualFallback
+    end
+
     local function getAimPoint(targetModel: Model, targetRoot: BasePart): Vector3
         local vel = Vector3.zero
         pcall(function()
@@ -1497,7 +1585,7 @@
                         local bRoot = getModelRoot(targetBoss)
                         if bRoot then
                             setCurrentCombatTarget(targetBoss)
-                            local sHeight = math.clamp(tonumber(hubState.bossSafeHeight) or 35, 8, 150)
+                            local sHeight = getBossHoverHeight(targetBoss, false)
                             local aimPos = getAimPoint(targetBoss, bRoot)
                             local hoverPos = bRoot.Position + Vector3.new(0, sHeight, 0)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 55)
@@ -1683,7 +1771,7 @@
                                 end
                             end
                             if bossPos and (bossPos - hrp.Position).Magnitude > 60 then
-                                local sHeight = math.clamp(tonumber(hubState.bossSafeHeight) or 35, 8, 150)
+                                local sHeight = getBossHoverHeight(nil, true)
                                 local flyPos = bossPos + Vector3.new(0, sHeight, 0)
                                 setFlightTarget(flyPos, bossPos, (bossPos - hrp.Position).Magnitude > 1400, 52)
                             end

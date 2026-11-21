@@ -501,8 +501,24 @@
         end,
     }, "MasterAutoFightToggle")
 
+    MasterFightSection:CreateToggle({
+        Name = "🧠 Tự Động Chỉnh Độ Cao Theo Từng Boss (Smart Height)",
+        Description = "Tự động bay cao hay thấp chuẩn xác theo từng Boss (Hydra 75m, Rồng 70m, Vua Biển 60m, Depth King 50m, Tàu Ma 45m, Cua 40m, Rắn 38m, Boss Đảo 26m) để né đòn tuyệt đối và xả chiêu chuẩn xác",
+        CurrentValue = (hubState.smartBossHeight ~= false),
+        Callback = function(Value: boolean)
+            hubState.smartBossHeight = Value
+            saveState(hubState)
+            if Value then
+                safeNotify("YokaHub Boss", "Đã bật Smart Safe Height (Tự chỉnh độ cao theo Boss)!", "brain")
+            else
+                safeNotify("YokaHub Boss", "Đã tắt Smart Height: Dùng độ cao thủ công cố định.", "info")
+            end
+        end,
+    }, "SmartBossHeightToggle")
+
     MasterFightSection:CreateSlider({
-        Name = "🕊️ Độ Cao Bay An Toàn Khi Đánh Boss",
+        Name = "🕊️ Độ Cao Bay An Toàn Thủ Công (Manual Height)",
+        Description = "Độ cao bay cố định khi tắt chế độ thông minh (hoặc dùng làm mốc dự phòng)",
         Range = { 10, 150 },
         Increment = 2,
         Suffix = "studs",
