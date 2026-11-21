@@ -190,12 +190,12 @@
         "🐲 Drakenfyr the Inferno King / Dragon (Sea 3)",
         "👑 Abyssal Tyrant (Sea 3)",
         "🐙 Kraken (Sea 3)",
+        "🐍 Rắn Biển / Serpent (Sea 3 & 2)",
         "🦀 Cua Biển / Crab (Sea 3)",
         "🌊 Sea Event Sea 3 (bỏ Depth & Abyssal)",
         "🐍 Hydra & Rương Hydra (Sea 2)",
         "🐋 Sea King & Rương SK (Sea 2)",
         "👻 Thuyền Ma / Ghost Ship (Sea 2)",
-        "🐍 Rắn Biển / Serpent (Sea 2 & 3)",
     }
 
     local SOLO_KEY_MAP: { [string]: string } = {
@@ -203,6 +203,7 @@
         ["🐲 Drakenfyr the Inferno King / Dragon (Sea 3)"] = "dragon",
         ["👑 Abyssal Tyrant (Sea 3)"] = "abyssal_tyrant",
         ["🐙 Kraken (Sea 3)"] = "kraken",
+        ["🐍 Rắn Biển / Serpent (Sea 3 & 2)"] = "serpent",
         ["🦀 Cua Biển / Crab (Sea 3)"] = "crab",
         ["🌊 Sea Event Sea 3 (bỏ Depth & Abyssal)"] = "sea3_events",
         ["🐍 Hydra & Rương Hydra (Sea 2)"] = "hydra",
@@ -360,6 +361,7 @@
         fightSea3Dragon: boolean?,
         fightSea3Abyssal: boolean?,
         fightSea3Kraken: boolean?,
+        fightSea3Serpent: boolean?,
         fightSea3Crab: boolean?,
         fightSea3Events: boolean?,
         fightSea2Hydra: boolean?,
@@ -499,6 +501,7 @@
             fightSea3Dragon = false,
             fightSea3Abyssal = false,
             fightSea3Kraken = false,
+            fightSea3Serpent = false,
             fightSea3Crab = false,
             fightSea3Events = false,
             fightSea2Hydra = false,
@@ -641,6 +644,7 @@
             if typeof(d.fightSea3Dragon) == "boolean" then st.fightSea3Dragon = d.fightSea3Dragon end
             if typeof(d.fightSea3Abyssal) == "boolean" then st.fightSea3Abyssal = d.fightSea3Abyssal end
             if typeof(d.fightSea3Kraken) == "boolean" then st.fightSea3Kraken = d.fightSea3Kraken end
+            if typeof(d.fightSea3Serpent) == "boolean" then st.fightSea3Serpent = d.fightSea3Serpent end
             if typeof(d.fightSea3Crab) == "boolean" then st.fightSea3Crab = d.fightSea3Crab end
             if typeof(d.fightSea3Events) == "boolean" then st.fightSea3Events = d.fightSea3Events end
             if typeof(d.fightSea2Hydra) == "boolean" then st.fightSea2Hydra = d.fightSea2Hydra end

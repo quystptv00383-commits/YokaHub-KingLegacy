@@ -68,22 +68,22 @@
             return 6
         end
 
-        -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (4 điểm) - CHỈ dành cho Boss Quái Biển Kraken, không nhận nhầm Tàu Kraken Galleon
+        -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (5 điểm) - CHỈ dành cho Boss Quái Biển Kraken, không nhận nhầm Tàu Kraken Galleon
         if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) and string.find(nm, "galleon", 1, true) == nil then
             if hubState.ignoreKraken == true or hubState.fightSea3Kraken ~= true then return 0 end
+            return 5
+        end
+
+        -- Top 5: Rắn Biển / Serpent (Sea 3) - Ưu tiên số 5 (4 điểm) - ĐỘ ƯU TIÊN CAO HƠN CUA VÀ THUYỀN!
+        if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
+            if hubState.fightSea3Serpent ~= true then return 0 end
             return 4
         end
 
-        -- Top 5: Cua Biển Khổng Lồ (Giant Crab Sea 3) - Ưu tiên số 5 (3 điểm)
+        -- Top 6: Cua Biển Khổng Lồ (Giant Crab Sea 3) - Ưu tiên số 6 (3 điểm)
         if string.find(nm, "crab", 1, true) ~= nil then
             if hubState.fightSea3Crab ~= true then return 0 end
             return 3
-        end
-
-        -- Top 6: Rắn Biển / Serpent (Sea 3 & 2) - Ưu tiên số 6 (2 điểm)
-        if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
-            if hubState.fightSea2Serpent ~= true then return 0 end
-            return 2
         end
 
         -- Tuyệt đối không để Depth King, Dragon hoặc Abyssal bị người dùng tắt mà lại lọt qua Top 7
@@ -159,9 +159,10 @@
             if hubState.fightSea3Dragon then table.insert(names, "Drakenfyr") end
             if hubState.fightSea3Abyssal then table.insert(names, "Abyssal") end
             if hubState.fightSea3Kraken then table.insert(names, "Kraken") end
+            if hubState.fightSea3Serpent then table.insert(names, "Serpent") end
             if hubState.fightSea3Crab then table.insert(names, "Cua") end
             if hubState.fightSea3Events then table.insert(names, "Sea Events") end
-            if #names == 6 then
+            if #names == 7 then
                 return "Sea 3 (Tất cả)", "Đang tự động tìm phòng có bất kỳ Boss nào ở Sea 3..."
             elseif #names > 0 then
                 local str = table.concat(names, ", ")
@@ -230,7 +231,7 @@
         genv._KingAutoHopMode = newMode
         genv._AutoSeaEventApiHop = (newMode == "sea3")
         genv._AutoSea2PriorityApiHop = (newMode == "sea2")
-        genv._AutoDepthKingOnlyApiHop = (newMode == "sea3" and hubState.fightSea3DepthKing == true and not hubState.fightSea3Dragon and not hubState.fightSea3Abyssal and not hubState.fightSea3Kraken and not hubState.fightSea3Crab and not hubState.fightSea3Events)
+        genv._AutoDepthKingOnlyApiHop = (newMode == "sea3" and hubState.fightSea3DepthKing == true and not hubState.fightSea3Dragon and not hubState.fightSea3Abyssal and not hubState.fightSea3Kraken and not hubState.fightSea3Serpent and not hubState.fightSea3Crab and not hubState.fightSea3Events)
         saveState(hubState)
         updateDockDot()
         if newMode ~= "off" then
@@ -246,6 +247,7 @@
                 or (hubState.fightSea3Dragon and "dragon")
                 or (hubState.fightSea3Abyssal and "abyssal")
                 or (hubState.fightSea3Kraken and "kraken")
+                or (hubState.fightSea3Serpent and "serpent")
                 or (hubState.fightSea3Crab and "crab")
                 or "depth"
             if not ensureCorrectSea(SEA3_PLACE, "Boss Sea 3", "Săn Boss", preferSea3Boss) then
@@ -302,6 +304,7 @@
             or (hubState.fightSea3Dragon == true)
             or (hubState.fightSea3Abyssal == true)
             or (hubState.fightSea3Kraken == true)
+            or (hubState.fightSea3Serpent == true)
             or (hubState.fightSea3Crab == true)
             or (hubState.fightSea3Events == true)
 
@@ -314,6 +317,7 @@
             and (hubState.fightSea3Dragon == true)
             and (hubState.fightSea3Abyssal == true)
             and (hubState.fightSea3Kraken == true)
+            and (hubState.fightSea3Serpent == true)
             and (hubState.fightSea3Crab == true)
             and (hubState.fightSea3Events == true)
 
@@ -353,6 +357,7 @@
             hubState.fightSea3Dragon = false
             hubState.fightSea3Abyssal = false
             hubState.fightSea3Kraken = false
+            hubState.fightSea3Serpent = false
             hubState.fightSea3Crab = false
             hubState.fightSea3Events = false
         end
@@ -370,6 +375,7 @@
         hubState.fightSea3Dragon = on
         hubState.fightSea3Abyssal = on
         hubState.fightSea3Kraken = on
+        hubState.fightSea3Serpent = on
         hubState.fightSea3Crab = on
         hubState.fightSea3Events = on
         for k, tog in pairs(bossToggles) do
@@ -397,8 +403,8 @@
 
     Sea3Toggle = StatusSection:CreateToggle({
         Name = "🐉 Bật / Tắt toàn bộ Boss Sea 3 (Phím F8)",
-        Description = "Ưu tiên: Depth King (Top 1) → Drakenfyr (Top 2) → Abyssal (Top 3) → Kraken → Cua → Events",
-        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3DepthKing and hubState.fightSea3Dragon and hubState.fightSea3Abyssal and hubState.fightSea3Kraken and hubState.fightSea3Crab and hubState.fightSea3Events),
+        Description = "Ưu tiên: Depth King (Top 1) → Drakenfyr (Top 2) → Abyssal (Top 3) → Kraken → Serpent → Cua → Events",
+        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3DepthKing and hubState.fightSea3Dragon and hubState.fightSea3Abyssal and hubState.fightSea3Kraken and hubState.fightSea3Serpent and hubState.fightSea3Crab and hubState.fightSea3Events),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
             syncingBossToggles = true
@@ -406,6 +412,7 @@
             hubState.fightSea3Dragon = Value
             hubState.fightSea3Abyssal = Value
             hubState.fightSea3Kraken = Value
+            hubState.fightSea3Serpent = Value
             hubState.fightSea3Crab = Value
             hubState.fightSea3Events = Value
             for k, tog in pairs(bossToggles) do
@@ -450,6 +457,7 @@
             hubState.fightSea3Dragon = false
             hubState.fightSea3Abyssal = false
             hubState.fightSea3Kraken = false
+            hubState.fightSea3Serpent = false
             hubState.fightSea3Crab = false
             hubState.fightSea3Events = false
             hubState.fightSea2Hydra = false
@@ -652,9 +660,21 @@
         end,
     }, "FightSea3KrakenToggle")
 
+    bossToggles.Sea3Serpent = Sea3FightSection:CreateToggle({
+        Name = "🐍 Auto Hop & Săn Rắn Biển / Sea Serpent (Sea 3)",
+        Description = "Tự động tìm phòng có Rắn Biển Serpent qua API và tiêu diệt (Ưu tiên cao hơn Cua & Tàu, Top 5)",
+        CurrentValue = (hubState.fightSea3Serpent == true),
+        Callback = function(Value: boolean)
+            if syncingBossToggles then return end
+            hubState.fightSea3Serpent = Value
+            saveState(hubState)
+            recalcHopMode(true)
+        end,
+    }, "FightSea3SerpentToggle")
+
     bossToggles.Sea3Crab = Sea3FightSection:CreateToggle({
         Name = "🦀 Auto Hop & Săn Cua Biển Khổng Lồ (Sea 3)",
-        Description = "Tự động tìm phòng có Cua Biển khổng lồ Sea 3 qua API và tiêu diệt (Top 5)",
+        Description = "Tự động tìm phòng có Cua Biển khổng lồ Sea 3 qua API và tiêu diệt (Top 6)",
         CurrentValue = (hubState.fightSea3Crab == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end

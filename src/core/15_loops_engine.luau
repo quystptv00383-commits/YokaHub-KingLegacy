@@ -295,13 +295,13 @@
             if hubState.ignoreKraken == true then return false end
             return hubState.fightSea3Kraken ~= false
         end
-        -- 5. Cua biển (Top 5)
+        -- 5. Rắn biển Serpent (Top 5 - Ưu tiên cao hơn Cua & Tàu)
+        if isSerpentBoss(n) then
+            return hubState.fightSea3Serpent ~= false
+        end
+        -- 6. Cua biển (Top 6)
         if isCrabBoss(n) then
             return hubState.fightSea3Crab ~= false
-        end
-        -- 6. Rắn biển Serpent
-        if isSerpentBoss(n) then
-            return hubState.fightSea2Serpent ~= false
         end
         -- 7. Các Sea Events thường khác (Galleon / Ghost / Sea Beast)
         if isSeaEventMiscBoss(n) then
@@ -1796,6 +1796,7 @@
             if hubState.fightSea3Dragon ~= false and (string.find(n, "dragon", 1, true) ~= nil or string.find(n, "drakenfyr", 1, true) ~= nil) then return true end
             if hubState.fightSea3Abyssal ~= false and string.find(n, "abyssal", 1, true) ~= nil then return true end
             if hubState.fightSea3Kraken ~= false and hubState.ignoreKraken ~= true and string.find(n, "kraken", 1, true) ~= nil then return true end
+            if hubState.fightSea3Serpent == true and string.find(n, "serpent", 1, true) ~= nil then return true end
             if hubState.fightSea3Crab ~= false and string.find(n, "crab", 1, true) ~= nil then return true end
             if hubState.fightSea3Events == true and ((hubState.ignoreGalleon ~= true and string.find(n, "galleon", 1, true) ~= nil) or string.find(n, "sea", 1, true) ~= nil) then return true end
             return false
@@ -1803,6 +1804,7 @@
             if hubState.fightSea2Hydra ~= false and string.find(n, "hydra", 1, true) ~= nil then return true end
             if hubState.fightSea2SeaKing ~= false and (string.find(n, "legacy", 1, true) ~= nil or string.find(n, "sea island", 1, true) ~= nil or string.find(n, "sea king", 1, true) ~= nil) then return true end
             if hubState.fightSea2GhostShip ~= false and string.find(n, "ghost", 1, true) ~= nil then return true end
+            if hubState.fightSea2Serpent ~= false and string.find(n, "serpent", 1, true) ~= nil then return true end
             return false
         end
         return false
@@ -1985,8 +1987,27 @@
                         return isSea3BossEnabled(rawName) or isSea2BossEnabled(rawName)
                     end
 
+                    -- Xếp hạng ưu tiên mục tiêu chiến đấu (Target Priority):
+                    -- Depth King (10) > Dragon (9) > Abyssal (8) > Kraken (7) > Serpent (6) > Crab (5) > Hydra/SeaKing (5) > Sea Events Thường / Thuyền Galleon (2)
+                    local function getBossCombatPrio(m: Model): number
+                        local nm = string.lower(m.Name or "")
+                        if isDepthKingBoss(nm) then return 10 end
+                        if isDragonBoss(nm) then return 9 end
+                        if isAbyssalBoss(nm) then return 8 end
+                        if isKrakenBoss(nm) then return 7 end
+                        if isSerpentBoss(nm) then return 6 end -- Serpent ưu tiên cao hơn Cua và Thuyền!
+                        if isCrabBoss(nm) then return 5 end
+                        if string.find(nm, "hydra", 1, true) ~= nil then return 5 end
+                        if string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil then return 5 end
+                        if isSeaEventMiscBoss(nm) or string.find(nm, "galleon", 1, true) ~= nil or string.find(nm, "ghost", 1, true) ~= nil or string.find(nm, "ship", 1, true) ~= nil then
+                            return 2
+                        end
+                        return 4
+                    end
+
                     -- Quét trong SeaMonster, GhostMonster, Monster & Monster.Boss
                     local targetBoss: Model? = nil
+                    local bestBossPrio = -1
                     local bestBossDist = 1e9
                     local folders
                     if currentMode == "solo" or currentMode == "sea3" or (hubState.autoFightSeaEvent ~= false) then
@@ -2011,7 +2032,9 @@
                                 local bRoot = getModelRoot(m)
                                 if bHum and bHum.Health > 0 and bRoot then
                                     local d = (bRoot.Position - hrp.Position).Magnitude
-                                    if d < bestBossDist then
+                                    local prio = getBossCombatPrio(m)
+                                    if prio > bestBossPrio or (prio == bestBossPrio and d < bestBossDist) then
+                                        bestBossPrio = prio
                                         bestBossDist = d
                                         targetBoss = m
                                     end
@@ -2371,22 +2394,22 @@
             return 6
         end
 
-        -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (4 điểm) - CHỈ dành cho Boss Quái Biển Kraken, không nhận nhầm Tàu Kraken Galleon
+        -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (5 điểm) - CHỈ dành cho Boss Quái Biển Kraken, không nhận nhầm Tàu Kraken Galleon
         if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) and string.find(nm, "galleon", 1, true) == nil then
             if hubState.ignoreKraken == true or hubState.fightSea3Kraken ~= true then return 0 end
+            return 5
+        end
+
+        -- Top 5: Rắn Biển / Serpent (Sea 3) - Ưu tiên số 5 (4 điểm) - ĐỘ ƯU TIÊN CAO HƠN CUA VÀ THUYỀN!
+        if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
+            if hubState.fightSea3Serpent ~= true then return 0 end
             return 4
         end
 
-        -- Top 5: Cua Biển Khổng Lồ (Giant Crab Sea 3) - Ưu tiên số 5 (3 điểm)
+        -- Top 6: Cua Biển Khổng Lồ (Giant Crab Sea 3) - Ưu tiên số 6 (3 điểm)
         if string.find(nm, "crab", 1, true) ~= nil then
             if hubState.fightSea3Crab ~= true then return 0 end
             return 3
-        end
-
-        -- Top 6: Rắn Biển / Serpent (Sea 3 & 2) - Ưu tiên số 6 (2 điểm)
-        if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
-            if hubState.fightSea2Serpent ~= true then return 0 end
-            return 2
         end
 
         -- Tuyệt đối không để Depth King, Dragon hoặc Abyssal bị người dùng tắt mà lại lọt qua Top 7
@@ -3052,6 +3075,7 @@
                 or (hubState.fightSea3Dragon ~= false and "dragon")
                 or (hubState.fightSea3Abyssal ~= false and "abyssal")
                 or (hubState.fightSea3Kraken ~= false and "kraken")
+                or (hubState.fightSea3Serpent == true and "serpent")
                 or (hubState.fightSea3Crab ~= false and "crab")
                 or "depth"
             if game.PlaceId ~= SEA3_PLACE then
@@ -3061,8 +3085,8 @@
             end
             pcall(function()
                 genv.AutoDepthKing = (hubState.fightSea3DepthKing ~= false)
-                genv.SeaEvent = (hubState.fightSea3Dragon ~= false or hubState.fightSea3Abyssal ~= false or hubState.fightSea3Kraken ~= false or hubState.fightSea3Crab ~= false or hubState.fightSea3Events == true)
-                genv.Serpent = (hubState.fightSea2Serpent ~= false)
+                genv.SeaEvent = (hubState.fightSea3Dragon ~= false or hubState.fightSea3Abyssal ~= false or hubState.fightSea3Kraken ~= false or hubState.fightSea3Serpent == true or hubState.fightSea3Crab ~= false or hubState.fightSea3Events == true)
+                genv.Serpent = (hubState.fightSea3Serpent == true or hubState.fightSea2Serpent ~= false)
                 genv.utienSeaEvent = true
                 genv.autoskillsea = true
                 genv.autoskhdhop = false
@@ -3430,51 +3454,129 @@ end)
 
 
     -- ========================================================
-    -- [HELPER GOM QUÁI CẢ ĐẢO VỀ VỊ TRÍ NHÂN VẬT (FAST MOB BRING)]
+    -- [HELPER GOM QUÁI CẢ ĐẢO VỀ VỊ TRÍ NHÂN VẬT (FAST MOB BRING V3 - KHÓA TỤ SIÊU CHẶT)]
     -- ========================================================
     local function getBringRangeStuds(): number
         return math.clamp(tonumber(hubState.mobBringRange or genv.MobBringRange) or 800, 100, 1200)
     end
 
     local lastGlobalBringClock = 0
+    local lastSimRadiusClock = 0
     local mobLastBrought: { [Model]: number } = {}
+    local mobSlotMap: { [Model]: number } = {}
+    local nextMobSlot = 0
+
+    local function expandSimulationRadius()
+        local now = os.clock()
+        if (now - lastSimRadiusClock) < 0.5 then return end
+        lastSimRadiusClock = now
+        pcall(function()
+            local setSim = (setsimulationradius :: any) or genv.setsimulationradius
+            if typeof(setSim) == "function" then
+                pcall(setSim, 1e9, 1e9)
+            end
+            local setHid = (sethiddenproperty :: any) or genv.sethiddenproperty
+            if typeof(setHid) == "function" then
+                pcall(setHid, player, "SimulationRadius", 1e9)
+                pcall(setHid, player, "MaxSimulationRadius", 1e9)
+            end
+        end)
+    end
+
+    local function freezeMobPhysics(mob: Model, root: BasePart, hum: Humanoid)
+        pcall(function()
+            hum.WalkSpeed = 0
+            hum.JumpPower = 0
+            hum.AutoRotate = false
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+            if not mob:GetAttribute("YokaNoCollide") then
+                mob:SetAttribute("YokaNoCollide", true)
+                for _, p in ipairs(mob:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        p.CanCollide = false
+                    end
+                end
+            else
+                root.CanCollide = false
+                local hb = mob:FindFirstChild("Hitbox")
+                if hb and hb:IsA("BasePart") then
+                    hb.CanCollide = false
+                end
+            end
+        end)
+    end
 
     local function bringMobsToPosition(anchorPos: Vector3, maxRange: number, maxCount: number, filterName: string?, includeDungeon: boolean?, excludeMob: Model?)
         local now = os.clock()
-        if (now - lastGlobalBringClock) < 0.8 then
+        if (now - lastGlobalBringClock) < 0.12 then
             return
         end
         lastGlobalBringClock = now
+
+        expandSimulationRadius()
+
+        -- Khóa đứng yên cả quái mục tiêu chính (nếu là quái thường) để tâm gom không bị chạy lung tung
+        if excludeMob and excludeMob.Parent and not isBossModel(excludeMob) then
+            local exRoot = getModelRoot(excludeMob)
+            local exHum = excludeMob:FindFirstChildOfClass("Humanoid")
+            if exRoot and exHum and exHum.Health > 0 then
+                freezeMobPhysics(excludeMob, exRoot, exHum)
+            end
+        end
+
+        local filterBase = nil
+        if filterName and filterName ~= "" then
+            filterBase = string.lower(string.gsub(string.match(filterName, "^(.-)%s*%[") or filterName, "%s+$", ""))
+        end
 
         local mobFolders = getAliveMobFolders(false, false, includeDungeon == true)
         local brought = 0
         for _, fld in ipairs(mobFolders) do
             for _, otherMob in ipairs(fld:GetChildren()) do
                 if brought >= maxCount then break end
-                -- Tuyệt đối không can thiệp quái mục tiêu chính đang bị player trực tiếp đánh
-                if otherMob:IsA("Model") and otherMob ~= excludeMob and (not filterName or otherMob.Name == filterName) then
-                    local oRoot = getModelRoot(otherMob)
-                    local oHum = otherMob:FindFirstChildOfClass("Humanoid")
-                    if oRoot and oHum and oHum.Health > 0 then
-                        local dist = (oRoot.Position - anchorPos).Magnitude
-                        -- CHỈ GOM KHI QUÁI Ở XA (> 22 studs) - Tránh giật CFrame liên tục làm mất hit/mất sát thương
-                        if dist > 22 and dist <= maxRange then
-                            local lastB = mobLastBrought[otherMob] or 0
-                            if (now - lastB) >= 3.0 then
-                                mobLastBrought[otherMob] = now
-                                pcall(function()
-                                    for _, p in ipairs(otherMob:GetChildren()) do
-                                        if p:IsA("BasePart") then
-                                            p.CanCollide = false
-                                            p.AssemblyLinearVelocity = Vector3.zero
-                                            p.AssemblyAngularVelocity = Vector3.zero
+                if otherMob:IsA("Model") and otherMob ~= excludeMob and not isBossModel(otherMob) then
+                    local nameMatch = true
+                    if filterName and otherMob.Name ~= filterName then
+                        if filterBase and #filterBase >= 3 then
+                            nameMatch = string.find(string.lower(otherMob.Name), filterBase, 1, true) ~= nil
+                        else
+                            nameMatch = false
+                        end
+                    end
+                    if nameMatch then
+                        local oRoot = getModelRoot(otherMob)
+                        local oHum = otherMob:FindFirstChildOfClass("Humanoid")
+                        if oRoot and oHum and oHum.Health > 0 then
+                            local dist = (oRoot.Position - anchorPos).Magnitude
+                            if dist <= maxRange then
+                                freezeMobPhysics(otherMob, oRoot, oHum)
+                                -- Nếu quái nằm ngoài vùng tụ 3.8 studs thì kéo ngay vào sát tâm (1.2 - 2.1 studs) để 100% M1 & Skill đều trúng
+                                -- Khi đã ở trong vùng <= 3.8 studs thì giữ nguyên CFrame (đã khóa WalkSpeed=0) để không giật làm mất hit
+                                if dist > 3.8 then
+                                    local lastB = mobLastBrought[otherMob] or 0
+                                    if (now - lastB) >= 0.18 then
+                                        mobLastBrought[otherMob] = now
+                                        local slot = mobSlotMap[otherMob]
+                                        if not slot then
+                                            nextMobSlot = (nextMobSlot % 12) + 1
+                                            slot = nextMobSlot
+                                            mobSlotMap[otherMob] = slot
                                         end
+                                        local angle = (slot / 12) * math.pi * 2
+                                        local rad = 1.2 + (slot % 3) * 0.45
+                                        local targetPos = Vector3.new(
+                                            anchorPos.X + math.cos(angle) * rad,
+                                            anchorPos.Y,
+                                            anchorPos.Z + math.sin(angle) * rad
+                                        )
+                                        pcall(function()
+                                            oRoot.CFrame = CFrame.new(targetPos)
+                                            oRoot.AssemblyLinearVelocity = Vector3.zero
+                                            oRoot.AssemblyAngularVelocity = Vector3.zero
+                                        end)
                                     end
-                                    local angle = math.random() * math.pi * 2
-                                    local rad = math.random(4, 9)
-                                    local targetPos = Vector3.new(anchorPos.X + math.cos(angle) * rad, anchorPos.Y, anchorPos.Z + math.sin(angle) * rad)
-                                    oRoot.CFrame = CFrame.new(targetPos)
-                                end)
+                                end
                                 brought += 1
                             end
                         end
@@ -3485,11 +3587,11 @@ end)
         end
     end
 
-    -- Luồng độc lập giữ quái gom chặt tại vị trí nhân vật (chỉ chạy khi đứng đánh tự do, không can thiệp vào vòng farm/boss)
+    -- Luồng độc lập giữ quái gom chặt tại vị trí nhân vật khi đứng đánh tự do (ngoài các chế độ Auto Farm)
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(1.0)
-            if hubState.fastMobBring ~= false and not hubState.autoFish and os.clock() >= dodgeUntilClock then
+            task.wait(0.16)
+            if (hubState.fastMobBring ~= false or genv.autocat) and not hubState.autoFish and os.clock() >= dodgeUntilClock then
                 pcall(function()
                     local char = player.Character
                     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -3506,13 +3608,35 @@ end)
                         return
                     end
 
-                    -- Đứng đánh tay tự do: CHỈ hút quái khi người dùng đang bật ít nhất 1 Auto M1
-                    if #getActiveM1Categories() == 0 then return end
-                    local look = hrp.CFrame.LookVector
-                    local flatLook = Vector3.new(look.X, 0, look.Z)
-                    if flatLook.Magnitude < 0.1 then flatLook = Vector3.new(0, 0, -1) else flatLook = flatLook.Unit end
-                    local frontAnchor = hrp.Position + flatLook * 8
-                    bringMobsToPosition(frontAnchor, getBringRangeStuds(), 25, nil, false, nil)
+                    -- Tìm quái thường gần nhất trong bán kính 95 studs để làm tâm gom khi đánh tự do
+                    local anchorMob: Model? = nil
+                    local anchorRoot: BasePart? = nil
+                    local bestD = 95
+                    for _, fld in ipairs(getAliveMobFolders(false, false, false)) do
+                        for _, m in ipairs(fld:GetChildren()) do
+                            if m:IsA("Model") and not isBossModel(m) then
+                                local r = getModelRoot(m)
+                                local h = m:FindFirstChildOfClass("Humanoid")
+                                if r and h and h.Health > 0 then
+                                    local d = (r.Position - hrp.Position).Magnitude
+                                    if d < bestD then
+                                        bestD = d
+                                        anchorMob = m
+                                        anchorRoot = r
+                                    end
+                                end
+                            end
+                        end
+                    end
+
+                    local hasToolEquipped = char:FindFirstChildOfClass("Tool") ~= nil
+                    local hasAutoCombat = (#getActiveM1Categories() > 0) or (hubState.autoSkills == true)
+                    if not anchorMob or not anchorRoot or (not hasToolEquipped and not hasAutoCombat) then
+                        return
+                    end
+
+                    local bringAnchor = (bestD <= 18) and anchorRoot.Position or (hrp.Position + hrp.CFrame.LookVector * 6.5)
+                    bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, anchorMob.Name, false, anchorMob)
                 end)
             end
         end
@@ -3875,10 +3999,7 @@ end)
 
                             -- Gom quái (chỉ gom khi là quái thường, không gom quái khi mục tiêu chính là Boss)
                             if not isBoss and (hubState.fastMobBring ~= false or genv.autocat) and (questAmount == nil or questAmount > 1) then
-                                local bringAnchor = ((hrp.Position - hoverPos).Magnitude <= 35)
-                                    and Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
-                                    or mRoot.Position
-                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, targetMob.Name, false, targetMob)
+                                bringMobsToPosition(mRoot.Position, getBringRangeStuds(), 25, targetMob.Name, false, targetMob)
                             end
 
                             local distToHover = (hrp.Position - hoverPos).Magnitude
@@ -4062,8 +4183,7 @@ end)
 
                             -- Gom quái (chỉ gom khi là quái thường, không gom quái khi mục tiêu chính là Boss)
                             if not isBoss and (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 35 then
-                                local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
-                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, targetMob.Name, false, targetMob)
+                                bringMobsToPosition(mRoot.Position, getBringRangeStuds(), 25, targetMob.Name, false, targetMob)
                             end
 
                             local distToHover = (hrp.Position - hoverPos).Magnitude
@@ -4251,9 +4371,8 @@ end)
 
                             -- Tụ quái diện rộng (Dungeon Mob Bring - chỉ gom khi là quái thường, không gom quái khi gặp Boss Wave)
                             if not isBoss and (hubState.dungeonMobBring ~= false or hubState.fastMobBring ~= false) and (hrp.Position - hoverPos).Magnitude <= 45 then
-                                local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
                                 local bRange = tonumber(hubState.dungeonBringRange) or 600
-                                bringMobsToPosition(bringAnchor, bRange, 30, nil, true, targetMob)
+                                bringMobsToPosition(mRoot.Position, bRange, 30, nil, true, targetMob)
                             end
 
                             -- Khóa Camera
