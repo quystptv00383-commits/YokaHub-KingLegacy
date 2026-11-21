@@ -177,8 +177,7 @@
     local klMaterialList: { [string]: any } = {}
     local klCollectibleList: { [string]: any } = {}
     pcall(function()
-        local rs = game:GetService("ReplicatedStorage")
-        local chest = rs:FindFirstChild("Chest")
+        local chest = sharedRS:FindFirstChild("Chest")
         local mods = chest and chest:FindFirstChild("Modules")
         if not mods then return end
         local function tryReq(modName: string): any

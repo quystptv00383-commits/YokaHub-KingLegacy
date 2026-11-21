@@ -285,6 +285,7 @@
         Name = "❌ Tắt hoàn toàn YokaHub",
         Callback = function()
             hubState.mode = "off"
+            hubState.blackScreen = false
             saveState(hubState)
             genv._DisableWatchdog = true
             genv._YokaHubToken = -1
@@ -293,6 +294,7 @@
             genv._AutoSea2PriorityApiHop = false
             genv._AutoDepthKingOnlyApiHop = false
             pcall(function()
+                genv.BlackScreen = false
                 genv.AutoHop = false
                 genv.HopDepthKing = false
                 genv.HopDepthKingApi = false
@@ -301,9 +303,10 @@
                 genv.hopSerpentApi = false
             end)
             dmgEnabled = false
-            clearDmgWatchers()
+            if clearDmgWatchers then clearDmgWatchers() end
             for _, c in ipairs(activeConns) do pcall(function() c:Disconnect() end) end
             purgeLunaBlur()
+            pcall(function() runService:Set3dRenderingEnabled(true) end)
             pcall(function() dockGui:Destroy() end)
             pcall(function() Luna:Destroy() end)
             genv._YokaHubLuna = nil

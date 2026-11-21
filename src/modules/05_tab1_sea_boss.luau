@@ -20,110 +20,49 @@
         return 0
     end
 
-    local function getSea3Prio(e: any): number
-        local src = string.lower(tostring(e.source or ""))
-        local nm = string.lower(tostring(e.eventName or ""))
-        local phase = string.lower(tostring(e.phase or e.status or e.state or ""))
-        if phase == "inactive" or phase == "dead" or phase == "cooldown" or phase == "waiting" or phase == "none" then
-            return 0
+    local function getEntryHpPercent(e: any): number
+        if typeof(e) ~= "table" or typeof(e.health) ~= "table" then return 100 end
+        local pct = tonumber(e.health.percent)
+        if pct == nil then
+            local cur = tonumber(e.health.current)
+            local mx = tonumber(e.health.max)
+            if cur ~= nil and mx ~= nil and mx > 0 then
+                pct = (cur / mx) * 100
+            end
         end
-
-        -- CHẶN TRIỆT ĐỂ BỎ QUA GALLEON (BAO GỒM KRAKEN GALLEON) & KRAKEN THẬT (QUÁI BIỂN)
-        if hubState.ignoreGalleon == true and (string.find(nm, "galleon", 1, true) ~= nil or string.find(src, "galleon", 1, true) ~= nil) then
-            return 0
-        end
-        if hubState.ignoreKraken == true and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil or string.find(src, "kraken", 1, true) ~= nil)
-           and string.find(nm, "galleon", 1, true) == nil and string.find(src, "galleon", 1, true) == nil then
-            return 0
-        end
-
-        -- Nhận diện chính xác theo tên Boss (eventName) trước để không bị trùng khi source = "depth_king"
-        local isDragonMatch = (string.find(nm, "drakenfyr", 1, true) ~= nil
-            or string.find(nm, "inferno king", 1, true) ~= nil
-            or string.find(nm, "sea dragon", 1, true) ~= nil
-            or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil))
-            and string.find(nm, "abyssal", 1, true) == nil
-            and string.find(nm, "tyrant", 1, true) == nil
-            and string.find(nm, "depth", 1, true) == nil
-
-        local isAbyssalMatch = (string.find(nm, "abyssal", 1, true) ~= nil
-            or string.find(nm, "tyrant", 1, true) ~= nil
-            or src == "abyssal" or src == "tyrant")
-            and string.find(nm, "swordsman", 1, true) == nil
-            and not isDragonMatch
-
-        local isDepthKingMatch = (not isDragonMatch and not isAbyssalMatch)
-            and (string.find(nm, "depth king", 1, true) ~= nil
-                or nm == "depthking"
-                or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)
-                or (src == "depth_king" and string.find(nm, "kraken", 1, true) == nil and string.find(nm, "serpent", 1, true) == nil and string.find(nm, "crab", 1, true) == nil and string.find(nm, "galleon", 1, true) == nil))
-
-        -- Top 1: Depth King (Sea 3) - Ưu tiên cao nhất (10 điểm)
-        if isDepthKingMatch then
-            if hubState.fightSea3DepthKing ~= true then return 0 end
-            return 10
-        end
-
-        -- Top 2: Drakenfyr the Inferno King / Dragon / Sea Dragon (Sea 3) - Ưu tiên số 2 (8 điểm)
-        if isDragonMatch then
-            if hubState.fightSea3Dragon ~= true then return 0 end
-            return 8
-        end
-
-        -- Top 3: Abyssal Tyrant (Sea 3) - Ưu tiên số 3 (6 điểm)
-        if isAbyssalMatch then
-            if hubState.fightSea3Abyssal ~= true then return 0 end
-            return 6
-        end
-
-        -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (5 điểm) - CHỈ dành cho Boss Quái Biển Kraken, không nhận nhầm Tàu Kraken Galleon
-        if (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) and string.find(nm, "galleon", 1, true) == nil then
-            if hubState.ignoreKraken == true or hubState.fightSea3Kraken ~= true then return 0 end
-            return 5
-        end
-
-        -- Top 5: Rắn Biển / Serpent (Sea 3) - Ưu tiên số 5 (4 điểm) - ĐỘ ƯU TIÊN CAO HƠN CUA VÀ THUYỀN!
-        if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
-            if hubState.fightSea3Serpent ~= true then return 0 end
-            return 4
-        end
-
-        -- Top 6: Cua Biển Khổng Lồ (Giant Crab Sea 3) - Ưu tiên số 6 (3 điểm)
-        if string.find(nm, "crab", 1, true) ~= nil then
-            if hubState.fightSea3Crab ~= true then return 0 end
-            return 3
-        end
-
-        -- Top 7: Sea Events Thường & Tàu Galleon Boss (1 điểm - CHỈ khi người dùng bật toggle Sea Event Thường)
-        if src == "sea_event" or src == "ship_ability" or string.find(nm, "sea beast", 1, true) ~= nil or string.find(nm, "galleon", 1, true) ~= nil then
-            if string.find(nm, "galleon", 1, true) ~= nil and hubState.ignoreGalleon == true then return 0 end
-            if hubState.fightSea3Events ~= true then return 0 end
-            return 1
-        end
-
-        return 0
+        if pct == nil or pct ~= pct then return 100 end
+        return math.clamp(pct, 0, 100)
     end
 
-    local function getSea2Prio(e: any): number
-        local src = string.lower(tostring(e.source or ""))
-        local nm = string.lower(tostring(e.eventName or ""))
-        if (src == "sk_hd_chest" and string.find(nm, "hydra", 1, true) ~= nil) or src == "hydra" or string.find(nm, "hydra", 1, true) ~= nil then
-            if hubState.fightSea2Hydra ~= true then return 0 end
-            return src == "sk_hd_chest" and 7 or 6
+    -- Lấy snapshot Live Boss API có TIMEOUT (API treo / mạng chậm không bao giờ làm kẹt luồng Hop)
+    genv.YokaFetchBossSnapshot = function(timeoutSec: number?): (boolean, any)
+        local fn = genv.WK_FetchLiveBossApiSnapshot
+        if typeof(fn) ~= "function" then return false, nil end
+        local limit = tonumber(timeoutSec) or 5.5
+        local finished, okCall, result = false, false, nil
+        task.spawn(function()
+            local o, r = pcall(fn)
+            okCall, result, finished = o, r, true
+        end)
+        local waited = 0
+        while not finished and waited < limit do
+            task.wait(0.05)
+            waited += 0.05
         end
-        if (src == "sk_hd_chest" and (string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil)) or src == "sea_king" or string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil then
-            if hubState.fightSea2SeaKing ~= true then return 0 end
-            return src == "sk_hd_chest" and 5 or 4
+        if not finished then return false, nil end
+        if okCall and typeof(result) == "table" and typeof(result.entries) == "table" then
+            return true, result
         end
-        if src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil then
-            if hubState.fightSea2Serpent ~= true then return 0 end
-            return 3
-        end
-        if string.find(src, "ghost", 1, true) ~= nil or string.find(nm, "ghost", 1, true) ~= nil then
-            if hubState.fightSea2GhostShip ~= true then return 0 end
-            return string.find(nm, "chest", 1, true) ~= nil and 2 or 1
-        end
-        return 0
+        return false, nil
+    end
+
+    local function isCurrentServerEntry(e: any): boolean
+        if typeof(e) ~= "table" or game.JobId == "" then return false end
+        local j1 = tostring(e.jobId or "")
+        local j2 = tostring(e.serverId or "")
+        local j3 = tostring(e.serverRef or "")
+        local j4 = tostring(e.id or "")
+        return j1 == game.JobId or j2 == game.JobId or j3 == game.JobId or j4 == game.JobId
     end
 
     -- ========================================================
@@ -152,15 +91,65 @@
     local MasterAutoFightToggle: any = nil
     local bossToggles: { [string]: any } = {}
 
+    -- Bộ điều khiển trung tâm Tab 1 (gom vào 1 bảng để không tốn thanh ghi local của Luau)
+    local BossCtl: any = {
+        sea3Keys = { "fightSea3DepthKing", "fightSea3Dragon", "fightSea3Abyssal", "fightSea3Kraken", "fightSea3Serpent", "fightSea3Crab", "fightSea3Events" },
+        sea2Keys = { "fightSea2Hydra", "fightSea2SeaKing", "fightSea2GhostShip", "fightSea2Serpent" },
+        islandReady = false,
+        randomBusy = false,
+        snipeBusy = false,
+    }
+
+    -- Chạy khối cập nhật UI đồng bộ: LUÔN trả cờ syncing về như cũ dù có lỗi (không bao giờ kẹt công tắc)
+    function BossCtl.withSync(fn: () -> ())
+        local prev = syncingBossToggles
+        syncingBossToggles = true
+        local ok, err = pcall(fn)
+        syncingBossToggles = prev
+        if not ok then warn("[YokaHub][Tab1] Lỗi đồng bộ công tắc:", tostring(err)) end
+    end
+
+    function BossCtl.setGroup(prefix: string, keys: { string }, value: boolean)
+        BossCtl.withSync(function()
+            for _, k in ipairs(keys) do
+                (hubState :: any)[k] = value
+            end
+            for tk, tog in pairs(bossToggles) do
+                if string.sub(tk, 1, 4) == prefix and tog and typeof(tog.Set) == "function" then
+                    pcall(function() tog:Set({ CurrentValue = value }) end)
+                end
+            end
+        end)
+    end
+
+    function BossCtl.stopAll(notifyUser: boolean)
+        BossCtl.withSync(function()
+            for _, k in ipairs(BossCtl.sea3Keys) do (hubState :: any)[k] = false end
+            for _, k in ipairs(BossCtl.sea2Keys) do (hubState :: any)[k] = false end
+            for _, tog in pairs(bossToggles) do
+                if tog and typeof(tog.Set) == "function" then
+                    pcall(function() tog:Set({ CurrentValue = false }) end)
+                end
+            end
+            if Sea3Toggle and typeof(Sea3Toggle.Set) == "function" then
+                pcall(function() Sea3Toggle:Set({ CurrentValue = false }) end)
+            end
+            if Sea2Toggle and typeof(Sea2Toggle.Set) == "function" then
+                pcall(function() Sea2Toggle:Set({ CurrentValue = false }) end)
+            end
+        end)
+        BossCtl.apply("off", notifyUser)
+    end
+
     local function getActiveBossSummary(): (string, string)
         if currentMode == "sea3" then
             local names: { string } = {}
             if hubState.fightSea3DepthKing then table.insert(names, "Depth King") end
-            if hubState.fightSea3Dragon then table.insert(names, "Drakenfyr") end
-            if hubState.fightSea3Abyssal then table.insert(names, "Abyssal") end
+            if hubState.fightSea3Dragon then table.insert(names, "Dragon") end
+            if hubState.fightSea3Abyssal then table.insert(names, "Sea Dragon / Abyssal") end
             if hubState.fightSea3Kraken then table.insert(names, "Kraken") end
-            if hubState.fightSea3Serpent then table.insert(names, "Serpent") end
-            if hubState.fightSea3Crab then table.insert(names, "Cua") end
+            if hubState.fightSea3Serpent then table.insert(names, "Sea Serpent") end
+            if hubState.fightSea3Crab then table.insert(names, "Crab") end
             if hubState.fightSea3Events then table.insert(names, "Sea Events") end
             if #names == 7 then
                 return "Sea 3 (Tất cả)", "Đang tự động tìm phòng có bất kỳ Boss nào ở Sea 3..."
@@ -215,7 +204,7 @@
         end
     end)
 
-    local function applyMode(newMode: string, notifyUser: boolean)
+    function BossCtl.applyInner(newMode: string, notifyUser: boolean)
         -- Khử xung đột: Khi chuyển sang Săn Boss, tự động bật Master Auto Fight và tắt các chế độ cày cục bộ
         if newMode ~= "off" then
             hubState.autoFightMaster = true
@@ -262,7 +251,12 @@
                 safeNotify("YokaHub", "Đã bật Auto Hop: " .. summary, "public")
             end
         elseif newMode == "sea2" then
-            if not ensureCorrectSea(SEA2_PLACE, "Boss Sea 2", "Săn Boss", "hydra") then
+            local preferSea2Boss = (hubState.fightSea2Hydra == true and "hydra")
+                or (hubState.fightSea2SeaKing == true and "sea king")
+                or (hubState.fightSea2Serpent == true and "serpent")
+                or (hubState.fightSea2GhostShip == true and "ghost")
+                or "hydra"
+            if not ensureCorrectSea(SEA2_PLACE, "Boss Sea 2", "Săn Boss", preferSea2Boss) then
                 setStatus("Đang tự động chuyển sang Sea 2 để săn Boss & Rương...", true)
                 return
             end
@@ -301,7 +295,17 @@
         end
     end
 
-    local function recalcHopMode(notifyUser: boolean)
+    -- Bản bọc an toàn: lỗi bất kỳ trong quá trình đổi chế độ không bao giờ làm chết luồng gọi (công tắc / phím tắt / Hop)
+    local function applyMode(newMode: string, notifyUser: boolean)
+        local ok, err = pcall(BossCtl.applyInner, newMode, notifyUser)
+        if not ok then
+            warn("[YokaHub][Tab1] Lỗi applyMode:", tostring(err))
+            currentMode = newMode
+            hubState.mode = newMode
+        end
+    end
+
+    local function recalcHopMode(notifyUser: boolean, preferMode: string?)
         local anySea3 = (hubState.fightSea3DepthKing == true)
             or (hubState.fightSea3Dragon == true)
             or (hubState.fightSea3Abyssal == true)
@@ -330,7 +334,13 @@
 
         local newMode = "off"
         if anySea3 and anySea2 then
-            newMode = (game.PlaceId == SEA2_PLACE) and "sea2" or "sea3"
+            if preferMode == "sea3" or preferMode == "sea2" then
+                newMode = preferMode
+            elseif currentMode == "sea3" or currentMode == "sea2" then
+                newMode = currentMode
+            else
+                newMode = (game.PlaceId == SEA2_PLACE) and "sea2" or "sea3"
+            end
         elseif anySea3 then
             newMode = "sea3"
         elseif anySea2 then
@@ -341,112 +351,68 @@
 
         applyMode(newMode, notifyUser)
 
-        syncingBossToggles = true
-        if Sea3Toggle and typeof(Sea3Toggle.Set) == "function" then
-            pcall(function() Sea3Toggle:Set({ CurrentValue = allSea3 }) end)
-        end
-        if Sea2Toggle and typeof(Sea2Toggle.Set) == "function" then
-            pcall(function() Sea2Toggle:Set({ CurrentValue = allSea2 }) end)
-        end
-        syncingBossToggles = false
+        BossCtl.withSync(function()
+            if Sea3Toggle and typeof(Sea3Toggle.Set) == "function" then
+                pcall(function() Sea3Toggle:Set({ CurrentValue = allSea3 }) end)
+            end
+            if Sea2Toggle and typeof(Sea2Toggle.Set) == "function" then
+                pcall(function() Sea2Toggle:Set({ CurrentValue = allSea2 }) end)
+            end
+        end)
     end
 
+    BossCtl.apply = applyMode
+    BossCtl.recalc = recalcHopMode
+
     genv.SetKingAutoHopMode = function(m: string) applyMode(m, false) end
+    genv.YokaStopAllBossHop = function(notifyUser: boolean?) BossCtl.stopAll(notifyUser == true) end
     genv.SetAutoDepthKingHopEnabled = function(on: boolean)
-        syncingBossToggles = true
-        hubState.fightSea3DepthKing = on
+        BossCtl.setGroup("Sea3", BossCtl.sea3Keys, false)
         if on then
-            hubState.fightSea3Dragon = false
-            hubState.fightSea3Abyssal = false
-            hubState.fightSea3Kraken = false
-            hubState.fightSea3Serpent = false
-            hubState.fightSea3Crab = false
-            hubState.fightSea3Events = false
+            BossCtl.withSync(function()
+                hubState.fightSea3DepthKing = true
+                local t = bossToggles.Sea3DepthKing
+                if t and typeof(t.Set) == "function" then
+                    pcall(function() t:Set({ CurrentValue = true }) end)
+                end
+            end)
         end
-        for k, tog in pairs(bossToggles) do
-            if string.sub(k, 1, 4) == "Sea3" and tog and typeof(tog.Set) == "function" then
-                pcall(function() tog:Set({ CurrentValue = (k == "Sea3DepthKing" and on or false) }) end)
-            end
-        end
-        syncingBossToggles = false
         recalcHopMode(false)
     end
     genv.SetAutoHopEnabled = function(on: boolean)
-        syncingBossToggles = true
-        hubState.fightSea3DepthKing = on
-        hubState.fightSea3Dragon = on
-        hubState.fightSea3Abyssal = on
-        hubState.fightSea3Kraken = on
-        hubState.fightSea3Serpent = on
-        hubState.fightSea3Crab = on
-        hubState.fightSea3Events = on
-        for k, tog in pairs(bossToggles) do
-            if string.sub(k, 1, 4) == "Sea3" and tog and typeof(tog.Set) == "function" then
-                pcall(function() tog:Set({ CurrentValue = on }) end)
-            end
-        end
-        syncingBossToggles = false
+        BossCtl.setGroup("Sea3", BossCtl.sea3Keys, on == true)
         recalcHopMode(false)
     end
     genv.SetAutoSea2HopEnabled = function(on: boolean)
-        syncingBossToggles = true
-        hubState.fightSea2Hydra = on
-        hubState.fightSea2SeaKing = on
-        hubState.fightSea2GhostShip = on
-        hubState.fightSea2Serpent = on
-        for k, tog in pairs(bossToggles) do
-            if string.sub(k, 1, 4) == "Sea2" and tog and typeof(tog.Set) == "function" then
-                pcall(function() tog:Set({ CurrentValue = on }) end)
-            end
-        end
-        syncingBossToggles = false
+        BossCtl.setGroup("Sea2", BossCtl.sea2Keys, on == true)
         recalcHopMode(false)
     end
 
     Sea3Toggle = StatusSection:CreateToggle({
         Name = "🐉 Bật / Tắt toàn bộ Boss Sea 3 (Phím F8)",
-        Description = "Ưu tiên: Depth King (Top 1) → Drakenfyr (Top 2) → Abyssal (Top 3) → Kraken → Serpent → Cua → Events",
-        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3DepthKing and hubState.fightSea3Dragon and hubState.fightSea3Abyssal and hubState.fightSea3Kraken and hubState.fightSea3Serpent and hubState.fightSea3Crab and hubState.fightSea3Events),
+        Description = "Ưu tiên: Depth King (Top 1) → Dragon (Top 2) → Sea Dragon / Abyssal (Top 3) → Kraken → Sea Serpent → Crab → Sea Events",
+        CurrentValue = (hubState.mode == "sea3" and hubState.fightSea3DepthKing == true and hubState.fightSea3Dragon == true and hubState.fightSea3Abyssal == true and hubState.fightSea3Kraken == true and hubState.fightSea3Serpent == true and hubState.fightSea3Crab == true and hubState.fightSea3Events == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            syncingBossToggles = true
-            hubState.fightSea3DepthKing = Value
-            hubState.fightSea3Dragon = Value
-            hubState.fightSea3Abyssal = Value
-            hubState.fightSea3Kraken = Value
-            hubState.fightSea3Serpent = Value
-            hubState.fightSea3Crab = Value
-            hubState.fightSea3Events = Value
-            for k, tog in pairs(bossToggles) do
-                if string.sub(k, 1, 4) == "Sea3" and tog and typeof(tog.Set) == "function" then
-                    pcall(function() tog:Set({ CurrentValue = Value }) end)
-                end
-            end
-            syncingBossToggles = false
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea2", BossCtl.sea2Keys, false) end
+            BossCtl.setGroup("Sea3", BossCtl.sea3Keys, on)
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea3" or nil)
         end,
     }, "AutoHopSea3")
 
     Sea2Toggle = StatusSection:CreateToggle({
         Name = "🐍 Bật / Tắt toàn bộ Boss Sea 2 (Phím F9)",
         Description = "Ưu tiên: Rương Hydra → Hydra → Sea King → Serpent → Tàu Ma",
-        CurrentValue = (hubState.mode == "sea2" and hubState.fightSea2Hydra and hubState.fightSea2SeaKing and hubState.fightSea2GhostShip and hubState.fightSea2Serpent),
+        CurrentValue = (hubState.mode == "sea2" and hubState.fightSea2Hydra == true and hubState.fightSea2SeaKing == true and hubState.fightSea2GhostShip == true and hubState.fightSea2Serpent == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            syncingBossToggles = true
-            hubState.fightSea2Hydra = Value
-            hubState.fightSea2SeaKing = Value
-            hubState.fightSea2GhostShip = Value
-            hubState.fightSea2Serpent = Value
-            for k, tog in pairs(bossToggles) do
-                if string.sub(k, 1, 4) == "Sea2" and tog and typeof(tog.Set) == "function" then
-                    pcall(function() tog:Set({ CurrentValue = Value }) end)
-                end
-            end
-            syncingBossToggles = false
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea3", BossCtl.sea3Keys, false) end
+            BossCtl.setGroup("Sea2", BossCtl.sea2Keys, on)
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea2" or nil)
         end,
     }, "AutoHopSea2")
 
@@ -454,51 +420,28 @@
         Name = "⛔ Dừng toàn bộ Auto Hop (Đứng yên tại phòng)",
         Description = "Tắt tức thì mọi chế độ nhảy phòng và dừng săn Boss",
         Callback = function()
-            syncingBossToggles = true
-            hubState.fightSea3DepthKing = false
-            hubState.fightSea3Dragon = false
-            hubState.fightSea3Abyssal = false
-            hubState.fightSea3Kraken = false
-            hubState.fightSea3Serpent = false
-            hubState.fightSea3Crab = false
-            hubState.fightSea3Events = false
-            hubState.fightSea2Hydra = false
-            hubState.fightSea2SeaKing = false
-            hubState.fightSea2GhostShip = false
-            hubState.fightSea2Serpent = false
-            for _, tog in pairs(bossToggles) do
-                if tog and typeof(tog.Set) == "function" then
-                    pcall(function() tog:Set({ CurrentValue = false }) end)
-                end
-            end
-            if Sea3Toggle and typeof(Sea3Toggle.Set) == "function" then
-                pcall(function() Sea3Toggle:Set({ CurrentValue = false }) end)
-            end
-            if Sea2Toggle and typeof(Sea2Toggle.Set) == "function" then
-                pcall(function() Sea2Toggle:Set({ CurrentValue = false }) end)
-            end
-            syncingBossToggles = false
-            applyMode("off", true)
+            BossCtl.stopAll(true)
         end,
     })
 
     trackConn(userInputService.InputBegan:Connect(function(input: InputObject, gp: boolean)
-        if gp then return end
-        if input.KeyCode == Enum.KeyCode.F8 then
-            local targetVal = (currentMode ~= "sea3")
-            if Sea3Toggle and typeof(Sea3Toggle.Set) == "function" then
-                Sea3Toggle:Set({ CurrentValue = targetVal })
+        if gp or genv._YokaHubToken ~= myToken then return end
+        if input.KeyCode ~= Enum.KeyCode.F8 and input.KeyCode ~= Enum.KeyCode.F9 then return end
+        local okKey, errKey = pcall(function()
+            if input.KeyCode == Enum.KeyCode.F8 then
+                local turnOn = (currentMode ~= "sea3")
+                -- F8 và F9 loại trừ nhau: bật Sea 3 thì tạm tắt nhóm Sea 2 để chế độ không bị kẹt sai Sea
+                if turnOn then BossCtl.setGroup("Sea2", BossCtl.sea2Keys, false) end
+                BossCtl.setGroup("Sea3", BossCtl.sea3Keys, turnOn)
             else
-                applyMode(targetVal and "sea3" or "off", true)
+                local turnOn = (currentMode ~= "sea2")
+                if turnOn then BossCtl.setGroup("Sea3", BossCtl.sea3Keys, false) end
+                BossCtl.setGroup("Sea2", BossCtl.sea2Keys, turnOn)
             end
-        elseif input.KeyCode == Enum.KeyCode.F9 then
-            local targetVal = (currentMode ~= "sea2")
-            if Sea2Toggle and typeof(Sea2Toggle.Set) == "function" then
-                Sea2Toggle:Set({ CurrentValue = targetVal })
-            else
-                applyMode(targetVal and "sea2" or "off", true)
-            end
-        end
+            saveState(hubState)
+            recalcHopMode(true)
+        end)
+        if not okKey then warn("[YokaHub][Tab1] Lỗi phím tắt F8/F9:", tostring(errKey)) end
     end))
 
     -- ========================================================
@@ -511,13 +454,14 @@
         Description = "Tự động bay đến diệt mọi sự kiện biển (Kraken, Hydra, Vua Biển, Tàu Ma, Rắn Biển, Rồng Lửa...), tự xả chiêu và spam M1 theo Tab 3 chuẩn xác, bỏ động tác thừa",
         CurrentValue = (hubState.autoFightSeaEvent ~= false),
         Callback = function(Value: boolean)
-            hubState.autoFightSeaEvent = Value
+            local on = (Value == true)
+            hubState.autoFightSeaEvent = on
             saveState(hubState)
             pcall(function()
-                genv.AutoFightSeaEvent = Value
-                genv.SeaEvent = Value
+                genv.AutoFightSeaEvent = on
+                genv.SeaEvent = on
             end)
-            if Value then
+            if on then
                 safeNotify("YokaHub Sea Event", "Đã bật Tự Động Đánh Sea Event (Xả Skill & M1 theo Tab 3)!", "flash_on")
             else
                 safeNotify("YokaHub Sea Event", "Đã tắt Tự Đánh Sea Event.", "info")
@@ -528,11 +472,12 @@
     MasterAutoFightToggle = MasterFightSection:CreateToggle({
         Name = "⚔️ Tự Động Đánh Boss & Săn Sea Event (Master Auto Fight)",
         Description = "Tự động bay đến diệt Boss biển, né chiêu trên không và tích hợp tự động nhặt rương sự kiện biển (Hydra, Vua Biển, Depth King...)",
-        CurrentValue = hubState.autoFightMaster,
+        CurrentValue = (hubState.autoFightMaster == true),
         Callback = function(Value: boolean)
-            hubState.autoFightMaster = Value
+            local on = (Value == true)
+            hubState.autoFightMaster = on
             saveState(hubState)
-            if Value then
+            if on then
                 safeNotify("YokaHub Boss", "Đã bật Master Auto Fight & Săn Sea Event!", "flash_on")
             else
                 safeNotify("YokaHub Boss", "Đã tắt Auto Fight Boss.", "info")
@@ -545,9 +490,10 @@
         Description = "Tự động bay cao hay thấp chuẩn xác theo từng Boss (Hydra/Abyssal 80m, Depth King/Dragon 75m, Sea King 70m, Râu Đen/Râu Trắng/Hephaestus 36-38m, Lôi Thần/Ace 34-35m, Boss Đảo 28m) né trọn vẹn lốc xoáy & chiêu nộ",
         CurrentValue = (hubState.smartBossHeight ~= false),
         Callback = function(Value: boolean)
-            hubState.smartBossHeight = Value
+            local on = (Value == true)
+            hubState.smartBossHeight = on
             saveState(hubState)
-            if Value then
+            if on then
                 safeNotify("YokaHub Boss", "Đã bật Smart Safe Height (Tự chỉnh độ cao theo Boss)!", "brain")
             else
                 safeNotify("YokaHub Boss", "Đã tắt Smart Height: Dùng độ cao thủ công cố định.", "info")
@@ -561,22 +507,22 @@
         Range = { 10, 150 },
         Increment = 2,
         Suffix = "studs",
-        CurrentValue = hubState.bossSafeHeight or 35,
+        CurrentValue = tonumber(hubState.bossSafeHeight) or 35,
         Callback = function(Value: number)
-            hubState.bossSafeHeight = math.clamp(math.floor(Value), 10, 150)
+            hubState.bossSafeHeight = math.clamp(math.floor(tonumber(Value) or 35), 10, 150)
             saveState(hubState)
         end,
     }, "BossSafeHeightSlider")
 
     MasterFightSection:CreateSlider({
         Name = "⚡ Tốc Độ Quét & Hop Server API",
-        Description = "Thời gian chờ quét lại API khi chưa có phòng trống (Mặc định 4s, siêu nhanh và mượt)",
-        Range = { 2, 10 },
-        Increment = 1,
+        Description = "Thời gian chờ quét lại API khi chưa có phòng trống (Mặc định 1.5s, siêu tốc 0.5s)",
+        Range = { 0.5, 10 },
+        Increment = 0.5,
         Suffix = "giây",
-        CurrentValue = hubState.apiHopInterval or 4,
+        CurrentValue = tonumber(hubState.apiHopInterval) or 1.5,
         Callback = function(Value: number)
-            hubState.apiHopInterval = math.clamp(math.floor(Value), 2, 10)
+            hubState.apiHopInterval = math.clamp(math.floor((tonumber(Value) or 1.5) * 2 + 0.5) / 2, 0.5, 10)
             genv.ApiHopInterval = hubState.apiHopInterval
             saveState(hubState)
         end,
@@ -587,15 +533,16 @@
         Description = "Bỏ qua hoàn toàn Boss Quái Biển Kraken và xúc tu, không bay tới và không tấn công để tập trung săn các Boss lớn khác",
         CurrentValue = (hubState.ignoreKraken == true),
         Callback = function(Value: boolean)
-            hubState.ignoreKraken = Value
+            local on = (Value == true)
+            hubState.ignoreKraken = on
             saveState(hubState)
             pcall(function()
-                genv.IgnoreKraken = Value
-                if Value and typeof(genv._YokaClearCombatTargetIfMatches) == "function" then
+                genv.IgnoreKraken = on
+                if on and typeof(genv._YokaClearCombatTargetIfMatches) == "function" then
                     genv._YokaClearCombatTargetIfMatches("kraken", "tentacle", "galleon")
                 end
             end)
-            if Value then
+            if on then
                 safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Boss Quái Biển Kraken & Xúc tu!", "block")
             else
                 safeNotify("YokaHub Boss", "Đã tắt: Cho phép đánh lại Kraken.", "check")
@@ -608,21 +555,30 @@
         Description = "Bỏ qua hoàn toàn tất cả các loại Boss Thuyền Galleon (Ghost Galleon, Kraken Galleon...), không bắn phá tàu để tiết kiệm thời gian",
         CurrentValue = (hubState.ignoreGalleon == true),
         Callback = function(Value: boolean)
-            hubState.ignoreGalleon = Value
+            local on = (Value == true)
+            hubState.ignoreGalleon = on
             saveState(hubState)
             pcall(function()
-                genv.IgnoreGalleon = Value
-                if Value and typeof(genv._YokaClearCombatTargetIfMatches) == "function" then
+                genv.IgnoreGalleon = on
+                if on and typeof(genv._YokaClearCombatTargetIfMatches) == "function" then
                     genv._YokaClearCombatTargetIfMatches("galleon", nil, nil)
                 end
             end)
-            if Value then
+            if on then
                 safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Boss Thuyền Galleon (bao gồm Kraken Galleon)!", "block")
             else
                 safeNotify("YokaHub Boss", "Đã tắt: Cho phép đánh lại Galleon.", "check")
             end
         end,
     }, "IgnoreGalleonToggle")
+
+    -- Đồng bộ cờ chiến đấu Tab 1 ra môi trường ngay khi khởi tạo
+    pcall(function()
+        genv.AutoFightSeaEvent = (hubState.autoFightSeaEvent ~= false)
+        genv.IgnoreKraken = (hubState.ignoreKraken == true)
+        genv.IgnoreGalleon = (hubState.ignoreGalleon == true)
+        genv.ApiHopInterval = math.clamp(math.floor((tonumber(hubState.apiHopInterval) or 1.5) * 2 + 0.5) / 2, 0.5, 10)
+    end)
 
     -- ========================================================
     -- BẢNG 2: TỰ ĐỘNG HOP & SĂN BOSS SEA 3 (TỪNG CON RIÊNG BIỆT)
@@ -634,69 +590,81 @@
         CurrentValue = (hubState.fightSea3DepthKing == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            hubState.fightSea3DepthKing = Value
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea2", BossCtl.sea2Keys, false) end
+            hubState.fightSea3DepthKing = on
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea3" or nil)
         end,
     }, "FightSea3DepthKingToggle")
 
     bossToggles.Sea3Dragon = Sea3FightSection:CreateToggle({
-        Name = "🐲 Auto Hop & Săn Drakenfyr / Dragon (Sea 3)",
-        Description = "Tự động tìm phòng có Rồng Lửa Drakenfyr / Sea Dragon qua API và tiêu diệt (Top 2)",
+        Name = "🐲 Auto Hop & Săn Dragon (Sea 3)",
+        Description = "Tự động tìm phòng có Dragon (Wukong API: Dragon) qua API và tiêu diệt (Top 2)",
         CurrentValue = (hubState.fightSea3Dragon == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            hubState.fightSea3Dragon = Value
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea2", BossCtl.sea2Keys, false) end
+            hubState.fightSea3Dragon = on
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea3" or nil)
         end,
     }, "FightSea3DragonToggle")
 
     bossToggles.Sea3Abyssal = Sea3FightSection:CreateToggle({
-        Name = "👑 Auto Hop & Săn Abyssal Tyrant (Sea 3)",
-        Description = "Tự động tìm phòng có Bạo Chúa Abyssal Tyrant qua API và tiêu diệt (Top 3)",
+        Name = "🐉 Auto Hop & Săn Abyssal / Sea Dragon (Sea 3)",
+        Description = "Tự động tìm phòng có Abyssal Tyrant (Wukong API: Sea Dragon) qua API và tiêu diệt (Top 3)",
         CurrentValue = (hubState.fightSea3Abyssal == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            hubState.fightSea3Abyssal = Value
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea2", BossCtl.sea2Keys, false) end
+            hubState.fightSea3Abyssal = on
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea3" or nil)
         end,
     }, "FightSea3AbyssalToggle")
 
     bossToggles.Sea3Kraken = Sea3FightSection:CreateToggle({
-        Name = "🐙 Auto Hop & Săn Kraken & Xúc Tu (Sea 3)",
+        Name = "🐙 Auto Hop & Săn Kraken (Sea 3)",
         Description = "Tự động tìm phòng có Kraken qua API, chặt xúc tu và diệt thân quái (Top 4)",
         CurrentValue = (hubState.fightSea3Kraken == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            hubState.fightSea3Kraken = Value
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea2", BossCtl.sea2Keys, false) end
+            hubState.fightSea3Kraken = on
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea3" or nil)
         end,
     }, "FightSea3KrakenToggle")
 
     bossToggles.Sea3Serpent = Sea3FightSection:CreateToggle({
-        Name = "🐍 Auto Hop & Săn Rắn Biển / Sea Serpent (Sea 3)",
-        Description = "Tự động tìm phòng có Rắn Biển Serpent qua API và tiêu diệt (Ưu tiên cao hơn Cua & Tàu, Top 5)",
+        Name = "🐍 Auto Hop & Săn Sea Serpent (Sea 3)",
+        Description = "Tự động tìm phòng có Sea Serpent qua API và tiêu diệt (Ưu tiên cao hơn Crab & Tàu, Top 5)",
         CurrentValue = (hubState.fightSea3Serpent == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            hubState.fightSea3Serpent = Value
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea2", BossCtl.sea2Keys, false) end
+            hubState.fightSea3Serpent = on
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea3" or nil)
         end,
     }, "FightSea3SerpentToggle")
 
     bossToggles.Sea3Crab = Sea3FightSection:CreateToggle({
-        Name = "🦀 Auto Hop & Săn Cua Biển Khổng Lồ (Sea 3)",
-        Description = "Tự động tìm phòng có Cua Biển khổng lồ Sea 3 qua API và tiêu diệt (Top 6)",
+        Name = "🦀 Auto Hop & Săn Crab / Giant Crab (Sea 3)",
+        Description = "Tự động tìm phòng có Crab / Giant Crab Sea 3 qua API và tiêu diệt (Top 6)",
         CurrentValue = (hubState.fightSea3Crab == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            hubState.fightSea3Crab = Value
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea2", BossCtl.sea2Keys, false) end
+            hubState.fightSea3Crab = on
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea3" or nil)
         end,
     }, "FightSea3CrabToggle")
 
@@ -706,9 +674,11 @@
         CurrentValue = (hubState.fightSea3Events == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            hubState.fightSea3Events = Value
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea2", BossCtl.sea2Keys, false) end
+            hubState.fightSea3Events = on
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea3" or nil)
         end,
     }, "FightSea3EventsToggle")
 
@@ -722,9 +692,11 @@
         CurrentValue = (hubState.fightSea2Hydra == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            hubState.fightSea2Hydra = Value
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea3", BossCtl.sea3Keys, false) end
+            hubState.fightSea2Hydra = on
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea2" or nil)
         end,
     }, "FightSea2HydraToggle")
 
@@ -734,9 +706,11 @@
         CurrentValue = (hubState.fightSea2SeaKing == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            hubState.fightSea2SeaKing = Value
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea3", BossCtl.sea3Keys, false) end
+            hubState.fightSea2SeaKing = on
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea2" or nil)
         end,
     }, "FightSea2SeaKingToggle")
 
@@ -746,9 +720,11 @@
         CurrentValue = (hubState.fightSea2GhostShip == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            hubState.fightSea2GhostShip = Value
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea3", BossCtl.sea3Keys, false) end
+            hubState.fightSea2GhostShip = on
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea2" or nil)
         end,
     }, "FightSea2GhostShipToggle")
 
@@ -758,14 +734,16 @@
         CurrentValue = (hubState.fightSea2Serpent == true),
         Callback = function(Value: boolean)
             if syncingBossToggles then return end
-            hubState.fightSea2Serpent = Value
+            local on = (Value == true)
+            if on then BossCtl.setGroup("Sea3", BossCtl.sea3Keys, false) end
+            hubState.fightSea2Serpent = on
             saveState(hubState)
-            recalcHopMode(true)
+            recalcHopMode(true, on and "sea2" or nil)
         end,
     }, "FightSea2SerpentToggle")
 
     -- Đồng bộ chính xác chế độ Hop theo các công tắc Boss đang bật ngay khi khởi tạo
-    recalcHopMode(false)
+    recalcHopMode(false, (hubState.mode == "sea3" or hubState.mode == "sea2") and hubState.mode or nil)
 
     -- BẢNG 4: BẢNG RIÊNG 3 - SĂN BOSS TRÊN ĐẢO (ISLAND BOSSES)
     -- ========================================================
@@ -773,18 +751,19 @@
     local AutoFightIslandBossToggle = IslandFightSection:CreateToggle({
         Name = "⚔️ Bật Tự Động Săn Boss Đảo (Auto Farm Island Bosses)",
         Description = "Tự động bay đến hòn đảo có Boss mục tiêu, nhận quest và tiêu diệt",
-        CurrentValue = hubState.autoFightIslandBoss,
+        CurrentValue = (hubState.autoFightIslandBoss == true),
         Callback = function(Value: boolean)
             if syncingLocalToggles then return end
-            hubState.autoFightIslandBoss = Value
-            if Value then
+            local on = (Value == true)
+            hubState.autoFightIslandBoss = on
+            if on then
                 deactivateOtherLocalModes("autoFightIslandBoss")
                 if currentMode ~= "off" then
                     applyMode("off", false)
                 end
             end
             saveState(hubState)
-            if Value then
+            if on then
                 safeNotify("YokaHub Island Boss", "Đang tự động săn Boss đảo: " .. tostring(hubState.islandBossTarget or "Hephaestus"), "my_location")
             end
         end,
@@ -794,16 +773,18 @@
     local function scanCurrentSeaBossOptions(): { string }
         local list: { string } = {}
         local seen: { [string]: boolean } = {}
-        local mon = workspace:FindFirstChild("Monster")
-        local bSub = mon and mon:FindFirstChild("Boss")
-        if bSub then
-            for _, b in ipairs(bSub:GetChildren()) do
-                if b:IsA("Model") and not seen[b.Name] then
-                    seen[b.Name] = true
-                    table.insert(list, b.Name)
+        pcall(function()
+            local mon = workspace:FindFirstChild("Monster")
+            local bSub = mon and mon:FindFirstChild("Boss")
+            if bSub then
+                for _, b in ipairs(bSub:GetChildren()) do
+                    if b and b:IsA("Model") and typeof(b.Name) == "string" and b.Name ~= "" and not seen[b.Name] then
+                        seen[b.Name] = true
+                        table.insert(list, b.Name)
+                    end
                 end
             end
-        end
+        end)
         table.sort(list, function(a, b)
             local la = tonumber(string.match(a, "[Ll][Vv]%.?%s*(%d+)")) or 999999
             local lb = tonumber(string.match(b, "[Ll][Vv]%.?%s*(%d+)")) or 999999
@@ -844,6 +825,7 @@
 
     local islandBossList = scanCurrentSeaBossOptions()
     local defaultIslandBoss = table.find(islandBossList, hubState.islandBossTarget) and hubState.islandBossTarget or islandBossList[1]
+    BossCtl.islandReady = false
     local IslandBossDropdownObj = IslandFightSection:CreateDropdown({
         Name = "Chọn Boss Đảo Muốn Tiêu Diệt (Tự quét đúng Sea hiện tại)",
         Options = islandBossList,
@@ -851,23 +833,38 @@
         MultipleOptions = false,
         Callback = function(opt: any)
             local val = pickDropdownValue(opt)
+            if val == "" then return end
+            local changed = (hubState.islandBossTarget ~= val)
             hubState.islandBossTarget = val
             saveState(hubState)
-            safeNotify("Mục Tiêu Boss Đảo", "Đã chọn: " .. val, "flag")
+            if BossCtl.islandReady and changed then
+                safeNotify("Mục Tiêu Boss Đảo", "Đã chọn: " .. val, "flag")
+            end
         end,
     }, "IslandBossDropdown")
+    if (typeof(hubState.islandBossTarget) ~= "string" or hubState.islandBossTarget == "") and defaultIslandBoss then
+        hubState.islandBossTarget = defaultIslandBoss
+    end
+    BossCtl.islandReady = true
 
     IslandFightSection:CreateButton({
         Name = "🔄 Tải Lại Danh Sách Boss Đảo Trong Sea Này",
         Description = "Quét lại toàn bộ Boss Đảo thực tế đang có mặt trong server hiện tại",
         Callback = function()
             local fresh = scanCurrentSeaBossOptions()
+            if #fresh == 0 then
+                safeNotify("Mục Tiêu Boss Đảo", "Chưa tìm thấy Boss Đảo nào trong Sea này!", "info")
+                return
+            end
+            local keepTarget = (typeof(hubState.islandBossTarget) == "string" and table.find(fresh, hubState.islandBossTarget)) and hubState.islandBossTarget or fresh[1]
+            BossCtl.islandReady = false
             pcall(function()
                 if IslandBossDropdownObj and typeof(IslandBossDropdownObj.Set) == "function" then
-                    IslandBossDropdownObj:Set({ Options = fresh, CurrentOption = { fresh[1] } })
+                    IslandBossDropdownObj:Set({ Options = fresh, CurrentOption = { keepTarget } })
                 end
             end)
-            hubState.islandBossTarget = fresh[1]
+            BossCtl.islandReady = true
+            hubState.islandBossTarget = keepTarget
             saveState(hubState)
             safeNotify("Mục Tiêu Boss Đảo", "Đã cập nhật " .. tostring(#fresh) .. " Boss Đảo trong Sea hiện tại!", "refresh")
         end,
@@ -876,9 +873,9 @@
     IslandFightSection:CreateToggle({
         Name = "📜 Tự Động Nhận Quest Boss Trước Khi Đánh",
         Description = "Tự bay qua NPC nhận nhiệm vụ trước khi đánh Boss để tối đa Beli và EXP",
-        CurrentValue = hubState.autoTakeBossQuest,
+        CurrentValue = (hubState.autoTakeBossQuest == true),
         Callback = function(Value: boolean)
-            hubState.autoTakeBossQuest = Value
+            hubState.autoTakeBossQuest = (Value == true)
             saveState(hubState)
         end,
     }, "AutoTakeBossQuestToggle")
@@ -889,172 +886,230 @@
         Name = "Chọn Boss / Rương muốn tìm",
         Options = {
             "Depth King (Sea 3)",
-            "Drakenfyr the Inferno King / Dragon (Sea 3)",
-            "Abyssal Tyrant (Sea 3)",
+            "Dragon (Sea 3)",
+            "Sea Dragon / Abyssal (Sea 3)",
             "Kraken (Sea 3)",
-            "Cua Biển / Crab (Sea 3)",
-            "Rương Hydra (Sea 2)",
+            "Crab (Sea 3)",
+            "Sea Serpent (Sea 2 & 3)",
+            "Hydra Chest (Sea 2)",
             "Hydra (Sea 2)",
-            "Rương Vua Biển (Sea 2)",
-            "Vua Biển / Sea King (Sea 2)",
-            "Thuyền Ma / Ghost Ship (Sea 2)",
-            "Rắn Biển / Serpent (Sea 2 & 3)",
+            "Sea King Chest (Sea 2)",
+            "Sea King (Sea 2)",
+            "Ghost Ship (Sea 2)",
         },
         CurrentOption = { "Depth King (Sea 3)" },
         MultipleOptions = false,
-        Callback = function(opt: any) snipeTarget = pickDropdownValue(opt) end,
+        Callback = function(opt: any)
+            local val = pickDropdownValue(opt)
+            if val ~= "" then snipeTarget = val end
+        end,
     }, "SnipeTarget")
 
     local function matchSnipe(e: any, target: string, ignorePlayers: boolean?): boolean
-        if e.alive ~= true then return false end
+        if typeof(e) ~= "table" or e.alive ~= true then return false end
+        if isCurrentServerEntry(e) then return false end
+        if e.isPrivate == true or e.private == true or string.lower(tostring(e.serverType or "")) == "private" then return false end
+        local phase = string.lower(tostring(e.phase or e.status or e.state or ""))
+        if phase == "inactive" or phase == "dead" or phase == "cooldown" or phase == "waiting" or phase == "none" then
+            return false
+        end
         if not ignorePlayers then
             local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
             local pMax = typeof(e.players) == "table" and (tonumber(e.players.max) or 12) or 12
             if pCur >= pMax then return false end
         end
-        if typeof(e.health) == "table" and (tonumber(e.health.percent) or 0) < 15 then return false end
+        if getEntryHpPercent(e) < 15 then return false end
         local pid = tonumber(e.placeId)
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
-        local isDragonMatch = (string.find(nm, "drakenfyr", 1, true) ~= nil
-            or string.find(nm, "inferno king", 1, true) ~= nil
-            or string.find(nm, "sea dragon", 1, true) ~= nil
-            or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil))
-            and string.find(nm, "abyssal", 1, true) == nil
-            and string.find(nm, "tyrant", 1, true) == nil
-            and string.find(nm, "depth", 1, true) == nil
-        local isAbyssalMatch = (string.find(nm, "abyssal", 1, true) ~= nil
+
+        local isSeaDragon = (string.find(nm, "sea dragon", 1, true) ~= nil
+            or string.find(nm, "sea_dragon", 1, true) ~= nil
+            or string.find(nm, "seadragon", 1, true) ~= nil
+            or src == "sea_dragon" or src == "seadragon")
+        local isAbyssalMatch = (isSeaDragon
+            or string.find(nm, "abyssal", 1, true) ~= nil
             or string.find(nm, "tyrant", 1, true) ~= nil
             or src == "abyssal" or src == "tyrant")
             and string.find(nm, "swordsman", 1, true) == nil
-            and not isDragonMatch
-        if target == "Drakenfyr the Inferno King / Dragon (Sea 3)" or target == "Rồng Biển / Dragon (Sea 3)" then
+        local isDragonMatch = (string.find(nm, "drakenfyr", 1, true) ~= nil
+            or string.find(nm, "inferno king", 1, true) ~= nil
+            or (string.find(nm, "dragon", 1, true) ~= nil and string.find(nm, "fruit", 1, true) == nil and string.find(nm, "claw", 1, true) == nil and string.find(nm, "orb", 1, true) == nil and string.find(nm, "scale", 1, true) == nil)
+            or src == "dragon" or src == "drakenfyr")
+            and not isAbyssalMatch
+            and string.find(nm, "depth", 1, true) == nil
+
+        if target == "Dragon (Sea 3)" or target == "Drakenfyr the Inferno King / Dragon (Sea 3)" or target == "Rồng Biển / Dragon (Sea 3)" then
             return pid == SEA3_PLACE and isDragonMatch
-        elseif target == "Abyssal Tyrant (Sea 3)" then
+        elseif target == "Sea Dragon / Abyssal (Sea 3)" or target == "Abyssal Tyrant (Sea 3)" then
             return pid == SEA3_PLACE and isAbyssalMatch
         elseif target == "Depth King (Sea 3)" then
             return pid == SEA3_PLACE and not isDragonMatch and not isAbyssalMatch and (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil))
-        elseif target == "Kraken (Sea 3)" then return pid == SEA3_PLACE and src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil)
-        elseif target == "Cua Biển / Crab (Sea 3)" then return pid == SEA3_PLACE and (string.find(nm, "crab", 1, true) ~= nil or (src == "sea_event" and string.find(nm, "crab", 1, true) ~= nil))
-        elseif target == "Rương Hydra (Sea 2)" then return pid == SEA2_PLACE and src == "sk_hd_chest" and string.find(nm, "hydra", 1, true) ~= nil
-        elseif target == "Hydra (Sea 2)" then return pid == SEA2_PLACE and (src == "hydra" or string.find(nm, "hydra", 1, true) ~= nil)
-        elseif target == "Rương Vua Biển (Sea 2)" then return pid == SEA2_PLACE and src == "sk_hd_chest" and (string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil)
-        elseif target == "Vua Biển / Sea King (Sea 2)" then return pid == SEA2_PLACE and (src == "sea_king" or string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil)
-        elseif target == "Thuyền Ma / Ghost Ship (Sea 2)" then return pid == SEA2_PLACE and (src == "ghost_ship" or string.find(nm, "ghost", 1, true) ~= nil)
-        elseif target == "Rắn Biển / Serpent (Sea 2 & 3)" then return (src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil)
+        elseif target == "Kraken (Sea 3)" then
+            return pid == SEA3_PLACE and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil or src == "kraken") and string.find(nm, "galleon", 1, true) == nil
+        elseif target == "Crab (Sea 3)" or target == "Cua Biển / Crab (Sea 3)" then
+            return pid == SEA3_PLACE and (string.find(nm, "crab", 1, true) ~= nil or src == "crab")
+        elseif target == "Hydra Chest (Sea 2)" or target == "Rương Hydra (Sea 2)" then
+            return pid == SEA2_PLACE and (src == "sk_hd_chest" or string.find(nm, "chest", 1, true) ~= nil) and string.find(nm, "hydra", 1, true) ~= nil
+        elseif target == "Hydra (Sea 2)" then
+            return pid == SEA2_PLACE and (src == "hydra" or string.find(nm, "hydra", 1, true) ~= nil)
+        elseif target == "Sea King Chest (Sea 2)" or target == "Rương Vua Biển (Sea 2)" then
+            return pid == SEA2_PLACE and (src == "sk_hd_chest" or string.find(nm, "chest", 1, true) ~= nil) and (string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil)
+        elseif target == "Sea King (Sea 2)" or target == "Vua Biển / Sea King (Sea 2)" then
+            return pid == SEA2_PLACE and (src == "sea_king" or string.find(nm, "sea king", 1, true) ~= nil or string.find(nm, "seaking", 1, true) ~= nil)
+        elseif target == "Ghost Ship (Sea 2)" or target == "Thuyền Ma / Ghost Ship (Sea 2)" then
+            return pid == SEA2_PLACE and (src == "ghost_ship" or string.find(src, "ghost", 1, true) ~= nil or string.find(nm, "ghost", 1, true) ~= nil)
+        elseif target == "Sea Serpent (Sea 2 & 3)" or target == "Rắn Biển / Serpent (Sea 2 & 3)" then
+            local reqPid = (game.PlaceId == SEA2_PLACE) and SEA2_PLACE or SEA3_PLACE
+            return pid == reqPid and (src == "serpent" or string.find(nm, "serpent", 1, true) ~= nil)
         end
         return false
     end
 
-    local snipeBusy = false
     QuickHopSection:CreateButton({
         Name = "🚀 Bay ngay vào 1 phòng có Boss đã chọn",
         Description = "Tự chọn phòng còn chỗ trống và Boss còn nhiều máu",
         Callback = function()
-            if snipeBusy then
-                safeNotify("YokaHub", "Đang tìm phòng, vui lòng đợi vài giây...", "info")
+            if BossCtl.snipeBusy or BossCtl.randomBusy then
+                safeNotify("YokaHub", "Đang chuyển phòng, vui lòng đợi vài giây...", "info")
                 return
             end
-            snipeBusy = true
+            BossCtl.snipeBusy = true
+            local targetSnap = snipeTarget
             task.spawn(function()
-                local function done() snipeBusy = false end
-                local reqPlace = nil
-                if string.find(snipeTarget, "Serpent", 1, true) ~= nil then
-                    reqPlace = (game.PlaceId == SEA2_PLACE) and SEA2_PLACE or SEA3_PLACE
-                elseif string.find(snipeTarget, "Sea 2", 1, true) ~= nil and string.find(snipeTarget, "Sea 3", 1, true) == nil then
-                    reqPlace = SEA2_PLACE
-                elseif string.find(snipeTarget, "Sea 3", 1, true) ~= nil and string.find(snipeTarget, "Sea 2", 1, true) == nil then
-                    reqPlace = SEA3_PLACE
-                end
-                if reqPlace and game.PlaceId ~= reqPlace then
-                    local targetSeaName = (reqPlace == SEA2_PLACE and "Sea 2" or "Sea 3")
-                    setStatus("Đang tự động chuyển sang " .. targetSeaName .. " để săn " .. snipeTarget .. "...")
-                    safeNotify("Khác Sea", "Đang chuyển sang " .. targetSeaName .. " trước khi săn " .. snipeTarget .. "!", "flight_takeoff")
-                    ensureCorrectSea(reqPlace, snipeTarget, "Khác Sea", snipeTarget)
-                    done()
-                    return
-                end
+                local okTask, errTask = pcall(function()
+                    local reqPlace: number? = nil
+                    if string.find(targetSnap, "Serpent", 1, true) ~= nil then
+                        reqPlace = (game.PlaceId == SEA2_PLACE) and SEA2_PLACE or SEA3_PLACE
+                    elseif string.find(targetSnap, "Sea 2", 1, true) ~= nil and string.find(targetSnap, "Sea 3", 1, true) == nil then
+                        reqPlace = SEA2_PLACE
+                    elseif string.find(targetSnap, "Sea 3", 1, true) ~= nil and string.find(targetSnap, "Sea 2", 1, true) == nil then
+                        reqPlace = SEA3_PLACE
+                    end
+                    if reqPlace and game.PlaceId ~= reqPlace then
+                        local targetSeaName = (reqPlace == SEA2_PLACE and "Sea 2" or "Sea 3")
+                        setStatus("Đang tự động chuyển sang " .. targetSeaName .. " để săn " .. targetSnap .. "...")
+                        safeNotify("Khác Sea", "Đang chuyển sang " .. targetSeaName .. " trước khi săn " .. targetSnap .. "!", "flight_takeoff")
+                        ensureCorrectSea(reqPlace, targetSnap, "Khác Sea", targetSnap)
+                        return
+                    end
 
-                local hasLiveApi = (typeof(genv.WK_FetchLiveBossApiSnapshot) == "function")
-                local list = {}
-                local fullCount = 0
+                    if typeof(genv.WK_FetchLiveBossApiSnapshot) ~= "function" then
+                        setStatus("Wukong Live Boss API chưa sẵn sàng, vui lòng đợi vài giây...")
+                        safeNotify("YokaHub", "Wukong API chưa sẵn sàng, thử lại sau vài giây!", "info")
+                        return
+                    end
 
-                if hasLiveApi then
-                    setStatus("Đang quét API tìm " .. snipeTarget .. "...")
-                    local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
-                    if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
-                        for _, e in ipairs(snap.entries) do
-                            if matchSnipe(e, snipeTarget) then
+                    setStatus("Đang quét API tìm " .. targetSnap .. "...")
+                    local ok, snap = false, nil
+                    if typeof(genv.YokaFetchBossSnapshot) == "function" then
+                        ok, snap = genv.YokaFetchBossSnapshot(5.5)
+                    else
+                        ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
+                    end
+                    if genv._YokaHubToken ~= myToken then return end
+                    if not ok or typeof(snap) ~= "table" or typeof(snap.entries) ~= "table" then
+                        setStatus("API Live Boss phản hồi chậm hoặc đang lỗi, vui lòng bấm lại sau vài giây.")
+                        safeNotify("YokaHub", "API đang bận/quá thời gian, thử bấm lại sau vài giây!", "info")
+                        return
+                    end
+
+                    local list = {}
+                    local fullCount = 0
+                    for _, e in ipairs(snap.entries) do
+                        if typeof(e) == "table" then
+                            if matchSnipe(e, targetSnap) then
                                 e._tier = getSlotTier(e)
-                                e._hp = typeof(e.health) == "table" and (tonumber(e.health.percent) or 100) or 100
+                                e._hp = getEntryHpPercent(e)
                                 e._pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
                                 table.insert(list, e)
                             elseif e.alive == true then
                                 local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 0) or 0
                                 local pMax = typeof(e.players) == "table" and (tonumber(e.players.max) or 12) or 12
-                                if pCur >= pMax and matchSnipe(e, snipeTarget, true) then
+                                if pCur >= pMax and matchSnipe(e, targetSnap, true) then
                                     fullCount += 1
                                 end
                             end
                         end
                     end
-                end
 
-                if #list == 0 then
-                    setStatus("Không tìm thấy phòng trống có " .. snipeTarget .. " trên API (hoặc các phòng đều đầy 12/12).")
-                    safeNotify("YokaHub", "Hiện không có phòng trống có " .. snipeTarget .. ". Vui lòng thử lại sau vài giây!", "info")
-                    done(); return
-                end
-                table.sort(list, function(a, b)
-                    if a._tier ~= b._tier then return a._tier > b._tier end
-                    local aCur = a._pCur or 99
-                    local bCur = b._pCur or 99
-                    if aCur ~= bCur then return aCur < bCur end
-                    return a._hp > b._hp
-                end)
-                local tries = math.min(#list, 2)
-                for idx = 1, tries do
-                    if genv._YokaHubToken ~= myToken then break end
-                    local chosen = list[idx]
-                    local info = string.format("%s (%s/%s người · %s%% HP)", tostring(chosen.eventName), tostring(chosen.players and chosen.players.current or "?"), tostring(chosen.players and chosen.players.max or "?"), tostring(chosen._hp or "?"))
-                    setStatus("Đang bay vào: " .. info)
-                    if idx == 1 then recordHop() end
-                    armAutoReexec(false)
-                    local hopStart = os.clock()
-                    if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
-                        pcall(genv.WK_JoinLiveBossApiEntry, chosen)
-                    else
-                        local srvId = chosen.jobId or chosen.serverId or chosen.id
-                        local pId = tonumber(chosen.placeId) or reqPlace or game.PlaceId
-                        if typeof(srvId) == "string" and string.find(srvId, "-", 1, true) ~= nil then
-                            pcall(function() teleportService:TeleportToPlaceInstance(pId, srvId, players.LocalPlayer) end)
-                        else
-                            safeNotify("YokaHub", "Đang chờ mô-đun điều hướng API sẵn sàng...", "info")
-                            break
-                        end
+                    if #list == 0 then
+                        local msg = fullCount > 0
+                            and string.format("Có %d phòng %s nhưng đều đầy 12/12.", fullCount, targetSnap)
+                            or ("Không tìm thấy phòng trống có " .. targetSnap .. " trên API.")
+                        setStatus(msg)
+                        safeNotify("YokaHub", msg .. " Vui lòng thử lại sau vài giây!", "info")
+                        return
                     end
-                    safeNotify("Đang bay tới", info, "public")
-                    local failed = false
-                    local w = 0
-                    while w < 6.0 do
-                        task.wait(0.25); w += 0.25
-                        if (tonumber(genv._LastTeleportFailClock) or 0) >= hopStart and w >= 0.8 then
-                            failed = true
-                            if idx < tries then
-                                setStatus("Phòng vừa đầy, chờ 2.5s rồi thử phòng tiếp theo...")
-                                task.wait(2.5)
-                            else
-                                setStatus("Các phòng thử đều vừa đầy, thử bấm lại sau vài giây.")
+                    table.sort(list, function(a, b)
+                        if a._tier ~= b._tier then return a._tier > b._tier end
+                        local aCur = a._pCur or 99
+                        local bCur = b._pCur or 99
+                        if aCur ~= bCur then return aCur < bCur end
+                        return a._hp > b._hp
+                    end)
+                    local tries = math.min(#list, 3)
+                    for idx = 1, tries do
+                        if genv._YokaHubToken ~= myToken then break end
+                        local chosen = list[idx]
+                        local pCurStr = typeof(chosen.players) == "table" and tostring(chosen.players.current or "?") or "?"
+                        local pMaxStr = typeof(chosen.players) == "table" and tostring(chosen.players.max or "?") or "?"
+                        local info = string.format("%s (%s/%s người · %s%% HP)", tostring(chosen.eventName or targetSnap), pCurStr, pMaxStr, tostring(math.floor(tonumber(chosen._hp) or 0)))
+                        setStatus("Đang bay vào: " .. info)
+                        if idx == 1 then recordHop() end
+                        armAutoReexec(false)
+                        local hopStart = os.clock()
+                        local dispatched = false
+                        if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
+                            local okJ, resJ = pcall(genv.WK_JoinLiveBossApiEntry, chosen)
+                            dispatched = okJ and (resJ ~= false)
+                        end
+                        if not dispatched then
+                            local srvId = chosen.jobId or chosen.serverId or chosen.serverRef or chosen.id
+                            local pId = tonumber(chosen.placeId) or reqPlace or game.PlaceId
+                            if typeof(srvId) == "string" and srvId ~= "" and srvId ~= game.JobId and string.find(srvId, "-", 1, true) ~= nil then
+                                local okTp = pcall(function() teleportService:TeleportToPlaceInstance(pId, srvId, players.LocalPlayer) end)
+                                dispatched = okTp
                             end
+                        end
+                        if not dispatched then
+                            if idx < tries then
+                                setStatus("Không thể vào phòng này, thử phòng tiếp theo...")
+                                task.wait(0.3)
+                            else
+                                setStatus("Không thể điều hướng tới phòng đã chọn, vui lòng thử lại.")
+                            end
+                            continue
+                        end
+                        safeNotify("Đang bay tới", info, "public")
+                        local failed = false
+                        local w = 0
+                        while w < 3.8 do
+                            task.wait(0.15); w += 0.15
+                            if genv._YokaHubToken ~= myToken then return end
+                            if (tonumber(genv._LastTeleportFailClock) or 0) >= hopStart then
+                                failed = true
+                                if idx < tries then
+                                    setStatus("Phòng vừa đầy, đổi ngay phòng tiếp theo...")
+                                    task.wait(0.5)
+                                else
+                                    setStatus("Các phòng thử đều vừa đầy, thử bấm lại sau vài giây.")
+                                end
+                                break
+                            end
+                        end
+                        if not failed then
+                            task.wait(8.0)
                             break
                         end
                     end
-                    if not failed then
-                        task.wait(12.0)
-                        break
-                    end
+                end)
+                BossCtl.snipeBusy = false
+                if not okTask then
+                    warn("[YokaHub][Tab1] Lỗi Bay Ngay:", tostring(errTask))
+                    setStatus("Có lỗi khi tìm phòng nhanh, vui lòng thử lại.", true)
+                    safeNotify("YokaHub", "Lỗi tìm phòng nhanh, thử lại sau vài giây!", "info")
                 end
-                done()
             end)
         end,
     })
@@ -1063,44 +1118,72 @@
         Name = "🔄 Sang phòng mới ít người (để Random Trái)",
         Description = "Chuyển nhanh sang phòng thoáng 3–8 người để random trái hoặc nghỉ farm",
         Callback = function()
+            if BossCtl.randomBusy or BossCtl.snipeBusy then
+                safeNotify("YokaHub", "Đang chuyển phòng, vui lòng đợi vài giây...", "info")
+                return
+            end
+            BossCtl.randomBusy = true
             task.spawn(function()
-                if currentMode ~= "off" then
-                    applyMode("off", false)
-                end
-                setStatus("Đang tìm phòng ít người (3–8 người)...")
-                local chosenId: string? = nil
-                local chosenInfo = ""
+                local okRand, errRand = pcall(function()
+                    if currentMode ~= "off" then
+                        applyMode("off", false)
+                    end
+                    setStatus("Đang tìm phòng ít người (3–8 người)...")
+                    local chosenId: string? = nil
+                    local chosenInfo = ""
 
-                local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100", game.PlaceId)
-                local ok, raw = pcall(function() return game:HttpGet(url) end)
-                if ok and typeof(raw) == "string" then
-                    local dok, decoded = pcall(function() return httpService:JSONDecode(raw) end)
-                    if dok and typeof(decoded) == "table" and typeof(decoded.data) == "table" then
-                        local pref, fb = {}, {}
-                        for _, srv in ipairs(decoded.data) do
-                            local id = tostring(srv.id or "")
-                            local p, m = tonumber(srv.playing) or 99, tonumber(srv.maxPlayers) or 12
-                            if id ~= "" and id ~= game.JobId and p < m then
-                                table.insert(fb, srv)
-                                if p >= 3 and p <= 8 then table.insert(pref, srv) end
-                            end
-                        end
-                        local pool = #pref > 0 and pref or fb
-                        if #pool > 0 then
-                            local chosen = pool[math.random(1, math.min(#pool, 10))]
-                            chosenId = tostring(chosen.id)
-                            chosenInfo = string.format("Sang phòng %d/%d người...", tonumber(chosen.playing) or 0, tonumber(chosen.maxPlayers) or 12)
+                    local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100", game.PlaceId)
+                    local raw: string? = nil
+                    local reqFn = (genv.syn and genv.syn.request) or (genv.http and genv.http.request) or genv.http_request or genv.request
+                    if typeof(reqFn) == "function" then
+                        local okReq, resReq = pcall(reqFn, { Url = url, Method = "GET" })
+                        if okReq and typeof(resReq) == "table" and tonumber(resReq.StatusCode) == 200 and typeof(resReq.Body) == "string" then
+                            raw = resReq.Body
                         end
                     end
-                end
+                    if not raw or raw == "" then
+                        local okGet, bodyGet = pcall(function() return game:HttpGet(url) end)
+                        if okGet and typeof(bodyGet) == "string" then
+                            raw = bodyGet
+                        end
+                    end
+                    if genv._YokaHubToken ~= myToken then return end
 
-                recordHop()
-                armAutoReexec(false)
-                if chosenId and chosenId ~= "" then
-                    setStatus(chosenInfo)
-                    safeNotify("Đang chuyển phòng", chosenInfo, "public")
-                    pcall(function() teleportService:TeleportToPlaceInstance(game.PlaceId, chosenId :: string, players.LocalPlayer) end)
-                else
+                    if typeof(raw) == "string" and raw ~= "" then
+                        local dok, decoded = pcall(function() return httpService:JSONDecode(raw) end)
+                        if dok and typeof(decoded) == "table" and typeof(decoded.data) == "table" then
+                            local pref, fb = {}, {}
+                            for _, srv in ipairs(decoded.data) do
+                                if typeof(srv) == "table" then
+                                    local id = tostring(srv.id or "")
+                                    local p, m = tonumber(srv.playing) or 99, tonumber(srv.maxPlayers) or 12
+                                    if id ~= "" and id ~= game.JobId and p < m then
+                                        table.insert(fb, srv)
+                                        if p >= 3 and p <= 8 then table.insert(pref, srv) end
+                                    end
+                                end
+                            end
+                            local pool = #pref > 0 and pref or fb
+                            if #pool > 0 then
+                                local chosen = pool[math.random(1, math.min(#pool, 10))]
+                                chosenId = tostring(chosen.id)
+                                chosenInfo = string.format("Sang phòng %d/%d người...", tonumber(chosen.playing) or 0, tonumber(chosen.maxPlayers) or 12)
+                            end
+                        end
+                    end
+
+                    if genv._YokaHubToken ~= myToken then return end
+                    recordHop()
+                    armAutoReexec(false)
+                    if chosenId and chosenId ~= "" and chosenId ~= game.JobId then
+                        setStatus(chosenInfo)
+                        safeNotify("Đang chuyển phòng", chosenInfo, "public")
+                        local okTp = pcall(function() teleportService:TeleportToPlaceInstance(game.PlaceId, chosenId :: string, players.LocalPlayer) end)
+                        if okTp then
+                            task.wait(8.0)
+                            return
+                        end
+                    end
                     setStatus("Đang chuyển sang phòng mới...")
                     safeNotify("Đang chuyển phòng", "Đang chuyển sang phòng công khai mới...", "public")
                     if teleportToSea then
@@ -1108,6 +1191,12 @@
                     else
                         pcall(function() teleportService:Teleport(game.PlaceId, players.LocalPlayer) end)
                     end
+                    task.wait(8.0)
+                end)
+                BossCtl.randomBusy = false
+                if not okRand then
+                    warn("[YokaHub][Tab1] Lỗi đổi phòng ít người:", tostring(errRand))
+                    setStatus("Chuyển phòng chưa thành công, vui lòng thử lại.", true)
                 end
             end)
         end,

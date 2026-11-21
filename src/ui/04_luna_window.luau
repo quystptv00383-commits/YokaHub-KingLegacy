@@ -34,21 +34,30 @@
         end)
     end
 
-    -- Helper bật/tắt Fast Mode trực tiếp trên Roblox Rendering & Lighting
+    -- Helper bật/tắt Fast Mode trực tiếp trên Roblox Rendering & Lighting (batch không giật FPS)
+    local fastModeRunSeq = 0
     local function applyFastModeSetting(enabled: boolean)
+        fastModeRunSeq += 1
+        local seq = fastModeRunSeq
         pcall(function()
             if enabled then
                 settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
                 lighting.GlobalShadows = false
                 lighting.FogEnd = 9e9
-                for _, d in ipairs(workspace:GetDescendants()) do
-                    if d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam") then
-                        d.Enabled = false
-                    elseif d:IsA("Explosion") then
-                        d.BlastPressure = 1
-                        d.BlastRadius = 1
+                task.spawn(function()
+                    local okD, desc = pcall(function() return workspace:GetDescendants() end)
+                    if not okD or typeof(desc) ~= "table" then return end
+                    for i, d in ipairs(desc) do
+                        if fastModeRunSeq ~= seq or genv._YokaHubToken ~= myToken then break end
+                        if d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam") then
+                            d.Enabled = false
+                        elseif d:IsA("Explosion") then
+                            d.BlastPressure = 1
+                            d.BlastRadius = 1
+                        end
+                        if i % 400 == 0 then task.wait() end
                     end
-                end
+                end)
             else
                 settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
                 lighting.GlobalShadows = true
@@ -226,6 +235,7 @@
     local lastFailRescueClock = 0
     local function handleTeleportFail(reason: string, isDisconnect: boolean?)
         genv._LastTeleportFailClock = os.clock()
+        genv._LastTeleportFailReason = string.lower(tostring(reason or ""))
         if not hubState.autoDismiss773 or clearErrPending then return end
         if (os.clock() - lastFailRescueClock) < 12.0 then
             print("[YokaHub][Auto-Dismiss] Debounced fail rescue:", reason)
@@ -2537,7 +2547,7 @@
     end
 
     teleportToSea = function(targetPlace: number, preferKey: string?): boolean
-        if isSwitchingSea and (os.clock() - lastSeaSwitchClock) < 12.0 then
+        if isSwitchingSea and (os.clock() - lastSeaSwitchClock) < 8.0 then
             return false
         end
         isSwitchingSea = true
@@ -2546,124 +2556,159 @@
         armAutoReexec(false)
 
         task.spawn(function()
-            local lp = players.LocalPlayer
+            local okTpTask, errTpTask = pcall(function()
+                local lp = players.LocalPlayer
 
-            -- TH1: NẾU CÙNG PLACEID (ĐỔI SERVER TRONG CÙNG SEA)
-            if targetPlace == game.PlaceId then
-                -- Nếu có yêu cầu Boss cụ thể (preferKey), thử dùng Live Boss API nếu có sẵn
-                if preferKey and preferKey ~= "" then
-                    if typeof(genv.WK_FetchLiveBossApiSnapshot) == "function" then
-                        local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
-                        if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
-                            local matched = nil
-                            local pkLow = string.lower(preferKey)
-                            for _, entry in ipairs(snap.entries) do
-                                if entry.alive == true and tonumber(entry.placeId) == targetPlace and entry.players and (entry.players.current or 0) < (entry.players.max or 12) then
-                                    local en = string.lower(tostring(entry.eventName or ""))
-                                    local hit = false
-                                    if pkLow == "dragon" or string.find(pkLow, "dragon", 1, true) ~= nil or string.find(pkLow, "drakenfyr", 1, true) ~= nil then
-                                        hit = (string.find(en, "drakenfyr", 1, true) ~= nil or string.find(en, "inferno king", 1, true) ~= nil or string.find(en, "sea dragon", 1, true) ~= nil or string.find(en, "dragon", 1, true) ~= nil)
-                                            and string.find(en, "abyssal", 1, true) == nil and string.find(en, "tyrant", 1, true) == nil and string.find(en, "depth", 1, true) == nil
-                                    elseif pkLow == "abyssal" or string.find(pkLow, "abyssal", 1, true) ~= nil then
-                                        hit = (string.find(en, "abyssal", 1, true) ~= nil or string.find(en, "tyrant", 1, true) ~= nil)
-                                            and string.find(en, "drakenfyr", 1, true) == nil and string.find(en, "dragon", 1, true) == nil
-                                    elseif pkLow == "depth" or string.find(pkLow, "depth", 1, true) ~= nil then
-                                        hit = string.find(en, "depth", 1, true) ~= nil
-                                            and string.find(en, "abyssal", 1, true) == nil and string.find(en, "drakenfyr", 1, true) == nil and string.find(en, "dragon", 1, true) == nil
-                                    else
-                                        hit = string.find(en, pkLow, 1, true) ~= nil
-                                    end
-                                    if hit then
-                                        matched = entry
-                                        break
-                                    end
-                                end
+                -- TH1: NẾU CÙNG PLACEID (ĐỔI SERVER TRONG CÙNG SEA)
+                if targetPlace == game.PlaceId then
+                    -- Nếu có yêu cầu Boss cụ thể (preferKey), thử dùng Live Boss API nếu có sẵn
+                    if preferKey and preferKey ~= "" then
+                        if typeof(genv.WK_FetchLiveBossApiSnapshot) == "function" or typeof(genv.YokaFetchBossSnapshot) == "function" then
+                            local ok, snap = false, nil
+                            if typeof(genv.YokaFetchBossSnapshot) == "function" then
+                                ok, snap = genv.YokaFetchBossSnapshot(5.5)
+                            else
+                                ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
                             end
-                            if matched then
-                                print("[YokaHub][Auto-Sea-Switch] Same-place hop to Boss server:", matched.eventName)
-                                if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
-                                    pcall(genv.WK_JoinLiveBossApiEntry, matched)
-                                else
-                                    local srvId = matched.jobId or matched.serverId or matched.serverRef or matched.id
-                                    if srvId and srvId ~= "" then
-                                        pcall(function() teleportService:TeleportToPlaceInstance(targetPlace, srvId, lp) end)
-                                    else
-                                        pcall(function() teleportService:Teleport(targetPlace, lp) end)
+                            if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
+                                local matched = nil
+                                local pkLow = string.lower(preferKey)
+                                for _, entry in ipairs(snap.entries) do
+                                    if typeof(entry) == "table" and entry.alive == true and tonumber(entry.placeId) == targetPlace then
+                                        local phase = string.lower(tostring(entry.phase or entry.status or entry.state or ""))
+                                        local pCur = typeof(entry.players) == "table" and (tonumber(entry.players.current) or 0) or 99
+                                        local pMax = typeof(entry.players) == "table" and (tonumber(entry.players.max) or 12) or 12
+                                        local eJob = tostring(entry.jobId or entry.serverId or entry.serverRef or entry.id or "")
+                                        local notSameServer = (game.JobId == "" or eJob == "" or eJob ~= game.JobId)
+                                        local notPrivate = (entry.isPrivate ~= true and entry.private ~= true and string.lower(tostring(entry.serverType or "")) ~= "private")
+                                        if notSameServer and notPrivate and pCur < pMax and phase ~= "inactive" and phase ~= "dead" and phase ~= "cooldown" and phase ~= "waiting" and phase ~= "none" then
+                                            local en = string.lower(tostring(entry.eventName or ""))
+                                            local src = string.lower(tostring(entry.source or ""))
+                                            local isSeaDragon = (string.find(en, "sea dragon", 1, true) ~= nil
+                                                or string.find(en, "sea_dragon", 1, true) ~= nil
+                                                or string.find(en, "seadragon", 1, true) ~= nil
+                                                or src == "sea_dragon" or src == "seadragon")
+                                            local isAbyssal = (isSeaDragon
+                                                or string.find(en, "abyssal", 1, true) ~= nil
+                                                or string.find(en, "tyrant", 1, true) ~= nil
+                                                or src == "abyssal" or src == "tyrant")
+                                                and string.find(en, "swordsman", 1, true) == nil
+                                            local isDragon = (string.find(en, "drakenfyr", 1, true) ~= nil
+                                                or string.find(en, "inferno king", 1, true) ~= nil
+                                                or (string.find(en, "dragon", 1, true) ~= nil and string.find(en, "fruit", 1, true) == nil and string.find(en, "claw", 1, true) == nil and string.find(en, "orb", 1, true) == nil and string.find(en, "scale", 1, true) == nil)
+                                                or src == "dragon" or src == "drakenfyr")
+                                                and not isAbyssal
+                                                and string.find(en, "depth", 1, true) == nil
+                                            local hit = false
+                                            if pkLow == "dragon" or string.find(pkLow, "drakenfyr", 1, true) ~= nil or (string.find(pkLow, "dragon", 1, true) ~= nil and string.find(pkLow, "sea dragon", 1, true) == nil) then
+                                                hit = isDragon
+                                            elseif pkLow == "abyssal" or string.find(pkLow, "abyssal", 1, true) ~= nil or string.find(pkLow, "sea dragon", 1, true) ~= nil then
+                                                hit = isAbyssal
+                                            elseif pkLow == "depth" or string.find(pkLow, "depth", 1, true) ~= nil then
+                                                hit = (not isAbyssal and not isDragon) and (string.find(en, "depth", 1, true) ~= nil or src == "depth_king")
+                                            elseif pkLow == "seaking" or pkLow == "sea_king" or pkLow == "sea king" then
+                                                hit = string.find(en, "sea king", 1, true) ~= nil or string.find(en, "seaking", 1, true) ~= nil or src == "sea_king"
+                                            elseif pkLow == "ghostship" or pkLow == "ghost_ship" or pkLow == "ghost" then
+                                                hit = string.find(en, "ghost", 1, true) ~= nil or string.find(src, "ghost", 1, true) ~= nil
+                                            else
+                                                hit = string.find(en, pkLow, 1, true) ~= nil or string.find(src, pkLow, 1, true) ~= nil
+                                            end
+                                            if hit then
+                                                matched = entry
+                                                break
+                                            end
+                                        end
                                     end
                                 end
-                                task.wait(12.0)
-                                isSwitchingSea = false
-                                return
+                                if matched then
+                                    print("[YokaHub][Auto-Sea-Switch] Same-place hop to Boss server:", matched.eventName)
+                                    local joined = false
+                                    if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
+                                        local okJ, resJ = pcall(genv.WK_JoinLiveBossApiEntry, matched)
+                                        joined = okJ and (resJ ~= false)
+                                    end
+                                    if not joined then
+                                        local srvId = matched.jobId or matched.serverId or matched.serverRef or matched.id
+                                        if typeof(srvId) == "string" and string.find(srvId, "-", 1, true) ~= nil then
+                                            pcall(function() teleportService:TeleportToPlaceInstance(targetPlace, srvId, lp) end)
+                                        else
+                                            pcall(function() teleportService:Teleport(targetPlace, lp) end)
+                                        end
+                                    end
+                                    task.wait(8.0)
+                                    return
+                                end
                             end
                         end
                     end
-                end
 
-                -- Nếu không có Boss cụ thể, đổi server ngẫu nhiên cùng Sea
-                local jobId = getOpenServerForPlace(targetPlace)
-                if jobId and jobId ~= "" then
-                    print("[YokaHub][Auto-Sea-Switch] Same-place hop via TeleportToPlaceInstance JobId:", jobId)
-                    local okTp = pcall(function()
-                        teleportService:TeleportToPlaceInstance(targetPlace, jobId, lp)
-                    end)
-                    if okTp then
-                        task.wait(12.0)
-                        isSwitchingSea = false
-                        return
-                    end
-                end
-                pcall(function() teleportService:Teleport(targetPlace, lp) end)
-                task.wait(12.0)
-                isSwitchingSea = false
-                return
-            end
-
-            -- TH2: NẾU KHÁC PLACEID (CHUYỂN SANG SEA KHÁC)
-            -- 1. Ưu tiên hàng đầu: Kích hoạt nút chuyển Sea chính thức trong ServerBrowserFrame của King Legacy
-            -- Cơ chế này gọi trực tiếp backend King Legacy (EtcFunction/TeleportWithLoading) nên 100% không bị Error 772, 773 hay Server is Full!
-            local btnName = (targetPlace == SEA3_PLACE and "Sea3") or (targetPlace == SEA2_PLACE and "Sea2") or (targetPlace == SEA1_PLACE and "Sea1") or nil
-            local firedOfficial = false
-            if btnName then
-                pcall(function()
-                    local sbf = lp.PlayerGui:FindFirstChild("MainGui")
-                    if sbf then sbf = sbf:FindFirstChild("StarterFrame") end
-                    if sbf then sbf = sbf:FindFirstChild("ServerBrowserFrame") end
-                    local sf = sbf and sbf:FindFirstChild("SeaFrame")
-                    local btn = sf and sf:FindFirstChild(btnName)
-                    if btn and btn:IsA("TextButton") then
-                        print("[YokaHub][Auto-Sea-Switch] Firing King Legacy official sea button:", btnName)
-                        if typeof(firesignal) == "function" then
-                            firesignal(btn.MouseButton1Click)
-                            firedOfficial = true
-                        elseif typeof(getconnections) == "function" then
-                            local conns = getconnections(btn.MouseButton1Click)
-                            if #conns > 0 then
-                                for _, c in ipairs(conns) do
-                                    if typeof(c.Fire) == "function" then c:Fire() end
-                                end
-                                firedOfficial = true
-                            end
-                        end
-                    end
-                end)
-            end
-
-            if not firedOfficial then
-                print("[YokaHub][Auto-Sea-Switch] Teleporting cross-sea via TeleportService to place:", targetPlace)
-                local okTp = pcall(function()
-                    teleportService:Teleport(targetPlace, lp)
-                end)
-                if not okTp then
-                    pcall(function()
-                        local jobId = getOpenServerForPlace(targetPlace)
-                        if jobId and jobId ~= "" then
+                    -- Nếu không có Boss cụ thể, đổi server ngẫu nhiên cùng Sea
+                    local jobId = getOpenServerForPlace(targetPlace)
+                    if jobId and jobId ~= "" then
+                        print("[YokaHub][Auto-Sea-Switch] Same-place hop via TeleportToPlaceInstance JobId:", jobId)
+                        local okTp = pcall(function()
                             teleportService:TeleportToPlaceInstance(targetPlace, jobId, lp)
+                        end)
+                        if okTp then
+                            task.wait(8.0)
+                            return
+                        end
+                    end
+                    pcall(function() teleportService:Teleport(targetPlace, lp) end)
+                    task.wait(8.0)
+                    return
+                end
+
+                -- TH2: NẾU KHÁC PLACEID (CHUYỂN SANG SEA KHÁC)
+                -- 1. Ưu tiên hàng đầu: Kích hoạt nút chuyển Sea chính thức trong ServerBrowserFrame của King Legacy
+                -- Cơ chế này gọi trực tiếp backend King Legacy (EtcFunction/TeleportWithLoading) nên 100% không bị Error 772, 773 hay Server is Full!
+                local btnName = (targetPlace == SEA3_PLACE and "Sea3") or (targetPlace == SEA2_PLACE and "Sea2") or (targetPlace == SEA1_PLACE and "Sea1") or nil
+                local firedOfficial = false
+                if btnName then
+                    pcall(function()
+                        local sbf = lp.PlayerGui:FindFirstChild("MainGui")
+                        if sbf then sbf = sbf:FindFirstChild("StarterFrame") end
+                        if sbf then sbf = sbf:FindFirstChild("ServerBrowserFrame") end
+                        local sf = sbf and sbf:FindFirstChild("SeaFrame")
+                        local btn = sf and sf:FindFirstChild(btnName)
+                        if btn and btn:IsA("TextButton") then
+                            print("[YokaHub][Auto-Sea-Switch] Firing King Legacy official sea button:", btnName)
+                            if typeof(firesignal) == "function" then
+                                firesignal(btn.MouseButton1Click)
+                                firedOfficial = true
+                            elseif typeof(getconnections) == "function" then
+                                local conns = getconnections(btn.MouseButton1Click)
+                                if #conns > 0 then
+                                    for _, c in ipairs(conns) do
+                                        if typeof(c.Fire) == "function" then c:Fire() end
+                                    end
+                                    firedOfficial = true
+                                end
+                            end
                         end
                     end)
                 end
-            end
-            task.wait(15.0)
+
+                if not firedOfficial then
+                    print("[YokaHub][Auto-Sea-Switch] Teleporting cross-sea via TeleportService to place:", targetPlace)
+                    local okTp = pcall(function()
+                        teleportService:Teleport(targetPlace, lp)
+                    end)
+                    if not okTp then
+                        pcall(function()
+                            local jobId = getOpenServerForPlace(targetPlace)
+                            if jobId and jobId ~= "" then
+                                teleportService:TeleportToPlaceInstance(targetPlace, jobId, lp)
+                            end
+                        end)
+                    end
+                end
+                task.wait(8.0)
+            end)
             isSwitchingSea = false
+            if not okTpTask then
+                warn("[YokaHub][Auto-Sea-Switch] Lỗi chuyển Sea:", tostring(errTpTask))
+            end
         end)
         return true
     end
@@ -3040,6 +3085,7 @@
             if clearDmgWatchers then clearDmgWatchers() end
             for _, c in ipairs(activeConns) do pcall(function() c:Disconnect() end) end
             purgeLunaBlur()
+            pcall(function() runService:Set3dRenderingEnabled(true) end)
             pcall(function() dockGui:Destroy() end)
             pcall(function() Window:Destroy() end)
             genv._YokaHubLuna = nil

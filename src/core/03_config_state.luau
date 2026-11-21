@@ -33,7 +33,7 @@
     local visitedSea3File = "AutoSeaEventApiVisited.json"
     local visitedSea2File = "AutoSea2PriorityApiVisited.json"
     local visitedSoloFile = "AutoSoloApiVisited.json"
-    local visitedTTL = 150 -- Thoi gian ghi nho phong da ghe (150s tranh quay lai phong da het hoac day)
+    local visitedTTL = 90 -- Thoi gian ghi nho phong da ghe (90s de tai xoay vong nhanh)
 
     local rf = genv.readfile or readfile
     local wf = genv.writefile or writefile
@@ -187,29 +187,38 @@
     -- 3. Doc / Luu trang thai & phien Farm
     local SOLO_OPTIONS = {
         "👑 Depth King (Sea 3)",
-        "🐲 Drakenfyr the Inferno King / Dragon (Sea 3)",
-        "👑 Abyssal Tyrant (Sea 3)",
+        "🐲 Dragon (Sea 3)",
+        "🐉 Sea Dragon / Abyssal (Sea 3)",
         "🐙 Kraken (Sea 3)",
-        "🐍 Rắn Biển / Serpent (Sea 3 & 2)",
-        "🦀 Cua Biển / Crab (Sea 3)",
-        "🌊 Sea Event Sea 3 (bỏ Depth & Abyssal)",
-        "🐍 Hydra & Rương Hydra (Sea 2)",
-        "🐋 Sea King & Rương SK (Sea 2)",
-        "👻 Thuyền Ma / Ghost Ship (Sea 2)",
+        "🐍 Sea Serpent (Sea 3 & 2)",
+        "🦀 Crab (Sea 3)",
+        "🌊 Sea Event (Sea 3 · bỏ Depth & Sea Dragon)",
+        "🐍 Hydra & Hydra Chest (Sea 2)",
+        "🐋 Sea King & Sea King Chest (Sea 2)",
+        "👻 Ghost Ship (Sea 2)",
     }
 
     local SOLO_KEY_MAP: { [string]: string } = {
         ["👑 Depth King (Sea 3)"] = "depth_king",
+        ["🐲 Dragon (Sea 3)"] = "dragon",
+        ["🐉 Sea Dragon / Abyssal (Sea 3)"] = "abyssal_tyrant",
+        ["🐙 Kraken (Sea 3)"] = "kraken",
+        ["🐍 Sea Serpent (Sea 3 & 2)"] = "serpent",
+        ["🦀 Crab (Sea 3)"] = "crab",
+        ["🌊 Sea Event (Sea 3 · bỏ Depth & Sea Dragon)"] = "sea3_events",
+        ["🐍 Hydra & Hydra Chest (Sea 2)"] = "hydra",
+        ["🐋 Sea King & Sea King Chest (Sea 2)"] = "sea_king",
+        ["👻 Ghost Ship (Sea 2)"] = "ghost_ship",
+        -- Backward compatibility with older saved configs
         ["🐲 Drakenfyr the Inferno King / Dragon (Sea 3)"] = "dragon",
         ["👑 Abyssal Tyrant (Sea 3)"] = "abyssal_tyrant",
-        ["🐙 Kraken (Sea 3)"] = "kraken",
         ["🐍 Rắn Biển / Serpent (Sea 3 & 2)"] = "serpent",
+        ["🐍 Rắn Biển / Serpent (Sea 2 & 3)"] = "serpent",
         ["🦀 Cua Biển / Crab (Sea 3)"] = "crab",
         ["🌊 Sea Event Sea 3 (bỏ Depth & Abyssal)"] = "sea3_events",
         ["🐍 Hydra & Rương Hydra (Sea 2)"] = "hydra",
         ["🐋 Sea King & Rương SK (Sea 2)"] = "sea_king",
         ["👻 Thuyền Ma / Ghost Ship (Sea 2)"] = "ghost_ship",
-        ["🐍 Rắn Biển / Serpent (Sea 2 & 3)"] = "serpent",
     }
 
     local function getSoloKey(opt: string): string
@@ -496,7 +505,7 @@
             autoCollectChest = true,
             bossSafeHeight = 35,
             smartBossHeight = true,
-            apiHopInterval = 4,
+            apiHopInterval = 1.5,
             ignoreKraken = false,
             ignoreGalleon = false,
             fightSea3DepthKing = false,
@@ -640,7 +649,7 @@
             if typeof(d.autoCollectChest) == "boolean" then st.autoCollectChest = d.autoCollectChest end
             if typeof(d.bossSafeHeight) == "number" then st.bossSafeHeight = math.clamp(math.floor(d.bossSafeHeight), 10, 150) end
             if typeof(d.smartBossHeight) == "boolean" then st.smartBossHeight = d.smartBossHeight end
-            if typeof(d.apiHopInterval) == "number" then st.apiHopInterval = math.clamp(math.floor(d.apiHopInterval), 2, 10) end
+            if typeof(d.apiHopInterval) == "number" then st.apiHopInterval = math.clamp(math.floor(d.apiHopInterval * 2 + 0.5) / 2, 0.5, 10) end
             if typeof(d.ignoreKraken) == "boolean" then st.ignoreKraken = d.ignoreKraken end
             if typeof(d.ignoreGalleon) == "boolean" then st.ignoreGalleon = d.ignoreGalleon end
             if typeof(d.fightSea3DepthKing) == "boolean" then st.fightSea3DepthKing = d.fightSea3DepthKing end

