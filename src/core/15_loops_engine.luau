@@ -204,6 +204,7 @@
 
     local function isKrakenBoss(n: string): boolean
         if isIslandMobName(n) then return false end
+        if hubState.ignoreKraken == true then return false end
         return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil
     end
 
@@ -219,7 +220,11 @@
 
     local function isSeaEventMiscBoss(n: string): boolean
         if isIslandMobName(n) then return false end
-        return string.find(n, "sea beast", 1, true) ~= nil or string.find(n, "seabeast", 1, true) ~= nil or string.find(n, "galleon", 1, true) ~= nil or string.find(n, "ghost ship", 1, true) ~= nil
+        if string.find(n, "galleon", 1, true) ~= nil then
+            if hubState.ignoreGalleon == true then return false end
+            return true
+        end
+        return string.find(n, "sea beast", 1, true) ~= nil or string.find(n, "seabeast", 1, true) ~= nil or string.find(n, "ghost ship", 1, true) ~= nil
     end
 
     local function isSea3BossEnabled(name: string): boolean
@@ -240,6 +245,7 @@
         end
         -- 4. Kraken & Xúc tu (Top 4)
         if isKrakenBoss(n) then
+            if hubState.ignoreKraken == true then return false end
             return hubState.fightSea3Kraken ~= false
         end
         -- 5. Cua biển (Top 5)
@@ -252,6 +258,7 @@
         end
         -- 7. Các Sea Events thường khác (Galleon / Ghost / Sea Beast)
         if isSeaEventMiscBoss(n) then
+            if string.find(n, "galleon", 1, true) ~= nil and hubState.ignoreGalleon == true then return false end
             return hubState.fightSea3Events == true
         end
         return false
@@ -1280,11 +1287,14 @@
             elseif soloKey == "abyssal_tyrant" then
                 return string.find(n, "abyssal", 1, true) ~= nil
             elseif soloKey == "kraken" then
+                if hubState.ignoreKraken == true then return false end
                 return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil
             elseif soloKey == "crab" then
                 return string.find(n, "crab", 1, true) ~= nil
             elseif soloKey == "sea3_events" then
                 if string.find(n, "depth", 1, true) ~= nil or string.find(n, "abyssal", 1, true) ~= nil then return false end
+                if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+                if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
                 return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "crab", 1, true) ~= nil or string.find(n, "sea", 1, true) ~= nil
             elseif soloKey == "hydra" then
                 return string.find(n, "hydra", 1, true) ~= nil
@@ -1300,9 +1310,9 @@
             if hubState.fightSea3DepthKing ~= false and (string.find(n, "depth", 1, true) ~= nil and string.find(n, "abyssal", 1, true) == nil) then return true end
             if hubState.fightSea3Dragon ~= false and (string.find(n, "dragon", 1, true) ~= nil or string.find(n, "drakenfyr", 1, true) ~= nil) then return true end
             if hubState.fightSea3Abyssal ~= false and string.find(n, "abyssal", 1, true) ~= nil then return true end
-            if hubState.fightSea3Kraken ~= false and string.find(n, "kraken", 1, true) ~= nil then return true end
+            if hubState.fightSea3Kraken ~= false and hubState.ignoreKraken ~= true and string.find(n, "kraken", 1, true) ~= nil then return true end
             if hubState.fightSea3Crab ~= false and string.find(n, "crab", 1, true) ~= nil then return true end
-            if hubState.fightSea3Events == true and (string.find(n, "sea", 1, true) ~= nil or string.find(n, "galleon", 1, true) ~= nil) then return true end
+            if hubState.fightSea3Events == true and ((hubState.ignoreGalleon ~= true and string.find(n, "galleon", 1, true) ~= nil) or string.find(n, "sea", 1, true) ~= nil) then return true end
             return false
         elseif mode == "sea2" then
             if hubState.fightSea2Hydra ~= false and string.find(n, "hydra", 1, true) ~= nil then return true end
@@ -1421,7 +1431,10 @@
                             if soloKeyActive == "depth_king" then return isDepthKingBoss(n) end
                             if soloKeyActive == "abyssal_tyrant" then return isAbyssalBoss(n) end
                             if soloKeyActive == "dragon" then return isDragonBoss(n) end
-                            if soloKeyActive == "kraken" then return isKrakenBoss(n) end
+                            if soloKeyActive == "kraken" then
+                                if hubState.ignoreKraken == true then return false end
+                                return isKrakenBoss(n)
+                            end
                             if soloKeyActive == "crab" then return isCrabBoss(n) end
                             if soloKeyActive == "hydra" then return string.find(n, "hydra", 1, true) ~= nil and not isIslandMobName(n) end
                             if soloKeyActive == "sea_king" then return (string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil) and not isIslandMobName(n) end
@@ -1429,6 +1442,8 @@
                             if soloKeyActive == "serpent" then return isSerpentBoss(n) end
                             if soloKeyActive == "sea3_events" then
                                 if isDepthKingBoss(n) or isAbyssalBoss(n) or isIslandMobName(n) then return false end
+                                if hubState.ignoreKraken == true and (isKrakenBoss(n) or string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+                                if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
                                 return isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n) or isSerpentBoss(n) or isSeaEventMiscBoss(n) or (folderName == "SeaMonster" and not isIslandMobName(n))
                             end
                         elseif currentMode == "sea2" then
@@ -1482,11 +1497,11 @@
                         local bRoot = getModelRoot(targetBoss)
                         if bRoot then
                             setCurrentCombatTarget(targetBoss)
-                            local sHeight = math.clamp(tonumber(hubState.bossSafeHeight) or 18, 8, 50)
+                            local sHeight = math.clamp(tonumber(hubState.bossSafeHeight) or 35, 8, 150)
                             local aimPos = getAimPoint(targetBoss, bRoot)
                             local hoverPos = bRoot.Position + Vector3.new(0, sHeight, 0)
                             setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1600, 55)
-                            if (hrp.Position - hoverPos).Magnitude <= 50 then
+                            if (hrp.Position - hoverPos).Magnitude <= math.max(50, sHeight * 0.75) then
                                 castConfiguredSkills(char, hum, targetBoss)
                             end
                             pcall(function()
@@ -1668,7 +1683,7 @@
                                 end
                             end
                             if bossPos and (bossPos - hrp.Position).Magnitude > 60 then
-                                local sHeight = math.clamp(tonumber(hubState.bossSafeHeight) or 18, 8, 50)
+                                local sHeight = math.clamp(tonumber(hubState.bossSafeHeight) or 35, 8, 150)
                                 local flyPos = bossPos + Vector3.new(0, sHeight, 0)
                                 setFlightTarget(flyPos, bossPos, (bossPos - hrp.Position).Magnitude > 1400, 52)
                             end
@@ -1790,7 +1805,7 @@
 
         -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (4 điểm)
         if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) then
-            if hubState.fightSea3Kraken ~= true then return 0 end
+            if hubState.ignoreKraken == true or hubState.fightSea3Kraken ~= true then return 0 end
             return 4
         end
 
@@ -1816,6 +1831,7 @@
 
         -- Top 7: Sea Events Thường & Tàu Galleon Boss (1 điểm - CHỈ khi người dùng bật toggle Sea Event Thường)
         if src == "sea_event" or src == "ship_ability" or string.find(nm, "sea beast", 1, true) ~= nil or string.find(nm, "galleon", 1, true) ~= nil then
+            if string.find(nm, "galleon", 1, true) ~= nil and hubState.ignoreGalleon == true then return 0 end
             if hubState.fightSea3Events ~= true then return 0 end
             return 1
         end

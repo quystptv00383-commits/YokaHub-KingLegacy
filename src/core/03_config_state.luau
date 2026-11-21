@@ -320,6 +320,8 @@
         autoFightMaster: boolean?,
         autoCollectChest: boolean?,
         bossSafeHeight: number?,
+        ignoreKraken: boolean?,
+        ignoreGalleon: boolean?,
         fightSea3DepthKing: boolean?,
         fightSea3Dragon: boolean?,
         fightSea3Abyssal: boolean?,
@@ -422,7 +424,9 @@
             fishFloat = true,
             autoFightMaster = true,
             autoCollectChest = true,
-            bossSafeHeight = 18,
+            bossSafeHeight = 35,
+            ignoreKraken = false,
+            ignoreGalleon = false,
             fightSea3DepthKing = false,
             fightSea3Dragon = false,
             fightSea3Abyssal = false,
@@ -529,6 +533,8 @@
             if typeof(d.autoFightMaster) == "boolean" then st.autoFightMaster = d.autoFightMaster end
             if typeof(d.autoCollectChest) == "boolean" then st.autoCollectChest = d.autoCollectChest end
             if typeof(d.bossSafeHeight) == "number" then st.bossSafeHeight = d.bossSafeHeight end
+            if typeof(d.ignoreKraken) == "boolean" then st.ignoreKraken = d.ignoreKraken end
+            if typeof(d.ignoreGalleon) == "boolean" then st.ignoreGalleon = d.ignoreGalleon end
             if typeof(d.fightSea3DepthKing) == "boolean" then st.fightSea3DepthKing = d.fightSea3DepthKing end
             if typeof(d.fightSea3Dragon) == "boolean" then st.fightSea3Dragon = d.fightSea3Dragon end
             if typeof(d.fightSea3Abyssal) == "boolean" then st.fightSea3Abyssal = d.fightSea3Abyssal end

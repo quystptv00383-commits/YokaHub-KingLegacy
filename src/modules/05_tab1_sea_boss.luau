@@ -61,7 +61,7 @@
 
         -- Top 4: Kraken & Xúc Tu (Sea 3) - Ưu tiên số 4 (4 điểm)
         if src == "sea_event" and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil) then
-            if hubState.fightSea3Kraken ~= true then return 0 end
+            if hubState.ignoreKraken == true or hubState.fightSea3Kraken ~= true then return 0 end
             return 4
         end
 
@@ -87,6 +87,7 @@
 
         -- Top 7: Sea Events Thường & Tàu Galleon Boss (1 điểm - CHỈ khi người dùng bật toggle Sea Event Thường)
         if src == "sea_event" or src == "ship_ability" or string.find(nm, "sea beast", 1, true) ~= nil or string.find(nm, "galleon", 1, true) ~= nil then
+            if string.find(nm, "galleon", 1, true) ~= nil and hubState.ignoreGalleon == true then return 0 end
             if hubState.fightSea3Events ~= true then return 0 end
             return 1
         end
@@ -500,15 +501,45 @@
 
     MasterFightSection:CreateSlider({
         Name = "🕊️ Độ Cao Bay An Toàn Khi Đánh Boss",
-        Range = { 10, 40 },
-        Increment = 1,
+        Range = { 10, 150 },
+        Increment = 2,
         Suffix = "studs",
-        CurrentValue = hubState.bossSafeHeight or 18,
+        CurrentValue = hubState.bossSafeHeight or 35,
         Callback = function(Value: number)
             hubState.bossSafeHeight = Value
             saveState(hubState)
         end,
     }, "BossSafeHeightSlider")
+
+    MasterFightSection:CreateToggle({
+        Name = "🚫 Tắt Tự Động Đánh Kraken & Xúc Tu",
+        Description = "Bỏ qua hoàn toàn Kraken và xúc tu, không bay tới và không tấn công để tập trung săn các Boss lớn khác",
+        CurrentValue = (hubState.ignoreKraken == true),
+        Callback = function(Value: boolean)
+            hubState.ignoreKraken = Value
+            saveState(hubState)
+            if Value then
+                safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Kraken & Xúc tu!", "block")
+            else
+                safeNotify("YokaHub Boss", "Đã tắt: Cho phép đánh lại Kraken.", "check")
+            end
+        end,
+    }, "IgnoreKrakenToggle")
+
+    MasterFightSection:CreateToggle({
+        Name = "🚫 Tắt Tự Động Đánh Tàu Galleon",
+        Description = "Bỏ qua hoàn toàn tàu chiến Galleon / Ghost Galleon, không bắn phá tàu để tiết kiệm thời gian",
+        CurrentValue = (hubState.ignoreGalleon == true),
+        Callback = function(Value: boolean)
+            hubState.ignoreGalleon = Value
+            saveState(hubState)
+            if Value then
+                safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Tàu Galleon!", "block")
+            else
+                safeNotify("YokaHub Boss", "Đã tắt: Cho phép đánh lại Galleon.", "check")
+            end
+        end,
+    }, "IgnoreGalleonToggle")
 
     -- ========================================================
     -- BẢNG 2: TỰ ĐỘNG HOP & SĂN BOSS SEA 3 (TỪNG CON RIÊNG BIỆT)
