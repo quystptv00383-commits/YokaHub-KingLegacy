@@ -110,10 +110,12 @@
     end
 
     local function setCurrentCombatTarget(m: Model?)
-        if isModelAlive(m) then
-            currentCombatTarget = m
-            currentCombatTargetAt = os.clock()
-        end
+        if not m or not isModelAlive(m) then return end
+        local n = string.lower(m.Name)
+        if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return end
+        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return end
+        currentCombatTarget = m
+        currentCombatTargetAt = os.clock()
     end
 
     local function getAliveMobFolders(includeBosses: boolean, includeSeaMonsters: boolean?, includeDungeon: boolean?): { Instance }
@@ -204,6 +206,7 @@
 
     local function isKrakenBoss(n: string): boolean
         if isIslandMobName(n) then return false end
+        if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
         if hubState.ignoreKraken == true then return false end
         return string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil
     end
@@ -220,8 +223,9 @@
 
     local function isSeaEventMiscBoss(n: string): boolean
         if isIslandMobName(n) then return false end
+        if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
+        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
         if string.find(n, "galleon", 1, true) ~= nil then
-            if hubState.ignoreGalleon == true then return false end
             return true
         end
         return string.find(n, "sea beast", 1, true) ~= nil or string.find(n, "seabeast", 1, true) ~= nil or string.find(n, "ghost ship", 1, true) ~= nil
@@ -230,9 +234,14 @@
     local function isSeaEventMob(m: Instance?): boolean
         if not m or not m.Parent then return false end
         local pName = string.lower(m.Parent.Name or "")
-        if pName == "seamonster" or pName == "ghostmonster" then return true end
         local n = string.lower(m.Name or "")
         if isIslandMobName(n) then return false end
+
+        -- CHẶN BỎ QUA GALLEON & KRAKEN
+        if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
+        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+
+        if pName == "seamonster" or pName == "ghostmonster" then return true end
         if string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil
             or string.find(n, "hydra", 1, true) ~= nil
             or string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil
@@ -252,6 +261,10 @@
     local function isSea3BossEnabled(name: string): boolean
         local n = string.lower(name)
         if isIslandMobName(n) then return false end
+
+        -- CHẶN TRIỆT ĐỂ: Nếu bật bỏ qua Galleon hoặc Kraken thì từ chối ngay lập tức!
+        if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
+        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
 
         -- 1. Depth King (Top 1)
         if isDepthKingBoss(n) then
@@ -403,15 +416,21 @@
         local myPos = hrp.Position
 
         if currentCombatTarget and (os.clock() - currentCombatTargetAt) < 6.0 and isModelAlive(currentCombatTarget) then
-            local cRoot = getModelRoot(currentCombatTarget)
-            if cRoot then
-                local cDist = (cRoot.Position - myPos).Magnitude
-                local effMax = maxRange
-                if isSeaEventMob(currentCombatTarget) or isSea3BossEnabled(currentCombatTarget.Name) or isSea2BossEnabled(currentCombatTarget.Name) then
-                    effMax = math.max(maxRange, 140)
-                end
-                if cDist <= effMax then
-                    return currentCombatTarget, cRoot
+            local curName = string.lower(currentCombatTarget.Name)
+            if (hubState.ignoreGalleon == true and string.find(curName, "galleon", 1, true) ~= nil)
+               or (hubState.ignoreKraken == true and (string.find(curName, "kraken", 1, true) ~= nil or string.find(curName, "tentacle", 1, true) ~= nil)) then
+                currentCombatTarget = nil
+            else
+                local cRoot = getModelRoot(currentCombatTarget)
+                if cRoot then
+                    local cDist = (cRoot.Position - myPos).Magnitude
+                    local effMax = maxRange
+                    if isSeaEventMob(currentCombatTarget) or isSea3BossEnabled(currentCombatTarget.Name) or isSea2BossEnabled(currentCombatTarget.Name) then
+                        effMax = math.max(maxRange, 140)
+                    end
+                    if cDist <= effMax then
+                        return currentCombatTarget, cRoot
+                    end
                 end
             end
         end
@@ -428,6 +447,14 @@
                     local mHum = m:FindFirstChildOfClass("Humanoid")
                     local mRoot = getModelRoot(m)
                     if mHum and mHum.Health > 0 and mRoot then
+                        local mName = string.lower(m.Name)
+                        -- CHẶN KHÔNG TARGET GALLEON HOẶC KRAKEN NẾU ĐÃ BẬT BỎ QUA
+                        if hubState.ignoreGalleon == true and string.find(mName, "galleon", 1, true) ~= nil then
+                            continue
+                        end
+                        if hubState.ignoreKraken == true and (string.find(mName, "kraken", 1, true) ~= nil or string.find(mName, "tentacle", 1, true) ~= nil) then
+                            continue
+                        end
                         local d = (mRoot.Position - myPos).Magnitude
                         local effMax = maxRange
                         if isSeaEventMob(m) or isSea3BossEnabled(m.Name) or isSea2BossEnabled(m.Name) then
@@ -914,6 +941,13 @@
 
     local function equipAndFireSelectedM1(char: Model, hum: Humanoid): Tool?
         -- CHỈ ĐÁNH KHI CÓ MỤC TIÊU SỐNG TRONG TẦM CẬN CHIẾN (<= 50 STUDS, MỞ RỘNG 140 STUDS KHI ĐÁNH BOSS/SEA EVENT)
+        if currentCombatTarget and isModelAlive(currentCombatTarget) then
+            local curName = string.lower(currentCombatTarget.Name)
+            if (hubState.ignoreGalleon == true and string.find(curName, "galleon", 1, true) ~= nil)
+                or (hubState.ignoreKraken == true and (string.find(curName, "kraken", 1, true) ~= nil or string.find(curName, "tentacle", 1, true) ~= nil)) then
+                currentCombatTarget = nil
+            end
+        end
         local checkDist = 50
         if currentCombatTarget and isModelAlive(currentCombatTarget) then
             if isSeaEventMob(currentCombatTarget) or isSea3BossEnabled(currentCombatTarget.Name) or isSea2BossEnabled(currentCombatTarget.Name) then
@@ -1419,6 +1453,9 @@
     -- [AUTO FIGHT BOSS WORKER] - LUỒNG CHIẾN ĐẤU SEA EVENT, BOSS ĐẢO & NHẶT RƯƠNG BOSS
     -- ========================================================
     local function isIslandWanted(n: string, soloKey: string?, mode: string?): boolean
+        if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
+        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+
         if soloKey and soloKey ~= "" then
             if soloKey == "dragon" then
                 return (string.find(n, "dragon", 1, true) ~= nil or string.find(n, "drakenfyr", 1, true) ~= nil or string.find(n, "inferno", 1, true) ~= nil)
@@ -1470,12 +1507,15 @@
             local okS, st = pcall(genv.WK_SeaEvent.GetState)
             if okS and typeof(st) == "table" and st.phase and st.phase ~= "inactive" then
                 local ek = string.lower(tostring(st.eventKey or st.eventName or st.name or st.phase or ""))
-                if isIslandWanted(ek, soloKey, mode) or string.find(ek, "sea", 1, true) ~= nil or string.find(ek, "event", 1, true) ~= nil then
-                    local rawPos = st.position or st.Position or st.targetPos or st.TargetPos or st.spawnPos or st.SpawnPos
-                        or (typeof(st.cframe) == "CFrame" and st.cframe.Position)
-                        or (typeof(st.CFrame) == "CFrame" and st.CFrame.Position)
-                    if typeof(rawPos) == "Vector3" then
-                        return rawPos, tostring(st.eventKey or st.eventName or "SeaEvent")
+                if (hubState.ignoreGalleon ~= true or string.find(ek, "galleon", 1, true) == nil)
+                   and (hubState.ignoreKraken ~= true or (string.find(ek, "kraken", 1, true) == nil and string.find(ek, "tentacle", 1, true) == nil)) then
+                    if isIslandWanted(ek, soloKey, mode) or string.find(ek, "sea", 1, true) ~= nil or string.find(ek, "event", 1, true) ~= nil then
+                        local rawPos = st.position or st.Position or st.targetPos or st.TargetPos or st.spawnPos or st.SpawnPos
+                            or (typeof(st.cframe) == "CFrame" and st.cframe.Position)
+                            or (typeof(st.CFrame) == "CFrame" and st.CFrame.Position)
+                        if typeof(rawPos) == "Vector3" then
+                            return rawPos, tostring(st.eventKey or st.eventName or "SeaEvent")
+                        end
                     end
                 end
             end
@@ -1512,11 +1552,24 @@
             local hasLocalFarm = (hubState.autoLevel or hubState.autoKillSelectedMob or hubState.autoDungeon or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat)
             local seaEventPresent = false
             if hubState.autoFightSeaEvent ~= false then
-                local sm = workspace:FindFirstChild("SeaMonster")
-                local gm = workspace:FindFirstChild("GhostMonster")
-                if (sm and #sm:GetChildren() > 0) or (gm and #gm:GetChildren() > 0) then
-                    seaEventPresent = true
+                local function hasValidSeaEvent(fld: Instance?): boolean
+                    if not fld then return false end
+                    for _, m in ipairs(fld:GetChildren()) do
+                        if m:IsA("Model") then
+                            local mHum = m:FindFirstChildOfClass("Humanoid")
+                            if mHum and mHum.Health > 0 then
+                                local mName = string.lower(m.Name)
+                                local isIgnored = (hubState.ignoreGalleon == true and string.find(mName, "galleon", 1, true) ~= nil)
+                                    or (hubState.ignoreKraken == true and (string.find(mName, "kraken", 1, true) ~= nil or string.find(mName, "tentacle", 1, true) ~= nil))
+                                if not isIgnored then
+                                    return true
+                                end
+                            end
+                        end
+                    end
+                    return false
                 end
+                seaEventPresent = hasValidSeaEvent(workspace:FindFirstChild("SeaMonster")) or hasValidSeaEvent(workspace:FindFirstChild("GhostMonster"))
             end
             local busyOtherMode = hubState.autoFish or (currentMode == "off" and hasLocalFarm and not hubState.autoFightIslandBoss and not seaEventPresent)
             local bossFightActive = (currentMode ~= "off") or hubState.autoFightMaster or (hubState.autoFightSeaEvent ~= false) or hubState.autoFightIslandBoss
@@ -1575,6 +1628,16 @@
                     local soloKeyActive = (currentMode == "solo") and getSoloKey(currentSoloTarget) or ""
                     local function isBossWanted(rawName: string, folderName: string?): boolean
                         local n = string.lower(rawName)
+                        if isIslandMobName(n) then return false end
+
+                        -- KIỂM TRA BỎ QUA GALLEON & KRAKEN ƯU TIÊN CAO NHẤT
+                        if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then
+                            return false
+                        end
+                        if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then
+                            return false
+                        end
+
                         if hubState.autoFightIslandBoss and (rawName == islandExact or (islandKeyword ~= "" and string.find(n, islandKeyword, 1, true) ~= nil)) then
                             return true
                         end
@@ -1605,7 +1668,7 @@
                         end
                         -- Tự động đánh Sea Event khi bật Auto Fight Sea Event
                         if (hubState.autoFightSeaEvent ~= false or genv.AutoFightSeaEvent) and (folderName == "SeaMonster" or folderName == "GhostMonster" or isSeaEventMiscBoss(n) or isKrakenBoss(n) or isCrabBoss(n) or isDragonBoss(n) or isSerpentBoss(n) or isDepthKingBoss(n) or isAbyssalBoss(n) or string.find(n, "hydra", 1, true) ~= nil or string.find(n, "sea king", 1, true) ~= nil or string.find(n, "seaking", 1, true) ~= nil or string.find(n, "ghost", 1, true) ~= nil) then
-                            if hubState.ignoreKraken == true and (isKrakenBoss(n) or string.find(n, "tentacle", 1, true) ~= nil) then return false end
+                            if hubState.ignoreKraken == true and (string.find(n, "kraken", 1, true) ~= nil or string.find(n, "tentacle", 1, true) ~= nil) then return false end
                             if hubState.ignoreGalleon == true and string.find(n, "galleon", 1, true) ~= nil then return false end
                             return true
                         end
@@ -1925,6 +1988,14 @@
     local function getSea3Prio(e: any): number
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
+
+        -- CHẶN TRIỆT ĐỂ BỎ QUA GALLEON & KRAKEN
+        if hubState.ignoreGalleon == true and (string.find(nm, "galleon", 1, true) ~= nil or string.find(src, "galleon", 1, true) ~= nil) then
+            return 0
+        end
+        if hubState.ignoreKraken == true and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil or string.find(src, "kraken", 1, true) ~= nil) then
+            return 0
+        end
 
         -- Top 1: Depth King (Sea 3) - Ưu tiên cao nhất (10 điểm)
         if (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil then
@@ -2266,9 +2337,13 @@
         local sm = workspace:FindFirstChild("SeaMonster")
         if sm then
             for _, m in ipairs(sm:GetChildren()) do
-                if isSea3BossEnabled(m.Name) then
-                    local hum = m:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 then return true, m.Name end
+                local mName = string.lower(m.Name)
+                if (hubState.ignoreGalleon ~= true or string.find(mName, "galleon", 1, true) == nil)
+                   and (hubState.ignoreKraken ~= true or (string.find(mName, "kraken", 1, true) == nil and string.find(mName, "tentacle", 1, true) == nil)) then
+                    if isSea3BossEnabled(m.Name) then
+                        local hum = m:FindFirstChildOfClass("Humanoid")
+                        if hum and hum.Health > 0 then return true, m.Name end
+                    end
                 end
             end
         end
@@ -2277,9 +2352,13 @@
         local bossF = mon and mon:FindFirstChild("Boss")
         if bossF then
             for _, m in ipairs(bossF:GetChildren()) do
-                if isSea3BossEnabled(m.Name) then
-                    local hum = m:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 then return true, m.Name end
+                local mName = string.lower(m.Name)
+                if (hubState.ignoreGalleon ~= true or string.find(mName, "galleon", 1, true) == nil)
+                   and (hubState.ignoreKraken ~= true or (string.find(mName, "kraken", 1, true) == nil and string.find(mName, "tentacle", 1, true) == nil)) then
+                    if isSea3BossEnabled(m.Name) then
+                        local hum = m:FindFirstChildOfClass("Humanoid")
+                        if hum and hum.Health > 0 then return true, m.Name end
+                    end
                 end
             end
         end

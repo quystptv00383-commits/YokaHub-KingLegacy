@@ -24,6 +24,14 @@
         local src = string.lower(tostring(e.source or ""))
         local nm = string.lower(tostring(e.eventName or ""))
 
+        -- CHẶN TRIỆT ĐỂ BỎ QUA GALLEON & KRAKEN
+        if hubState.ignoreGalleon == true and (string.find(nm, "galleon", 1, true) ~= nil or string.find(src, "galleon", 1, true) ~= nil) then
+            return 0
+        end
+        if hubState.ignoreKraken == true and (string.find(nm, "kraken", 1, true) ~= nil or string.find(nm, "tentacle", 1, true) ~= nil or string.find(src, "kraken", 1, true) ~= nil) then
+            return 0
+        end
+
         -- Top 1: Depth King (Sea 3) - Ưu tiên cao nhất (10 điểm)
         if (src == "depth_king" or string.find(nm, "depth king", 1, true) ~= nil or nm == "depthking" or (string.find(nm, "depth", 1, true) ~= nil and string.find(nm, "king", 1, true) ~= nil)) and string.find(nm, "abyssal", 1, true) == nil then
             if hubState.fightSea3DepthKing ~= true then return 0 end
@@ -556,8 +564,17 @@
         Callback = function(Value: boolean)
             hubState.ignoreKraken = Value
             saveState(hubState)
+            pcall(function()
+                genv.IgnoreKraken = Value
+                if Value and currentCombatTarget and isModelAlive(currentCombatTarget) then
+                    local curN = string.lower(currentCombatTarget.Name)
+                    if string.find(curN, "kraken", 1, true) ~= nil or string.find(curN, "tentacle", 1, true) ~= nil then
+                        currentCombatTarget = nil
+                    end
+                end
+            end)
             if Value then
-                safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Kraken & Xúc tu!", "block")
+                safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Kraken & Xúc tu (kể cả Kraken Galleon)!", "block")
             else
                 safeNotify("YokaHub Boss", "Đã tắt: Cho phép đánh lại Kraken.", "check")
             end
@@ -566,13 +583,22 @@
 
     MasterFightSection:CreateToggle({
         Name = "🚫 Tắt Tự Động Đánh Tàu Galleon",
-        Description = "Bỏ qua hoàn toàn tàu chiến Galleon / Ghost Galleon, không bắn phá tàu để tiết kiệm thời gian",
+        Description = "Bỏ qua hoàn toàn tàu chiến Galleon, Ghost Galleon, Kraken Galleon, không bắn phá tàu để tiết kiệm thời gian",
         CurrentValue = (hubState.ignoreGalleon == true),
         Callback = function(Value: boolean)
             hubState.ignoreGalleon = Value
             saveState(hubState)
+            pcall(function()
+                genv.IgnoreGalleon = Value
+                if Value and currentCombatTarget and isModelAlive(currentCombatTarget) then
+                    local curN = string.lower(currentCombatTarget.Name)
+                    if string.find(curN, "galleon", 1, true) ~= nil then
+                        currentCombatTarget = nil
+                    end
+                end
+            end)
             if Value then
-                safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Tàu Galleon!", "block")
+                safeNotify("YokaHub Boss", "Đã bật: Tắt đánh Tàu Galleon (kể cả Kraken Galleon)!", "block")
             else
                 safeNotify("YokaHub Boss", "Đã tắt: Cho phép đánh lại Galleon.", "check")
             end
