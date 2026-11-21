@@ -27,7 +27,7 @@ MODULES_ORDER = [
 ]
 
 TARGET_DIST = os.path.join(DIST_DIR, "YokaHub.luau")
-TARGET_WORKSPACE = r"C:\Users\THIS PC\AppData\Local\Real\workspace\YokaHub.luau"
+TARGET_WORKSPACE = os.path.abspath(os.path.join(PROJECT_ROOT, "..", "..", "workspace", "YokaHub.luau"))
 
 print("==================================================")
 print("       [YOKAHUB BUNDLER & TEAM COMPILER]          ")

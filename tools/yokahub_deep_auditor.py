@@ -14,7 +14,7 @@ MOD_DIR = os.path.join(SRC_DIR, "modules")
 SEC_DIR = os.path.join(SRC_DIR, "security")
 DIST_FILE = os.path.join(PROJECT_ROOT, "dist", "YokaHub.luau")
 LOADER_FILE = os.path.join(PROJECT_ROOT, "dist", "loader.luau")
-WORKSPACE_DIR = r"C:\Users\THIS PC\AppData\Local\Real\workspace"
+WORKSPACE_DIR = os.path.abspath(os.path.join(PROJECT_ROOT, "..", "..", "workspace"))
 
 MODULES_ORDER = [
     os.path.join(CORE_DIR, "01_header.luau"),

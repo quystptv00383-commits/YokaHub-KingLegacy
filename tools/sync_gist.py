@@ -18,11 +18,13 @@ if not token:
 
 gist_id = "7dde495f53b84afb7cf64c06c15dfe2d"
 
+WORKSPACE_DIR = os.path.abspath(os.path.join(PROJECT_ROOT, "..", "..", "workspace"))
+
 files_to_sync = {
     "loader.luau": os.path.join(PROJECT_ROOT, "dist", "loader.luau"),
     "YokaHub.luau": os.path.join(PROJECT_ROOT, "dist", "YokaHub.luau"),
-    "YokaHub_Keys.json": r"C:\Users\THIS PC\AppData\Local\Real\workspace\YokaHub_Keys.json",
-    "YokaHub_Donators.json": r"C:\Users\THIS PC\AppData\Local\Real\workspace\YokaHub_Donators.json",
+    "YokaHub_Keys.json": os.path.join(WORKSPACE_DIR, "YokaHub_Keys.json"),
+    "YokaHub_Donators.json": os.path.join(WORKSPACE_DIR, "YokaHub_Donators.json"),
 }
 
 payload_files = {}
