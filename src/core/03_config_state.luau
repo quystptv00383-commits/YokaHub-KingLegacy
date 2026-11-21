@@ -259,6 +259,7 @@
         farmSea2Mat: boolean?,
         farmSea1Mat: boolean?,
         materialQuantityTracker: boolean?,
+        materialQuota: number?,
         autoDungeon: boolean?,
         dungeonMode: string?,
         -- YokaHub Fruit & Storage Features
@@ -304,18 +305,43 @@
         nguyenlieuSea3: string?,
         nguyenlieuSea2: string?,
         nguyenlieuSea1: string?,
-        -- Advanced Dungeon
+        -- Advanced Dungeon & Raid
         dungeonTactics: string?,
         dungeonAutoHeal: boolean?,
+        dungeonHealThreshold: number?,
         dungeonCameraLock: boolean?,
-        -- Advanced Shop Sniper
+        dungeonSafeHeight: number?,
+        dungeonMobBring: boolean?,
+        dungeonBringRange: number?,
+        dungeonAutoCollectChest: boolean?,
+        dungeonAutoReplay: boolean?,
+        dungeonEmergencyFlight: boolean?,
+        dungeonAutoHaki: boolean?,
+        dungeonAutoJoin: boolean?,
+        dungeonWeaponMode: string?,
+        -- Advanced Shop Sniper & Gacha
         snipeFruit: string?,
+        snipeFruitList: { string }?,
         snipeDelay: number?,
+        autoGachaFruitBeli: boolean?,
+        autoGachaFruitGem: boolean?,
+        selectedUnstoreFruit: string?,
         -- Auto Fishing
         autoClickPlay: boolean?,
         autoFish: boolean?,
         fishWeapon: string?,
         fishFloat: boolean?,
+        autoReel: boolean?,
+        perfectCatch: boolean?,
+        fishCastDelay: number?,
+        fishReelDelay: number?,
+        autoSellFish: boolean?,
+        sellCommonFish: boolean?,
+        sellRareFish: boolean?,
+        sellEpicFish: boolean?,
+        lockLegendaryFish: boolean?,
+        autoBuyBait: boolean?,
+        fishLocation: string?,
         -- Boss & Sea Events Boards
         autoFightMaster: boolean?,
         autoCollectChest: boolean?,
@@ -373,6 +399,7 @@
             farmSea2Mat = false,
             farmSea1Mat = false,
             materialQuantityTracker = false,
+            materialQuota = 50,
             autoDungeon = false,
             dungeonMode = "Easy (Dễ - Phù Hợp Cày Nhanh)",
             bringFruits = false,
@@ -414,15 +441,40 @@
             nguyenlieuSea3 = "Coral (San Hô)",
             nguyenlieuSea2 = "Iron Ingot (Sắt Thỏi)",
             nguyenlieuSea1 = "Leather (Da Thuộc)",
-            dungeonTactics = "🛡️ Safe Mode (Khoảng Cách An Toàn 260m + Hồi Máu)",
+            dungeonTactics = "⚡ Fast Sweep (Quét Siêu Tốc 8m / Gom Quái Tối Đa)",
             dungeonAutoHeal = true,
+            dungeonHealThreshold = 80,
             dungeonCameraLock = false,
+            dungeonSafeHeight = 16,
+            dungeonMobBring = true,
+            dungeonBringRange = 600,
+            dungeonAutoCollectChest = true,
+            dungeonAutoReplay = true,
+            dungeonEmergencyFlight = true,
+            dungeonAutoHaki = true,
+            dungeonAutoJoin = true,
+            dungeonWeaponMode = "Auto Mode (Tự Động Theo Tab Chiêu Thức)",
             snipeFruit = "⭐ Toàn Bộ Trái Thần Thoại & Cực Hiếm (Mythic + Legendary)",
+            snipeFruitList = { "Dragon", "Phoenix", "Gate", "Dough", "Erebus" },
             snipeDelay = 5,
+            autoGachaFruitBeli = false,
+            autoGachaFruitGem = false,
+            selectedUnstoreFruit = "Dragon",
             autoClickPlay = true,
             autoFish = false,
             fishWeapon = "True Muramasa (Khuyên Dùng - Tốc Độ Cao)",
             fishFloat = true,
+            autoReel = true,
+            perfectCatch = true,
+            fishCastDelay = 1.8,
+            fishReelDelay = 0.45,
+            autoSellFish = false,
+            sellCommonFish = true,
+            sellRareFish = true,
+            sellEpicFish = false,
+            lockLegendaryFish = true,
+            autoBuyBait = false,
+            fishLocation = "Tự do (Vị trí hiện tại)",
             autoFightMaster = true,
             autoCollectChest = true,
             bossSafeHeight = 35,
@@ -487,6 +539,7 @@
             if typeof(d.farmSea2Mat) == "boolean" then st.farmSea2Mat = d.farmSea2Mat end
             if typeof(d.farmSea1Mat) == "boolean" then st.farmSea1Mat = d.farmSea1Mat end
             if typeof(d.materialQuantityTracker) == "boolean" then st.materialQuantityTracker = d.materialQuantityTracker end
+            if typeof(d.materialQuota) == "number" then st.materialQuota = math.clamp(math.floor(d.materialQuota), 5, 1000) end
             if typeof(d.autoDungeon) == "boolean" then st.autoDungeon = d.autoDungeon end
             if typeof(d.dungeonMode) == "string" then st.dungeonMode = d.dungeonMode end
             if typeof(d.bringFruits) == "boolean" then st.bringFruits = d.bringFruits end
@@ -525,13 +578,38 @@
             if typeof(d.nguyenlieuSea1) == "string" then st.nguyenlieuSea1 = d.nguyenlieuSea1 end
             if typeof(d.dungeonTactics) == "string" then st.dungeonTactics = d.dungeonTactics end
             if typeof(d.dungeonAutoHeal) == "boolean" then st.dungeonAutoHeal = d.dungeonAutoHeal end
+            if typeof(d.dungeonHealThreshold) == "number" then st.dungeonHealThreshold = d.dungeonHealThreshold end
             if typeof(d.dungeonCameraLock) == "boolean" then st.dungeonCameraLock = d.dungeonCameraLock end
+            if typeof(d.dungeonSafeHeight) == "number" then st.dungeonSafeHeight = d.dungeonSafeHeight end
+            if typeof(d.dungeonMobBring) == "boolean" then st.dungeonMobBring = d.dungeonMobBring end
+            if typeof(d.dungeonBringRange) == "number" then st.dungeonBringRange = d.dungeonBringRange end
+            if typeof(d.dungeonAutoCollectChest) == "boolean" then st.dungeonAutoCollectChest = d.dungeonAutoCollectChest end
+            if typeof(d.dungeonAutoReplay) == "boolean" then st.dungeonAutoReplay = d.dungeonAutoReplay end
+            if typeof(d.dungeonEmergencyFlight) == "boolean" then st.dungeonEmergencyFlight = d.dungeonEmergencyFlight end
+            if typeof(d.dungeonAutoHaki) == "boolean" then st.dungeonAutoHaki = d.dungeonAutoHaki end
+            if typeof(d.dungeonAutoJoin) == "boolean" then st.dungeonAutoJoin = d.dungeonAutoJoin end
+            if typeof(d.dungeonWeaponMode) == "string" then st.dungeonWeaponMode = d.dungeonWeaponMode end
             if typeof(d.snipeFruit) == "string" then st.snipeFruit = d.snipeFruit end
+            if typeof(d.snipeFruitList) == "table" then st.snipeFruitList = d.snipeFruitList end
             if typeof(d.snipeDelay) == "number" then st.snipeDelay = d.snipeDelay end
+            if typeof(d.autoGachaFruitBeli) == "boolean" then st.autoGachaFruitBeli = d.autoGachaFruitBeli end
+            if typeof(d.autoGachaFruitGem) == "boolean" then st.autoGachaFruitGem = d.autoGachaFruitGem end
+            if typeof(d.selectedUnstoreFruit) == "string" then st.selectedUnstoreFruit = d.selectedUnstoreFruit end
             if typeof(d.autoClickPlay) == "boolean" then st.autoClickPlay = d.autoClickPlay end
             if typeof(d.autoFish) == "boolean" then st.autoFish = d.autoFish end
             if typeof(d.fishWeapon) == "string" then st.fishWeapon = d.fishWeapon end
             if typeof(d.fishFloat) == "boolean" then st.fishFloat = d.fishFloat end
+            if typeof(d.autoReel) == "boolean" then st.autoReel = d.autoReel end
+            if typeof(d.perfectCatch) == "boolean" then st.perfectCatch = d.perfectCatch end
+            if typeof(d.fishCastDelay) == "number" then st.fishCastDelay = d.fishCastDelay end
+            if typeof(d.fishReelDelay) == "number" then st.fishReelDelay = d.fishReelDelay end
+            if typeof(d.autoSellFish) == "boolean" then st.autoSellFish = d.autoSellFish end
+            if typeof(d.sellCommonFish) == "boolean" then st.sellCommonFish = d.sellCommonFish end
+            if typeof(d.sellRareFish) == "boolean" then st.sellRareFish = d.sellRareFish end
+            if typeof(d.sellEpicFish) == "boolean" then st.sellEpicFish = d.sellEpicFish end
+            if typeof(d.lockLegendaryFish) == "boolean" then st.lockLegendaryFish = d.lockLegendaryFish end
+            if typeof(d.autoBuyBait) == "boolean" then st.autoBuyBait = d.autoBuyBait end
+            if typeof(d.fishLocation) == "string" then st.fishLocation = d.fishLocation end
             if typeof(d.autoFightMaster) == "boolean" then st.autoFightMaster = d.autoFightMaster end
             if typeof(d.autoCollectChest) == "boolean" then st.autoCollectChest = d.autoCollectChest end
             if typeof(d.bossSafeHeight) == "number" then st.bossSafeHeight = math.clamp(math.floor(d.bossSafeHeight), 10, 150) end

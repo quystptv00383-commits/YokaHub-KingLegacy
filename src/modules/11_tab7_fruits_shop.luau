@@ -9,35 +9,92 @@
             ShowTitle = false,
         })
 
-        local MagnetSection = FruitTab:CreateSection("🍎 Nhặt & Cất Kho Trái Ác Quỷ")
+        -- ========================================================
+        -- SECTION 1: 🍎 THU THẬP & CẤT GIỮ TRÁI (COLLECTION & STORAGE)
+        -- ========================================================
+        local MagnetSection = FruitTab:CreateSection("🍎 Thu Thập & Cất Giữ Trái (Collection & Storage)")
+
         MagnetSection:CreateToggle({
-            Name = "🧲 Tự Hút / Nhặt Trái Rơi Tự Do (Bring Fruit)",
-            Description = "Tự động bay đến nhặt ngay lập tức khi có bất kỳ trái nào rơi trên map",
-            CurrentValue = hubState.bringFruits,
+            Name = "🧲 Tự Teleport Nhặt Trái Rơi (Instant Bring Fruit)",
+            Description = "Teleport tức thì đến vị trí trái rơi trên map và nhặt ngay lập tức trước khi người khác cướp",
+            CurrentValue = (hubState.bringFruits == true),
             Callback = function(Value: boolean)
                 hubState.bringFruits = Value
                 saveState(hubState)
                 pcall(function() genv.BringDroppedFruit = Value end)
-                if Value then safeNotify("YokaHub", "Đang tự động quét nhặt trái rơi trên map...", "spa") end
+                if Value then
+                    safeNotify("YokaHub Trái", "Đã bật tự động teleport nhặt toàn bộ trái rơi trên map!", "spa")
+                else
+                    safeNotify("YokaHub Trái", "Đã tắt tự nhặt trái.", "info")
+                end
             end,
         }, "BringFruitsToggle")
 
         MagnetSection:CreateToggle({
-            Name = "📦 Tự Động Cất Trái Vào Kho Rương (Store Fruit)",
-            Description = "Tự động gửi vào kho ngay sau khi nhặt được để tránh bị người khác cướp hoặc mất",
-            CurrentValue = hubState.storeFruits,
+            Name = "📦 Tự Động Cất Trái Vào Rương (Auto Store Fruit)",
+            Description = "Tự động gửi trái vật lý vào rương kho đồ (FruitStore) ngay khi nhặt được để tránh bị cướp hoặc mất",
+            CurrentValue = (hubState.storeFruits ~= false),
             Callback = function(Value: boolean)
                 hubState.storeFruits = Value
                 saveState(hubState)
                 pcall(function() genv.AutoStoreFruit = Value end)
+                if Value then
+                    safeNotify("YokaHub Kho", "Đã bật tự động cất trái vào rương!", "inventory_2")
+                end
             end,
         }, "StoreFruitsToggle")
 
-        local ShopSection = FruitTab:CreateSection("🛒 Bắn Tỉa Mua Trái Trong Shop (Shop Sniper)")
+        MagnetSection:CreateToggle({
+            Name = "👁️ Bật ESP Hiện Vị Trí Trái (Fruit ESP)",
+            Description = "Hiện tên, khoảng cách và vòng sáng định vị tất cả trái ác quỷ đang rơi trên toàn map",
+            CurrentValue = (hubState.fruitESP == true),
+            Callback = function(Value: boolean)
+                hubState.fruitESP = Value
+                saveState(hubState)
+                pcall(function() genv.FruitESPEnabled = Value end)
+                if Value then
+                    safeNotify("YokaHub ESP", "Đã bật Fruit ESP định vị trái rơi!", "visibility")
+                else
+                    safeNotify("YokaHub ESP", "Đã tắt Fruit ESP.", "visibility_off")
+                end
+            end,
+        }, "FruitESPToggle")
+
+        MagnetSection:CreateButton({
+            Name = "🔍 Quét Số Lượng Trái Đang Rơi Trên Map",
+            Description = "Kiểm tra toàn bộ workspace xem hiện tại đang có những trái ác quỷ nào rơi tự do",
+            Callback = function()
+                local fruitsFound = {}
+                local char = player.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                pcall(function()
+                    for _, item in ipairs(workspace:GetChildren()) do
+                        if item:IsA("Tool") or (item:IsA("Model") and string.find(string.lower(item.Name), "fruit")) then
+                            local handle = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart")
+                            if handle then
+                                local distStr = hrp and string.format(" (%d studs)", math.floor((handle.Position - hrp.Position).Magnitude)) or ""
+                                table.insert(fruitsFound, item.Name .. distStr)
+                            end
+                        end
+                    end
+                end)
+                if #fruitsFound > 0 then
+                    safeNotify("YokaHub Quét Trái", string.format("Phát hiện %d trái rơi: %s", #fruitsFound, table.concat(fruitsFound, ", ")), "travel_explore")
+                else
+                    safeNotify("YokaHub Quét Trái", "Hiện tại không có trái ác quỷ nào đang rơi trên map.", "info")
+                end
+            end,
+        })
+
+        -- ========================================================
+        -- SECTION 2: 🛒 BẮN TỈA MUA TRÁI SHOP (SHOP SNIPER)
+        -- ========================================================
+        local ShopSection = FruitTab:CreateSection("🛒 Bắn Tỉa Mua Trái Shop (Shop Sniper)")
+
         ShopSection:CreateToggle({
-            Name = "🛒 Bật Sniper Tự Mua Trái Khi Shop Mở Bán",
-            Description = "Tự động kiểm tra Shop Trái mỗi vài giây và mua ngay lập tức các trái được chọn",
-            CurrentValue = hubState.snipeShop,
+            Name = "🛒 Bật Sniper Tự Mua Trái Khi Mở Bán",
+            Description = "Tự động kiểm tra Fruit Shop mỗi vài giây và mua ngay lập tức các trái được tích chọn",
+            CurrentValue = (hubState.snipeShop == true),
             Callback = function(Value: boolean)
                 hubState.snipeShop = Value
                 saveState(hubState)
@@ -45,54 +102,74 @@
                     genv.shopSniperEnabled = Value
                     genv.shopSniperDelay = hubState.snipeDelay or 5
                 end)
-                if Value then safeNotify("Shop Sniper", "Đang theo dõi Shop: " .. tostring(hubState.snipeFruit), "shopping_cart") end
+                if Value then
+                    local count = typeof(hubState.snipeFruitList) == "table" and #hubState.snipeFruitList or 1
+                    safeNotify("Shop Sniper", string.format("Đang theo dõi Shop để mua %d loại trái đã tích chọn!", count), "shopping_cart")
+                else
+                    safeNotify("Shop Sniper", "Đã tắt Sniper mua trái Shop.", "pause_circle")
+                end
             end,
         }, "SnipeShopToggle")
 
-        ShopSection:CreateDropdown({
-            Name = "Chọn Trái Cụ Thể Muốn Sniper",
-            Options = {
-                "⭐ Toàn Bộ Trái Thần Thoại & Cực Hiếm (Mythic + Legendary)",
-                "Dragon (Rồng Thần)",
-                "Phoenix (Phượng Hoàng)",
-                "Gate (Cổng Không Gian)",
-                "Dough (Bánh Mochi)",
-                "Erebus (Bóng Tối Tối Thượng)",
-                "Spirit (Linh Hồn)",
-                "Magnet (Từ Tính)",
-                "Toy (Đồ Chơi)",
-                "Melody (Âm Nhạc)",
-                "Demon (Quỷ Vương)",
-                "Snow (Tuyết Trắng)",
-            },
-            CurrentOption = { hubState.snipeFruit or "⭐ Toàn Bộ Trái Thần Thoại & Cực Hiếm (Mythic + Legendary)" },
-            MultipleOptions = false,
-            Callback = function(opt: any)
-                local val = pickDropdownValue(opt)
-                hubState.snipeFruit = val
+        local ALL_SNIPE_FRUITS = {
+            "Dragon",
+            "Phoenix",
+            "Gate",
+            "Dough",
+            "Erebus",
+            "Spirit",
+            "Magnet",
+            "Toy",
+            "Melody",
+            "Demon",
+            "Snow",
+            "Quake",
+            "Light",
+            "Dark",
+            "Rumble",
+            "Flame",
+            "Magma",
+            "Leopard",
+        }
+
+        local defaultSnipeList = (typeof(hubState.snipeFruitList) == "table" and #hubState.snipeFruitList > 0)
+            and hubState.snipeFruitList
+            or { "Dragon", "Phoenix", "Gate", "Dough", "Erebus" }
+        hubState.snipeFruitList = defaultSnipeList
+
+        local SnipeFruitDropdownObj: any = nil
+        SnipeFruitDropdownObj = ShopSection:CreateDropdown({
+            Name = "🎯 Tích Chọn Các Trái Cần Mua (Multi-Select)",
+            Description = "Tích chọn cùng lúc nhiều loại trái mong muốn; hệ thống sẽ mua tất cả các trái này khi shop restock",
+            Options = ALL_SNIPE_FRUITS,
+            CurrentOption = defaultSnipeList,
+            MultipleOptions = true,
+            Callback = function(opts: any)
+                local selected = pickMultiDropdownValue(opts)
+                if #selected == 0 then selected = { "Dragon" } end
+                hubState.snipeFruitList = selected
                 saveState(hubState)
                 pcall(function()
-                    local rawName = string.match(val, "^([%w%s%']+)") or "Dragon"
-                    rawName = string.gsub(rawName, "%s+$", "")
-                    if string.find(val, "Toàn Bộ") then
-                        genv.shopSniperFruits = {"Dragon", "Phoenix", "Gate", "Dough", "Erebus", "Spirit", "Magnet", "Toy", "Melody", "Demon", "Snow"}
-                    else
-                        genv.shopSniperFruits = { rawName }
-                    end
+                    genv.shopSniperFruits = selected
                 end)
+                safeNotify("Shop Sniper", "Đã cập nhật " .. tostring(#selected) .. " trái vào danh sách săn mua!", "checklist")
             end,
-        }, "SnipeFruitDropdown")
+        }, "SnipeFruitMultiDropdown")
 
         ShopSection:CreateButton({
-            Name = "⚡ Chọn Nhanh Top 5 Trái Meta Hot Nhất",
-            Description = "Thiết lập mua ngay: Dragon, Phoenix, Gate, Dough, Erebus",
+            Name = "⭐ Chọn Nhanh Top Trái Thần Thoại Meta",
+            Description = "Tự động tích chọn Top 7 trái mạnh nhất: Dragon, Phoenix, Gate, Dough, Erebus, Spirit, Magnet",
             Callback = function()
-                hubState.snipeFruit = "⭐ Toàn Bộ Trái Thần Thoại & Cực Hiếm (Mythic + Legendary)"
+                local topMeta = { "Dragon", "Phoenix", "Gate", "Dough", "Erebus", "Spirit", "Magnet" }
+                hubState.snipeFruitList = topMeta
                 saveState(hubState)
                 pcall(function()
-                    genv.shopSniperFruits = {"Dragon", "Phoenix", "Gate", "Dough", "Erebus"}
-                    safeNotify("Shop Sniper", "Đã cấu hình mua Top 5 trái Meta: Dragon, Phoenix, Gate, Dough, Erebus!", "verified")
+                    genv.shopSniperFruits = topMeta
+                    if SnipeFruitDropdownObj and typeof(SnipeFruitDropdownObj.Set) == "function" then
+                        SnipeFruitDropdownObj:Set({ CurrentOption = topMeta })
+                    end
                 end)
+                safeNotify("Shop Sniper", "Đã kích hoạt săn Top 7 Trái Thần Thoại Meta!", "verified")
             end,
         })
 
@@ -100,17 +177,196 @@
             Name = "⏱️ Tần Suất Quét Shop (Giây)",
             Range = { 1, 30 },
             Increment = 1,
+            Suffix = " giây",
             CurrentValue = hubState.snipeDelay or 5,
             Callback = function(Value: number)
-                hubState.snipeDelay = Value
+                hubState.snipeDelay = math.clamp(math.floor(Value), 1, 30)
                 saveState(hubState)
                 pcall(function()
-                    genv.shopSniperDelay = Value
+                    genv.shopSniperDelay = hubState.snipeDelay
                 end)
             end,
         }, "SnipeDelaySlider")
 
-        local InventoryActionsSection = FruitTab:CreateSection("📤 Thao Tác Trái Kho Đồ")
+        ShopSection:CreateButton({
+            Name = "📋 Xem Kho Hàng Shop Hiện Tại (View Shop Stock)",
+            Description = "Tra cứu danh sách các trái hiện đang có sẵn trong Fruit Shop của server hiện tại",
+            Callback = function()
+                task.spawn(function()
+                    local currentStock = {}
+                    pcall(function()
+                        local chest = sharedRS:FindFirstChild("Chest")
+                        local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                        local getStockRem = remFuncs and (remFuncs:FindFirstChild("GetFruitStock") or remFuncs:FindFirstChild("FruitStock") or remFuncs:FindFirstChild("FruitShop"))
+                        if getStockRem then
+                            local ok, res = pcall(function() return getStockRem:InvokeServer() end)
+                            if ok and typeof(res) == "table" then
+                                for fName, info in pairs(res) do
+                                    if typeof(info) == "table" and (info.InStock == true or info.Stock == true or (tonumber(info.Amount) or 0) > 0) then
+                                        table.insert(currentStock, tostring(fName))
+                                    elseif typeof(fName) == "string" and info == true then
+                                        table.insert(currentStock, fName)
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                    if #currentStock > 0 then
+                        safeNotify("Fruit Shop", "Đang bán: " .. table.concat(currentStock, ", "), "store")
+                    else
+                        safeNotify("Fruit Shop", "Shop đang trong chu kỳ làm mới hoặc không có trái mở bán lúc này.", "info")
+                    end
+                end)
+            end,
+        })
+
+        -- ========================================================
+        -- SECTION 3: 🎰 QUAY TRÁI ÁC QUỶ TỰ ĐỘNG (AUTO GACHA / ROLL FRUIT)
+        -- ========================================================
+        local GachaSection = FruitTab:CreateSection("🎰 Quay Trái Ác Quỷ Tự Động (Auto Gacha / Roll Fruit)")
+
+        GachaSection:CreateToggle({
+            Name = "🎰 Tự Động Gacha Trái Bằng Beli (2.5M Beli)",
+            Description = "Tự động mua lượt quay Random Fruit tại NPC bằng 2,500,000 Beli mỗi khi tích đủ tiền (tự cất rương ngay nếu bật Auto Store)",
+            CurrentValue = (hubState.autoGachaFruitBeli == true),
+            Callback = function(Value: boolean)
+                hubState.autoGachaFruitBeli = Value
+                saveState(hubState)
+                pcall(function() genv.AutoGachaFruitBeli = Value end)
+                if Value then
+                    safeNotify("YokaHub Gacha", "Đã bật tự động Gacha Trái bằng Beli!", "casino")
+                else
+                    safeNotify("YokaHub Gacha", "Đã tắt Gacha Trái bằng Beli.", "info")
+                end
+            end,
+        }, "AutoGachaBeliToggle")
+
+        GachaSection:CreateToggle({
+            Name = "💎 Tự Động Gacha Trái Bằng Gems (1 Gem)",
+            Description = "Tự động mua lượt quay Random Fruit tại NPC bằng Gems (tự cất rương ngay nếu bật Auto Store)",
+            CurrentValue = (hubState.autoGachaFruitGem == true),
+            Callback = function(Value: boolean)
+                hubState.autoGachaFruitGem = Value
+                saveState(hubState)
+                pcall(function() genv.AutoGachaFruitGem = Value end)
+                if Value then
+                    safeNotify("YokaHub Gacha", "Đã bật tự động Gacha Trái bằng Gems!", "diamond")
+                else
+                    safeNotify("YokaHub Gacha", "Đã tắt Gacha Trái bằng Gems.", "info")
+                end
+            end,
+        }, "AutoGachaGemToggle")
+
+        GachaSection:CreateButton({
+            Name = "🎲 Quay Thử 1 Trái Bằng Beli Ngay Lập Tức",
+            Description = "Thực hiện ngay 1 lượt quay Random Fruit bằng 2.5M Beli qua Remote NPC",
+            Callback = function()
+                task.spawn(function()
+                    pcall(function()
+                        local chest = sharedRS:FindFirstChild("Chest")
+                        local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                        local gachaRem = remFuncs and (remFuncs:FindFirstChild("RandomFruit") or remFuncs:FindFirstChild("SpinFruit") or remFuncs:FindFirstChild("FruitGacha"))
+                        if not gachaRem then
+                            local legacyNet = sharedRS:FindFirstChild("Remotes")
+                            gachaRem = legacyNet and legacyNet:FindFirstChild("Functions") and (legacyNet.Functions:FindFirstChild("RandomFruit") or legacyNet.Functions:FindFirstChild("SpinFruit") or legacyNet.Functions:FindFirstChild("Gacha"))
+                        end
+                        if gachaRem then
+                            gachaRem:InvokeServer("Beli")
+                            gachaRem:InvokeServer(1)
+                            safeNotify("YokaHub Gacha", "Đã gửi yêu cầu quay Random Fruit bằng Beli!", "casino")
+                        else
+                            safeNotify("YokaHub Gacha", "Không tìm thấy Remote Gacha của game.", "warning")
+                        end
+                    end)
+                end)
+            end,
+        })
+
+        GachaSection:CreateButton({
+            Name = "💎 Quay Thử 1 Trái Bằng Gem Ngay Lập Tức",
+            Description = "Thực hiện ngay 1 lượt quay Random Fruit bằng Gems qua Remote NPC",
+            Callback = function()
+                task.spawn(function()
+                    pcall(function()
+                        local chest = sharedRS:FindFirstChild("Chest")
+                        local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                        local gachaRem = remFuncs and (remFuncs:FindFirstChild("RandomFruit") or remFuncs:FindFirstChild("SpinFruit") or remFuncs:FindFirstChild("FruitGacha"))
+                        if not gachaRem then
+                            local legacyNet = sharedRS:FindFirstChild("Remotes")
+                            gachaRem = legacyNet and legacyNet:FindFirstChild("Functions") and (legacyNet.Functions:FindFirstChild("RandomFruit") or legacyNet.Functions:FindFirstChild("SpinFruit") or legacyNet.Functions:FindFirstChild("Gacha"))
+                        end
+                        if gachaRem then
+                            gachaRem:InvokeServer("Gem")
+                            gachaRem:InvokeServer(2)
+                            safeNotify("YokaHub Gacha", "Đã gửi yêu cầu quay Random Fruit bằng Gem!", "diamond")
+                        else
+                            safeNotify("YokaHub Gacha", "Không tìm thấy Remote Gacha của game.", "warning")
+                        end
+                    end)
+                end)
+            end,
+        })
+
+        -- ========================================================
+        -- SECTION 4: 📤 QUẢN LÝ & THAO TÁC KHO RƯƠNG (STORAGE & INVENTORY)
+        -- ========================================================
+        local InventoryActionsSection = FruitTab:CreateSection("📤 Quản Lý & Thao Tác Kho Rương (Storage & Inventory)")
+
+        local UNSTORE_OPTIONS = {
+            "Dragon",
+            "Phoenix",
+            "Gate",
+            "Dough",
+            "Erebus",
+            "Spirit",
+            "Magnet",
+            "Toy",
+            "Melody",
+            "Demon",
+            "Snow",
+            "Quake",
+            "Light",
+            "Dark",
+            "Rumble",
+            "Flame",
+            "Magma",
+            "Leopard",
+        }
+        local defaultUnstore = table.find(UNSTORE_OPTIONS, hubState.selectedUnstoreFruit) and hubState.selectedUnstoreFruit or UNSTORE_OPTIONS[1]
+
+        InventoryActionsSection:CreateDropdown({
+            Name = "Chọn Trái Cụ Thể Trong Rương Muốn Rút",
+            Description = "Chọn chính xác loại trái ác quỷ bạn muốn rút ra từ FruitStore",
+            Options = UNSTORE_OPTIONS,
+            CurrentOption = { defaultUnstore },
+            MultipleOptions = false,
+            Callback = function(opt: any)
+                local val = pickDropdownValue(opt)
+                hubState.selectedUnstoreFruit = val
+                saveState(hubState)
+            end,
+        }, "SelectUnstoreFruitDropdown")
+
+        InventoryActionsSection:CreateButton({
+            Name = "📥 Rút Trái Đã Chọn Ra Balo (Unstore Selected Fruit)",
+            Description = "Rút đúng loại trái ác quỷ đã chọn ở trên từ rương ra túi đồ",
+            Callback = function()
+                task.spawn(function()
+                    local target = hubState.selectedUnstoreFruit or "Dragon"
+                    pcall(function()
+                        local chest = sharedRS:FindFirstChild("Chest")
+                        local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                        local dealFruit = remFuncs and remFuncs:FindFirstChild("DealFruit")
+                        if dealFruit then
+                            dealFruit:InvokeServer(target, "Unstore")
+                            dealFruit:InvokeServer(target .. "Fruit", "Unstore")
+                            safeNotify("YokaHub Kho Đồ", "Đã rút trái [" .. target .. "] từ rương ra balo!", "inventory")
+                        end
+                    end)
+                end)
+            end,
+        })
+
         InventoryActionsSection:CreateButton({
             Name = "📦 Lấy Toàn Bộ Trái Ra Khỏi Rương (Unstore All)",
             Description = "Rút tất cả trái ác quỷ trong rương đồ ra balo cá nhân qua DealFruit chính thức",
@@ -118,7 +374,7 @@
                 task.spawn(function()
                     local unstored = 0
                     pcall(function()
-                        local chest = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
+                        local chest = sharedRS:FindFirstChild("Chest")
                         local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
                         local dealFruit = remFuncs and remFuncs:FindFirstChild("DealFruit")
                         local ps = player:FindFirstChild("PlayerStats")
@@ -146,7 +402,7 @@
         })
 
         InventoryActionsSection:CreateButton({
-            Name = "⚠️ Thả Trái Rơi Ra Đất (Drop Fruit)",
+            Name = "⚠️ Thả Trái Đang Cầm Ra Đất (Drop Held Fruit)",
             Description = "Thả trái vật lý trên tay hoặc trong balo ra đất (tự bảo vệ không thả nhầm Trái đang ăn)",
             Callback = function()
                 pcall(function()
@@ -168,7 +424,7 @@
                         end
                     end
                     if held then
-                        local chest = game:GetService("ReplicatedStorage"):FindFirstChild("Chest")
+                        local chest = sharedRS:FindFirstChild("Chest")
                         local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
                         if remFuncs and remFuncs:FindFirstChild("DealFruit") then
                             pcall(function() remFuncs.DealFruit:InvokeServer(held.Name, "Drop") end)
@@ -176,6 +432,27 @@
                         safeNotify("YokaHub", "Đã thả trái [" .. held.Name .. "] ra đất!", "file_download")
                     else
                         safeNotify("YokaHub", "Không tìm thấy trái vật lý nào trong túi đồ để thả!", "warning")
+                    end
+                end)
+            end,
+        })
+
+        InventoryActionsSection:CreateButton({
+            Name = "🍽️ Ăn Trái Đang Cầm Trên Tay (Eat Held Fruit)",
+            Description = "Ăn trái ác quỷ vật lý đang cầm trên tay để nhận sức mạnh trái ác quỷ mới",
+            Callback = function()
+                pcall(function()
+                    local char = player.Character
+                    local held = char and char:FindFirstChildOfClass("Tool")
+                    if held and held.ToolTip ~= "Fruit Power" and string.find(string.lower(held.Name), "fruit") then
+                        local chest = sharedRS:FindFirstChild("Chest")
+                        local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                        if remFuncs and remFuncs:FindFirstChild("DealFruit") then
+                            pcall(function() remFuncs.DealFruit:InvokeServer(held.Name, "Eat") end)
+                            safeNotify("YokaHub", "Đã kích hoạt ăn trái [" .. held.Name .. "]!", "restaurant")
+                        end
+                    else
+                        safeNotify("YokaHub", "Hãy cầm trái ác quỷ vật lý trên tay trước khi bấm Ăn!", "warning")
                     end
                 end)
             end,

@@ -1472,6 +1472,9 @@
                     if hum.Health <= 0 then return end
                     if os.clock() < dodgeUntilClock then return end
 
+                    local tactics = hubState.dungeonTactics or "Safe"
+                    local weaponPref = hubState.dungeonWeaponMode or "Auto"
+
                     -- Quét Boss Đảo nếu bật autoFightIslandBoss, hoặc Boss Biển / Sea Event nếu bật autoFightMaster hoặc đang ở chế độ Hop Boss
                     local islandKeyword = ""
                     local islandExact = ""
@@ -2838,42 +2841,73 @@
 end)
 
     -- 🎣 LUỒNG CÂU CÁ TỰ ĐỘNG (AUTO FISHING WORKER)
+    -- ========================================================
+    -- [AUTO FISHING MASTER LOOP] - TỰ ĐỘNG CÂU CÁ, ĐỨNG NƯỚC, GIẬT CẦN & BÁN CÁ
+    -- ========================================================
+    local lastFishSellTick = 0
+    local fishSpotsCoords = {
+        ["🏝️ [Sea 1] Bờ Biển Đảo Khởi Đầu (Starter Beach)"] = Vector3.new(-105, 14, 520),
+        ["🏴‍☠️ [Sea 1] Cầu Tàu Đảo Hải Tặc (Pirate Pier)"] = Vector3.new(1540, 16, 1280),
+        ["🌸 [Sea 1] Cảng Thị Trấn Floresco (Floresco Town)"] = Vector3.new(-1250, 16, -180),
+        ["🌿 [Sea 2] Vịnh Câu Cá Viridans (Viridans Bay)"] = Vector3.new(-4800, 16, 2100),
+        ["💀 [Sea 2] Vùng Biển Đảo Đầu Lâu (Skull Waters)"] = Vector3.new(2800, 16, -3400),
+        ["🌌 [Sea 3] Cầu Cảng Cõi Hư Vô (The Unearthly Pier)"] = Vector3.new(-6500, 18, 1200),
+        ["🌊 [Sea 3] Vùng Nước Sâu Depth Waters (Sea 3)"] = Vector3.new(3200, 16, 4500),
+    }
+
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(1.5)
+            local castWait = math.clamp(tonumber(hubState.fishCastDelay or genv.FishCastDelay) or 1.8, 0.8, 6.0)
+            task.wait(castWait)
+
             if hubState.autoFish and currentMode == "off" then
                 pcall(function()
                     local char = player.Character
                     if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then return end
+                    local hrp = char.HumanoidRootPart
+                    local hum = char.Humanoid
+                    if hum.Health <= 0 then return end
 
-                    -- Tự động cầm cần câu hoặc kiếm câu cá
+                    -- 1. Tự động bay tới điểm câu nếu được chọn
+                    local locName = hubState.fishLocation
+                    if locName and fishSpotsCoords[locName] then
+                        local spotPos = fishSpotsCoords[locName]
+                        if (hrp.Position - spotPos).Magnitude > 45 then
+                            hrp.CFrame = CFrame.new(spotPos + Vector3.new(0, 3, 0))
+                            task.wait(0.5)
+                        end
+                    end
+
+                    -- 2. Tự động cầm cần câu hoặc kiếm câu cá
                     local rawWeapon = hubState.fishWeapon or "True Muramasa"
                     local weaponName = string.match(rawWeapon, "^([%w%s%']+)") or "True Muramasa"
                     weaponName = string.gsub(weaponName, "%s+$", "")
-                    local tool = char:FindFirstChild(weaponName) or player.Backpack:FindFirstChild(weaponName)
-                    if not tool then
-                        for _, t in ipairs(player.Backpack:GetChildren()) do
-                            if t:IsA("Tool") and (string.find(string.lower(t.Name), "rod") or string.find(string.lower(t.Name), "fish") or string.find(string.lower(t.Name), string.lower(weaponName))) then
-                                tool = t
-                                break
+                    local curHeld = char:FindFirstChildOfClass("Tool")
+                    if not (curHeld and (curHeld.Name == weaponName or string.find(string.lower(curHeld.Name), "rod") or string.find(string.lower(curHeld.Name), "fish"))) then
+                        local tool = char:FindFirstChild(weaponName) or player.Backpack:FindFirstChild(weaponName)
+                        if not tool then
+                            for _, t in ipairs(player.Backpack:GetChildren()) do
+                                if t:IsA("Tool") and (string.find(string.lower(t.Name), "rod") or string.find(string.lower(t.Name), "fish") or string.find(string.lower(t.Name), string.lower(weaponName))) then
+                                    tool = t
+                                    break
+                                end
                             end
                         end
-                    end
-                    if tool and tool.Parent == player.Backpack then
-                        char.Humanoid:EquipTool(tool)
-                        task.wait(0.4)
+                        if tool and tool.Parent == player.Backpack then
+                            hum:EquipTool(tool)
+                            task.wait(0.3)
+                        end
                     end
 
-                    -- Đứng trên mặt nước nếu bật Water Float (giữ độ cao ổn định trên bệ nổi YokaWaterPlatform)
-                    if hubState.fishFloat then
-                        local hrp = char:FindFirstChild("HumanoidRootPart")
-                        if hrp and hrp.Position.Y < 1 and hrp.Position.Y > -25 then
-                            hrp.Velocity = Vector3.new(0, 0, 0)
+                    -- 3. Đứng trên mặt nước nếu bật Water Float (giữ độ cao an toàn trên bệ nổi YokaWaterPlatform)
+                    if hubState.fishFloat ~= false then
+                        if hrp.Position.Y < 1 and hrp.Position.Y > -25 then
+                            hrp.Velocity = Vector3.zero
                             hrp.CFrame = CFrame.new(hrp.Position.X, 4, hrp.Position.Z)
                         end
                     end
 
-                    -- Kích hoạt quăng mồi / giật cần (Activate tool + Fishing Remote)
+                    -- 4. Kích hoạt quăng mồi câu (Cast Fishing)
                     local equipped = char:FindFirstChildOfClass("Tool")
                     if equipped then
                         equipped:Activate()
@@ -2882,8 +2916,69 @@ end)
                     if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Fishing") then
                         pcall(function()
                             rem.Functions.Fishing:InvokeServer("Cast")
-                            task.wait(0.5)
-                            rem.Functions.Fishing:InvokeServer("Reel")
+                        end)
+                    elseif rem and rem:FindFirstChild("Events") and rem.Events:FindFirstChild("Fishing") then
+                        pcall(function()
+                            rem.Events.Fishing:FireServer("Cast")
+                        end)
+                    end
+
+                    -- 5. Kéo cần & Bypass minigame (Auto Reel & Perfect Catch)
+                    local reelWait = math.clamp(tonumber(hubState.fishReelDelay or genv.FishReelDelay) or 0.45, 0.15, 3.0)
+                    task.wait(reelWait)
+
+                    if hubState.autoReel ~= false then
+                        -- Bypass minigame UI nếu có (Perfect Catch Instant)
+                        if hubState.perfectCatch ~= false then
+                            pcall(function()
+                                local pg = player:FindFirstChild("PlayerGui")
+                                if pg then
+                                    for _, gName in ipairs({ "FishingGui", "FishGui", "Minigame", "FishingMinigame", "Fishing" }) do
+                                        local fg = pg:FindFirstChild(gName)
+                                        if fg and fg.Enabled then
+                                            for _, desc in ipairs(fg:GetDescendants()) do
+                                                if desc:IsA("GuiButton") and desc.Visible then
+                                                    pcall(function() desc.MouseButton1Click:Fire() end)
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end)
+                        end
+
+                        if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Fishing") then
+                            pcall(function()
+                                rem.Functions.Fishing:InvokeServer("Reel")
+                            end)
+                        elseif rem and rem:FindFirstChild("Events") and rem.Events:FindFirstChild("Fishing") then
+                            pcall(function()
+                                rem.Events.Fishing:FireServer("Reel")
+                            end)
+                        end
+                    end
+
+                    -- 6. Tự động bán cá cho Fisher Frank định kỳ (mỗi 60s) nếu bật autoSellFish
+                    local now = os.clock()
+                    if hubState.autoSellFish and (now - lastFishSellTick) >= 60 then
+                        lastFishSellTick = now
+                        local sellCommon = (hubState.sellCommonFish ~= false)
+                        local sellRare = (hubState.sellRareFish ~= false)
+                        local sellEpic = (hubState.sellEpicFish == true)
+                        local lockLegendary = (hubState.lockLegendaryFish ~= false)
+                        task.spawn(function()
+                            pcall(function()
+                                if rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("FisherFrank") then
+                                    rem.Functions.FisherFrank:InvokeServer("SellAll", {
+                                        common = sellCommon,
+                                        rare = sellRare,
+                                        epic = sellEpic,
+                                        lockLegendary = lockLegendary,
+                                    })
+                                elseif rem and rem:FindFirstChild("Functions") and rem.Functions:FindFirstChild("Fishing") then
+                                    rem.Functions.Fishing:InvokeServer("SellAll")
+                                end
+                            end)
                         end)
                     end
                 end)
@@ -3206,6 +3301,9 @@ end)
                     if hum.Health <= 0 then return end
                     if os.clock() < dodgeUntilClock then return end
 
+                    local tactics = hubState.dungeonTactics or "Safe"
+                    local weaponPref = hubState.dungeonWeaponMode or "Auto"
+
                     local ps = player:FindFirstChild("PlayerStats")
                     local lvlObj = ps and ps:FindFirstChild("lvl")
                     local myLvl = lvlObj and tonumber(lvlObj.Value) or 1
@@ -3361,6 +3459,9 @@ end)
                     if hum.Health <= 0 then return end
                     if os.clock() < dodgeUntilClock then return end
 
+                    local tactics = hubState.dungeonTactics or "Safe"
+                    local weaponPref = hubState.dungeonWeaponMode or "Auto"
+
                     -- Xác định nguyên liệu đang chọn
                     local targetMat = hubState.nguyenlieuSea3 or "Coral"
                     if hubState.farmSea2Mat or genv.farmMaterialsea2 then targetMat = hubState.nguyenlieuSea2 or "Iron Ingot"
@@ -3377,12 +3478,43 @@ end)
                         ["phoenix tear"] = { "phoenix", "fire bird", "blaze" },
                         ["iron ingot"] = { "samurai", "soldier", "knight" },
                         ["dark powder"] = { "shadow", "dark", "skeleton" },
-                        ["ghost flesh"] = { "ghost", "zombie", "spirit" },
+                        ["ghost flesh"] = { "ghost", "zombie", "spirit", "ooze" },
                         ["magma crystal"] = { "magma", "lava", "volcano" },
                         ["leather"] = { "bandit", "pirate", "thief" },
                         ["wood"] = { "monkey", "gorilla", "jungle" },
                         ["rope"] = { "sailor", "marine", "guard" },
                         ["thief rag"] = { "thief", "bandit", "clown" },
+                        ["crab meat"] = { "crab", "crustacean" },
+                        ["pure feather"] = { "lucidus", "angel", "sky", "bird" },
+                        ["lost ruby"] = { "hephaestus", "golem", "flame", "ruins" },
+                        ["fresh fish"] = { "fishman", "fisher", "sea" },
+                        ["hard shell"] = { "turtle", "tortoise", "shell" },
+                        ["gunpowder"] = { "pirate", "cannon", "gunner", "marine" },
+                        ["fish bone"] = { "fishman", "skeleton", "pirate" },
+                        ["carrot"] = { "rabbit", "bunny", "carrot" },
+                    }
+                    local MAT_ISLAND_MAP: { [string]: Vector3 } = {
+                        ["coral"] = Vector3.new(-2200, 80, -1800),
+                        ["shark's fin"] = Vector3.new(-2200, 80, -1800),
+                        ["dragon scale"] = Vector3.new(-4500, 210, 3500),
+                        ["phoenix tear"] = Vector3.new(-4500, 210, 3500),
+                        ["sea king's blood"] = Vector3.new(150, 45, 250),
+                        ["ghost flesh"] = Vector3.new(-3500, 85, 1200),
+                        ["crab meat"] = Vector3.new(2800, 65, -3200),
+                        ["pure feather"] = Vector3.new(4200, 150, 4100),
+                        ["lost ruby"] = Vector3.new(4200, 150, 4100),
+                        ["iron ingot"] = Vector3.new(-1700, 70, -2100),
+                        ["dark powder"] = Vector3.new(-3500, 85, 1200),
+                        ["magma crystal"] = Vector3.new(1200, 65, -3400),
+                        ["fresh fish"] = Vector3.new(150, 60, 4800),
+                        ["hard shell"] = Vector3.new(3400, 70, 2200),
+                        ["gunpowder"] = Vector3.new(-1700, 70, -2100),
+                        ["leather"] = Vector3.new(1450, 48, 1450),
+                        ["wood"] = Vector3.new(-3800, 45, 2100),
+                        ["rope"] = Vector3.new(-3100, 35, -2300),
+                        ["thief rag"] = Vector3.new(-1200, 35, 1200),
+                        ["fish bone"] = Vector3.new(500, -1800, 6500),
+                        ["carrot"] = Vector3.new(850, 40, -1450),
                     }
                     local keywords = MAT_MOB_MAP[rawMat] or { rawMat }
 
@@ -3432,6 +3564,13 @@ end)
                                 castConfiguredSkills(char, hum, targetMob)
                             end
                         end
+                    elseif MAT_ISLAND_MAP[rawMat] then
+                        -- StreamingEnabled Fallback: Quái chưa tải vào vùng nhìn thấy -> Bay về bãi quái của đảo chứa nguyên liệu
+                        local islandPos = MAT_ISLAND_MAP[rawMat]
+                        local distToIsland = (hrp.Position - islandPos).Magnitude
+                        if distToIsland > 80 then
+                            setFlightTarget(islandPos + Vector3.new(0, 35, 0), islandPos, true, 48)
+                        end
                     end
                 end)
             end
@@ -3439,11 +3578,61 @@ end)
     end)
 
     -- ========================================================
-    -- [NATIVE AUTO DUNGEON WORKER]
+    -- [NATIVE AUTO DUNGEON WORKER] (AUTO DUNGEON & RAID)
     -- ========================================================
+    local lastDungeonEnterAttempt = 0
+    local lastChestCollectAttempt = 0
+    local lastDungeonHaki = 0
+    local dungeonClearedSessions = 0
+    local lastWaveCompleted = false
+
+    genv.DungeonStatus = "Sẵn Sàng"
+    genv.DungeonCurrentWave = "Chờ Bắt Đầu"
+    genv.DungeonMobsCount = 0
+    genv.DungeonClearedCount = 0
+
+    -- Hàm tìm và bay đến cổng / vòng tròn Dungeon gần nhất
+    genv.DungeonTeleportGate = function()
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        for _, fn in ipairs({ "Dungeon", "DungeonCircle", "DungeonEntrance", "Dungeon_Pad", "DungeonPortal", "Raid" }) do
+            local obj = workspace:FindFirstChild(fn) or (workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild(fn))
+            if obj then
+                local root = obj:IsA("BasePart") and obj or (obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart"))
+                if root then
+                    setFlightTarget(root.Position + Vector3.new(0, 5, 0), root.Position, (root.Position - hrp.Position).Magnitude > 1400, 55)
+                    safeNotify("YokaHub Dungeon", "Đang bay đến Cổng Phó bản!", "flight_takeoff")
+                    return
+                end
+            end
+        end
+
+        local allNpc = workspace:FindFirstChild("AllNPC") or workspace:FindFirstChild("NPC")
+        if allNpc then
+            for _, npc in ipairs(allNpc:GetChildren()) do
+                local nn = string.lower(npc.Name)
+                if string.find(nn, "dungeon", 1, true) ~= nil or string.find(nn, "raid", 1, true) ~= nil then
+                    local root = npc:IsA("BasePart") and npc or (npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChildWhichIsA("BasePart"))
+                    if root then
+                        setFlightTarget(root.Position + Vector3.new(0, 5, 0), root.Position, (root.Position - hrp.Position).Magnitude > 1400, 55)
+                        safeNotify("YokaHub Dungeon", "Đang bay đến NPC Phó bản!", "flight_takeoff")
+                        return
+                    end
+                end
+            end
+        end
+
+        if typeof(genv.TeleportToIsland) == "function" then
+            genv.TeleportToIsland("🏝️ [Sea 2] Đảo Viridans (Viridans)")
+            safeNotify("YokaHub Dungeon", "Đang bay đến Đảo Viridans (Khu vực Phó bản)...", "flight_takeoff")
+        end
+    end
+
     task.spawn(function()
         while genv._YokaHubToken == myToken do
-            task.wait(0.22)
+            task.wait(0.20)
             if (hubState.autoDungeon or genv.autodungeon) and currentMode == "off" then
                 pcall(function()
                     local char = player.Character
@@ -3452,30 +3641,55 @@ end)
                     local hum = char.Humanoid
                     if hum.Health <= 0 then return end
                     if os.clock() < dodgeUntilClock then return end
-                    local dMode = hubState.dungeonMode or genv.dungeonmode or "Easy"
 
-                    -- Tự hồi máu bằng gậy nếu bật và máu < 85%
-                    if hubState.dungeonAutoHeal and hum.Health / math.max(1, hum.MaxHealth) < 0.85 then
-                        local scepter = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter") or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
+                    local tactics = hubState.dungeonTactics or "Safe"
+                    local weaponPref = hubState.dungeonWeaponMode or "Auto"
+
+                    -- 1. Tự Động Duy Trì Haki Vũ Trang & Quan Sát Khi Chiến Đấu
+                    if (hubState.dungeonAutoHaki ~= false) and (os.clock() - lastDungeonHaki) >= 5.0 then
+                        lastDungeonHaki = os.clock()
+                        pcall(function()
+                            local chest = sharedRS:FindFirstChild("Chest")
+                            local rem = chest and chest:FindFirstChild("Remotes")
+                            local evts = rem and rem:FindFirstChild("Events")
+                            if evts and evts:FindFirstChild("Armament") then
+                                local hakiOn = (char:GetAttribute("Armament") == true) or (char:FindFirstChild("Haki") ~= nil) or (char:FindFirstChild("Armament") ~= nil)
+                                if not hakiOn then
+                                    evts.Armament:FireServer()
+                                end
+                            end
+                        end)
+                    end
+
+                    -- 2. Tự Động Hồi Máu & Đánh Giá Tình Trạng Nguy Cấp
+                    local healPctThresh = (tonumber(hubState.dungeonHealThreshold) or 80) / 100
+                    local currentHpPct = hum.Health / math.max(1, hum.MaxHealth)
+                    if (hubState.dungeonAutoHeal ~= false) and currentHpPct < healPctThresh then
+                        local scepter = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter")
+                            or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
                         if scepter then
                             if scepter.Parent == player.Backpack then
                                 hum:EquipTool(scepter)
-                                task.wait(0.2)
+                                task.wait(0.15)
                             end
                             scepter:Activate()
                         end
                     end
+                    local isEmergency = (hubState.dungeonEmergencyFlight ~= false) and (currentHpPct < 0.30)
 
-                    -- Quét quái Dungeon gần nhất (bao gồm cả Monster.Mon và Monster.Boss)
+                    -- 3. Quét Đợt Quái & Wave Trong Dungeon
                     local dungeonFolders = getAliveMobFolders(true, false, true)
                     local targetMob: Model? = nil
                     local bestDist = 1e9
+                    local mobCount = 0
+
                     for _, fld in ipairs(dungeonFolders) do
                         for _, m in ipairs(fld:GetChildren()) do
                             if m:IsA("Model") then
                                 local mHum = m:FindFirstChildOfClass("Humanoid")
                                 local mRoot = getModelRoot(m)
                                 if mHum and mHum.Health > 0 and mRoot then
+                                    mobCount += 1
                                     local d = (mRoot.Position - hrp.Position).Magnitude
                                     if d < bestDist then
                                         bestDist = d
@@ -3485,27 +3699,176 @@ end)
                             end
                         end
                     end
+                    genv.DungeonMobsCount = mobCount
 
+                    -- Cập nhật thông tin Wave từ UI nếu có
+                    pcall(function()
+                        local pgui = player:FindFirstChild("PlayerGui")
+                        if pgui then
+                            for _, g in ipairs(pgui:GetChildren()) do
+                                if g:IsA("ScreenGui") and g.Enabled then
+                                    for _, d in ipairs(g:GetDescendants()) do
+                                        if d:IsA("TextLabel") and d.Visible and string.find(string.lower(d.Text), "wave", 1, true) ~= nil then
+                                            genv.DungeonCurrentWave = d.Text
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end)
+
+                    -- 4. Khi Tìm Thấy Quái Wave: Khóa Mục Tiêu, Tụ Quái & Xả Chiêu
                     if targetMob then
+                        lastWaveCompleted = true
                         local mRoot = getModelRoot(targetMob)
                         if mRoot then
                             setCurrentCombatTarget(targetMob)
-                            local tactics = hubState.dungeonTactics or "Safe"
-                            local sDist = string.find(tactics, "Fast") and 8 or (string.find(tactics, "Safe") and 18 or 12)
+                            genv.DungeonStatus = string.format("Đang dọn quái (%d con)", mobCount)
+
+                            -- Tính toán độ cao bay: Nếu nguy cấp thì vọt lên 75m, bình thường thì dùng slider kết hợp tactics
+                            local tactics = hubState.dungeonTactics or "Fast"
+                            local baseSafeH = tonumber(hubState.dungeonSafeHeight) or (string.find(tactics, "Safe") and 22 or (string.find(tactics, "Fast") and 12 or 16))
+                            local sHeight = isEmergency and 75 or math.clamp(baseSafeH, 6, 60)
                             local aimPos = getAimPoint(targetMob, mRoot)
-                            local hoverPos = mRoot.Position + Vector3.new(0, sDist, 0)
-                            setFlightTarget(hoverPos, aimPos, true, 48)
-                            if (hubState.fastMobBring ~= false or genv.autocat) and (hrp.Position - hoverPos).Magnitude <= 38 then
+                            local hoverPos = mRoot.Position + Vector3.new(0, sHeight, 0)
+                            setFlightTarget(hoverPos, aimPos, (hoverPos - hrp.Position).Magnitude > 1200, 52)
+
+                            -- Tụ quái diện rộng (Dungeon Mob Bring)
+                            if (hubState.dungeonMobBring ~= false or hubState.fastMobBring ~= false) and (hrp.Position - hoverPos).Magnitude <= 45 then
                                 local bringAnchor = Vector3.new(hrp.Position.X, mRoot.Position.Y, hrp.Position.Z)
-                                bringMobsToPosition(bringAnchor, getBringRangeStuds(), 25, nil, true, targetMob)
+                                local bRange = tonumber(hubState.dungeonBringRange) or 600
+                                bringMobsToPosition(bringAnchor, bRange, 30, nil, true, targetMob)
                             end
+
+                            -- Khóa Camera
                             if hubState.dungeonCameraLock == true then
                                 pcall(function()
                                     workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, aimPos)
                                 end)
                             end
-                            if (hrp.Position - hoverPos).Magnitude <= 35 then
+
+                            -- Trang bị vũ khí theo Dungeon Weapon Mode nếu có chỉ định
+                            local dWep = hubState.dungeonWeaponMode or "Auto Mode"
+                            if string.find(dWep, "Fruit") then
+                                local t = findToolByCategory("fruit")
+                                if t and t.Parent == player.Backpack then hum:EquipTool(t) end
+                            elseif string.find(dWep, "Sword") then
+                                local t = findToolByCategory("sword")
+                                if t and t.Parent == player.Backpack then hum:EquipTool(t) end
+                            elseif string.find(dWep, "Melee") then
+                                local t = findToolByCategory("melee")
+                                if t and t.Parent == player.Backpack then hum:EquipTool(t) end
+                            end
+
+                            -- Xả chiêu thức
+                            if not isEmergency and (hrp.Position - hoverPos).Magnitude <= math.max(38, sHeight + 15) then
                                 castConfiguredSkills(char, hum, targetMob)
+                            end
+                        end
+                    else
+                        -- 5. Khi Sạch Quái Wave (mobCount == 0): Nhặt Rương & Vào Cổng Mới
+                        if lastWaveCompleted then
+                            lastWaveCompleted = false
+                            dungeonClearedSessions += 1
+                            genv.DungeonClearedCount = dungeonClearedSessions
+                        end
+
+                        -- A. Tự Động Thu Thập Rương Thưởng Phó Bản
+                        local foundRewardChest: BasePart? = nil
+                        local foundRewardPrompt: ProximityPrompt? = nil
+                        if hubState.dungeonAutoCollectChest ~= false and (os.clock() - lastChestCollectAttempt) >= 1.0 then
+                            lastChestCollectAttempt = os.clock()
+                            for _, obj in ipairs(workspace:GetChildren()) do
+                                if obj:IsA("Model") or obj:IsA("BasePart") then
+                                    local on = string.lower(obj.Name)
+                                    if string.find(on, "chest", 1, true) ~= nil or string.find(on, "treasure", 1, true) ~= nil or string.find(on, "reward", 1, true) ~= nil then
+                                        local root = obj:IsA("BasePart") and obj or (obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart"))
+                                        if root and (root.Position - hrp.Position).Magnitude < 1400 then
+                                            foundRewardChest = root
+                                            foundRewardPrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                        end
+
+                        if foundRewardChest then
+                            genv.DungeonStatus = "Đang thu thập rương thưởng phó bản..."
+                            local dest = foundRewardChest.Position + Vector3.new(0, 3, 0)
+                            setFlightTarget(dest, foundRewardChest.Position, false, 55)
+                            if (foundRewardChest.Position - hrp.Position).Magnitude <= 22 then
+                                if foundRewardPrompt and foundRewardPrompt.Enabled and typeof(fireproximityprompt) == "function" then
+                                    pcall(fireproximityprompt, foundRewardPrompt)
+                                end
+                            end
+                        else
+                            -- B. Tự Động Vào Vòng Tròn Hoặc Kích Hoạt Cổng Mới (Auto Join & Auto Replay)
+                            if (hubState.dungeonAutoJoin ~= false or hubState.dungeonAutoReplay ~= false) and (os.clock() - lastDungeonEnterAttempt) >= 2.5 then
+                                lastDungeonEnterAttempt = os.clock()
+                                local entrancePos: Vector3? = nil
+                                local entrancePrompt: ProximityPrompt? = nil
+
+                                for _, fn in ipairs({ "Dungeon", "DungeonCircle", "DungeonEntrance", "Dungeon_Pad", "DungeonPortal", "Raid" }) do
+                                    local obj = workspace:FindFirstChild(fn) or (workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild(fn))
+                                    if obj then
+                                        local root = obj:IsA("BasePart") and obj or (obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart"))
+                                        if root then
+                                            entrancePos = root.Position
+                                            entrancePrompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                            break
+                                        end
+                                    end
+                                end
+
+                                if not entrancePos then
+                                    local allNpc = workspace:FindFirstChild("AllNPC") or workspace:FindFirstChild("NPC")
+                                    if allNpc then
+                                        for _, npc in ipairs(allNpc:GetChildren()) do
+                                            local nn = string.lower(npc.Name)
+                                            if string.find(nn, "dungeon", 1, true) ~= nil or string.find(nn, "raid", 1, true) ~= nil then
+                                                local root = npc:IsA("BasePart") and npc or (npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChildWhichIsA("BasePart"))
+                                                if root then
+                                                    entrancePos = root.Position
+                                                    entrancePrompt = npc:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                                    break
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+
+                                if entrancePos then
+                                    local dist = (entrancePos - hrp.Position).Magnitude
+                                    if dist > 18 then
+                                        genv.DungeonStatus = "Đang di chuyển vào cổng Phó bản..."
+                                        setFlightTarget(entrancePos + Vector3.new(0, 3, 0), entrancePos, dist > 1400, 55)
+                                    else
+                                        genv.DungeonStatus = "Đang kích hoạt lượt Phó bản mới..."
+                                        if entrancePrompt and entrancePrompt.Enabled and typeof(fireproximityprompt) == "function" then
+                                            pcall(fireproximityprompt, entrancePrompt)
+                                        end
+                                        pcall(function()
+                                            local chest = sharedRS:FindFirstChild("Chest")
+                                            local rem = chest and chest:FindFirstChild("Remotes")
+                                            local funcs = rem and rem:FindFirstChild("Functions")
+                                            local evts = rem and rem:FindFirstChild("Events")
+                                            local diff = string.match(hubState.dungeonMode or "Easy", "^(%a+)") or "Easy"
+                                            if funcs and funcs:FindFirstChild("Dungeon") then
+                                                funcs.Dungeon:InvokeServer(diff)
+                                            elseif funcs and funcs:FindFirstChild("JoinDungeon") then
+                                                funcs.JoinDungeon:InvokeServer(diff)
+                                            elseif evts and evts:FindFirstChild("Dungeon") then
+                                                evts.Dungeon:FireServer(diff)
+                                            end
+                                        end)
+                                    end
+                                else
+                                    genv.DungeonStatus = "Đang chờ đợt quái (Wave) tiếp theo..."
+                                end
+                            else
+                                genv.DungeonStatus = "Đang chờ đợt quái (Wave) tiếp theo..."
                             end
                         end
                     end
@@ -3515,25 +3878,33 @@ end)
     end)
 
     -- ========================================================
-    -- [NATIVE FRUIT AUTO & SHOP SNIPER WORKER]
+    -- [NATIVE FRUIT AUTO & SHOP SNIPER WORKER] (GACHA)
     -- ========================================================
     task.spawn(function()
         local lastSnipe = 0
+        local lastGachaClock = 0
         while genv._YokaHubToken == myToken do
-            task.wait(0.4)
+            task.wait(0.35)
             pcall(function()
                 local char = player.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
 
-                -- 1. Tự Hút / Nhặt Trái Rơi Tự Do (Bay lơ lửng tới nhặt, không rơi xuống biển)
+                -- 1. Tự Hút / Nhặt Trái Rơi Tự Do (Teleport tức thì đến nhặt, đảm bảo cướp trước mọi đối thủ)
                 if (hubState.bringFruits or genv.BringDroppedFruit) and hrp and os.clock() >= dodgeUntilClock then
                     for _, item in ipairs(workspace:GetChildren()) do
                         if item:IsA("Tool") or (item:IsA("Model") and string.find(string.lower(item.Name), "fruit")) then
                             local handle = item:FindFirstChild("Handle") or item:FindFirstChildWhichIsA("BasePart")
-                            if handle and (handle.Position - hrp.Position).Magnitude < 4000 then
-                                local dest = handle.Position + Vector3.new(0, 2.5, 0)
-                                setFlightTarget(dest, handle.Position, (dest - hrp.Position).Magnitude > 1400, 62)
-                                task.wait(0.35)
+                            if handle and (handle.Position - hrp.Position).Magnitude < 6000 then
+                                local dest = handle.Position + Vector3.new(0, 2.0, 0)
+                                setFlightTarget(dest, handle.Position, true, 62)
+                                pcall(function()
+                                    if typeof(firetouchinterest) == "function" then
+                                        firetouchinterest(hrp, handle, 0)
+                                        task.wait(0.04)
+                                        firetouchinterest(hrp, handle, 1)
+                                    end
+                                end)
+                                task.wait(0.2)
                             end
                         end
                     end
@@ -3559,27 +3930,87 @@ end)
                     end
                 end
 
+                -- Thao tác rút trái cụ thể từ kho rương (FruitStore Unstore)
+                local chosenUnstoreFruit = hubState.selectedUnstoreFruit or "Dragon"
+                if genv.TriggerUnstoreFruitNow == true then
+                    genv.TriggerUnstoreFruitNow = false
+                    local chest = sharedRS:FindFirstChild("Chest")
+                    local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                    local dealFruit = remFuncs and remFuncs:FindFirstChild("DealFruit")
+                    if dealFruit then
+                        pcall(function()
+                            dealFruit:InvokeServer(chosenUnstoreFruit, "Unstore")
+                            dealFruit:InvokeServer(chosenUnstoreFruit .. "Fruit", "Unstore")
+                        end)
+                    end
+                end
+
                 -- 3. Shop Sniper Tự Mua Trái Khi Mở Bán (dùng đúng Chest.Remotes.Functions.BuyFruitStock của King Legacy)
                 if hubState.snipeShop or genv.shopSniperEnabled then
                     local now = os.clock()
                     local delay = hubState.snipeDelay or genv.shopSniperDelay or 5
                     if now - lastSnipe >= delay then
                         lastSnipe = now
-                        local targetFruits = genv.shopSniperFruits or (hubState.snipeFruit and { hubState.snipeFruit }) or { "Dragon", "Phoenix", "Gate", "Dough", "Erebus" }
+                        local targetFruits = (typeof(hubState.snipeFruitList) == "table" and #hubState.snipeFruitList > 0)
+                            and hubState.snipeFruitList
+                            or genv.shopSniperFruits
+                            or (hubState.snipeFruit and { hubState.snipeFruit })
+                            or { "Dragon", "Phoenix", "Gate", "Dough", "Erebus" }
                         local chest = sharedRS:FindFirstChild("Chest")
                         local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
                         local buyStock = remFuncs and remFuncs:FindFirstChild("BuyFruitStock")
                         local legacyNet = sharedRS:FindFirstChild("Remotes")
                         local legacyShop = legacyNet and legacyNet:FindFirstChild("Functions") and (legacyNet.Functions:FindFirstChild("FruitShop") or legacyNet.Functions:FindFirstChild("Merchant"))
                         for _, fruitName in ipairs(targetFruits) do
-                            local baseName = string.gsub(fruitName, "Fruit$", "")
+                            local rawName = string.match(fruitName, "^([%w%s%']+)") or fruitName
+                            rawName = string.gsub(rawName, "%s+$", "")
+                            local baseName = string.gsub(rawName, "%s*Fruit$", "")
                             if buyStock then
                                 pcall(function() buyStock:InvokeServer(baseName) end)
                                 pcall(function() buyStock:InvokeServer(baseName .. "Fruit") end)
+                                pcall(function() buyStock:InvokeServer(rawName) end)
                             elseif legacyShop then
                                 pcall(function() legacyShop:InvokeServer("Buy", baseName) end)
                                 pcall(function() legacyShop:InvokeServer("Buy", baseName .. "Fruit") end)
+                                pcall(function() legacyShop:InvokeServer("Buy", rawName) end)
                             end
+                        end
+                    end
+                end
+
+                -- 4. Tự Động Quay Trái Ác Quỷ (Auto Gacha / Roll Fruit - Beli & Gems)
+                if hubState.autoGachaFruitBeli or hubState.autoGachaFruitGem or genv.AutoGachaFruitBeli or genv.AutoGachaFruitGem then
+                    local now = os.clock()
+                    if (now - lastGachaClock) >= 3.0 then
+                        lastGachaClock = now
+                        local ps = player:FindFirstChild("PlayerStats")
+                        local beliVal = ps and (ps:FindFirstChild("Beli") or ps:FindFirstChild("Money"))
+                        local gemVal = ps and (ps:FindFirstChild("Gem") or ps:FindFirstChild("Gems"))
+                        local curBeli = beliVal and tonumber(beliVal.Value) or 0
+                        local curGems = gemVal and tonumber(gemVal.Value) or 0
+
+                        local chest = sharedRS:FindFirstChild("Chest")
+                        local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                        local gachaRem = remFuncs and (remFuncs:FindFirstChild("RandomFruit") or remFuncs:FindFirstChild("SpinFruit") or remFuncs:FindFirstChild("FruitGacha"))
+                        if not gachaRem then
+                            local legacyNet = sharedRS:FindFirstChild("Remotes")
+                            gachaRem = legacyNet and legacyNet:FindFirstChild("Functions") and (legacyNet.Functions:FindFirstChild("RandomFruit") or legacyNet.Functions:FindFirstChild("SpinFruit") or legacyNet.Functions:FindFirstChild("Gacha"))
+                        end
+
+                        if (hubState.autoGachaFruitBeli or genv.AutoGachaFruitBeli) and curBeli >= 2500000 and gachaRem then
+                            pcall(function()
+                                gachaRem:InvokeServer("Beli")
+                                gachaRem:InvokeServer(1)
+                            end)
+                            task.wait(0.5)
+                        end
+
+                        if (hubState.autoGachaFruitGem or genv.AutoGachaFruitGem) and curGems >= 1 and gachaRem then
+                            pcall(function()
+                                gachaRem:InvokeServer("Gem")
+                                gachaRem:InvokeServer(2)
+                            end)
+                            task.wait(0.5)
                         end
                     end
                 end
@@ -4369,7 +4800,6 @@ end)
     -- ========================================================
     task.spawn(function()
         local lastCheckTick = 0
-        local quotaTarget = 50
 
         while genv._YokaHubToken == myToken do
             task.wait(2.5)
@@ -4378,6 +4808,8 @@ end)
                 if not (hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat or genv.farmMaterialsea3 or genv.farmMaterialsea2 or genv.farmMaterialsea1) then return end
                 if (os.clock() - lastCheckTick) < 5.0 then return end
                 lastCheckTick = os.clock()
+
+                local quotaTarget = tonumber(hubState.materialQuota) or 50
 
                 local ps = player:FindFirstChild("PlayerStats")
                 local matObj = ps and ps:FindFirstChild("Material")
@@ -4404,7 +4836,20 @@ end)
                     genv.farmMaterialsea2 = false
                     genv.farmMaterialsea1 = false
                     saveState(hubState)
-                    safeNotify("Gom Nguyên Liệu", "Đã gom đủ " .. tostring(count) .. " " .. curMat .. " (Đạt mốc " .. quotaTarget .. "). Đã tự động dừng gom!", "verified")
+                    if genv._YokaMatToggles then
+                        pcall(function()
+                            if genv._YokaMatToggles.sea3 and genv._YokaMatToggles.sea3.Set then
+                                genv._YokaMatToggles.sea3:Set({ CurrentValue = false })
+                            end
+                            if genv._YokaMatToggles.sea2 and genv._YokaMatToggles.sea2.Set then
+                                genv._YokaMatToggles.sea2:Set({ CurrentValue = false })
+                            end
+                            if genv._YokaMatToggles.sea1 and genv._YokaMatToggles.sea1.Set then
+                                genv._YokaMatToggles.sea1:Set({ CurrentValue = false })
+                            end
+                        end)
+                    end
+                    safeNotify("Gom Nguyên Liệu", "Đã gom đủ " .. tostring(count) .. " " .. curMat .. " (Mục tiêu " .. quotaTarget .. "). Đã tự động dừng gom!", "verified")
                 end
             end)
         end
