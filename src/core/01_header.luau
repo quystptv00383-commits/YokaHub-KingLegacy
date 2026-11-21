@@ -30,6 +30,7 @@ task.spawn(function()
     local runService = game:GetService("RunService")
     local lighting = game:GetService("Lighting")
     local coreGui = game:GetService("CoreGui")
+    local sharedRS = game:GetService("ReplicatedStorage")
 
     -- ========================================================
     -- [INSTANT AUTO-PLAY ENGINE] - TU DONG VAO GAME NGAY KHI VAO SERVER / HOP SERVER

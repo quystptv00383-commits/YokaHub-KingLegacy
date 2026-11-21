@@ -567,11 +567,8 @@
             saveState(hubState)
             pcall(function()
                 genv.IgnoreKraken = Value
-                if Value and currentCombatTarget and isModelAlive(currentCombatTarget) then
-                    local curN = string.lower(currentCombatTarget.Name)
-                    if (string.find(curN, "kraken", 1, true) ~= nil or string.find(curN, "tentacle", 1, true) ~= nil) and string.find(curN, "galleon", 1, true) == nil then
-                        currentCombatTarget = nil
-                    end
+                if Value and typeof(genv._YokaClearCombatTargetIfMatches) == "function" then
+                    genv._YokaClearCombatTargetIfMatches("kraken", "tentacle", "galleon")
                 end
             end)
             if Value then
@@ -591,11 +588,8 @@
             saveState(hubState)
             pcall(function()
                 genv.IgnoreGalleon = Value
-                if Value and currentCombatTarget and isModelAlive(currentCombatTarget) then
-                    local curN = string.lower(currentCombatTarget.Name)
-                    if string.find(curN, "galleon", 1, true) ~= nil then
-                        currentCombatTarget = nil
-                    end
+                if Value and typeof(genv._YokaClearCombatTargetIfMatches) == "function" then
+                    genv._YokaClearCombatTargetIfMatches("galleon", nil, nil)
                 end
             end)
             if Value then

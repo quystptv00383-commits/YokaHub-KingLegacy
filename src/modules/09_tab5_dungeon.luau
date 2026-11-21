@@ -249,8 +249,8 @@
         local EmergencySection = DungTab:CreateSection("🩹 CỨU NGUY KHẨN CẤP & BẢO VỆ NHÂN VẬT")
 
         EmergencySection:CreateToggle({
-            Name = "🪄 Tự Dùng Gậy Scepter / Hồi Máu Khi Máu Dưới Ngưỡng",
-            Description = "Tự động đổi sang gậy hồi máu hoặc skill hồi phục khi máu tụt xuống mức nguy hiểm",
+            Name = "🪄 Tự Kích Hoạt Kỹ Năng Hồi Máu / Hút Máu Khi Dưới Ngưỡng",
+            Description = "Tự động dùng Scepter, Golden Staff, chiêu Trái Phượng Hoàng (Flames of Restoration), hút máu Vampire/Blood khi máu tụt xuống mức nguy hiểm",
             CurrentValue = (hubState.dungeonAutoHeal ~= false),
             Callback = function(Value: boolean)
                 hubState.dungeonAutoHeal = Value

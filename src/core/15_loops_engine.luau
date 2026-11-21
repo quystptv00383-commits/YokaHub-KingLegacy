@@ -118,6 +118,18 @@
         currentCombatTargetAt = os.clock()
     end
 
+    genv._YokaClearCombatTargetIfMatches = function(kw1: string, kw2: string?, excludeKw: string?)
+        if currentCombatTarget and isModelAlive(currentCombatTarget) then
+            local curN = string.lower(currentCombatTarget.Name)
+            local hit = (kw1 ~= "" and string.find(curN, kw1, 1, true) ~= nil)
+                or (kw2 ~= nil and kw2 ~= "" and string.find(curN, kw2, 1, true) ~= nil)
+            if hit and (not excludeKw or excludeKw == "" or string.find(curN, excludeKw, 1, true) == nil) then
+                currentCombatTarget = nil
+                clearFlightTarget(999)
+            end
+        end
+    end
+
     local function getAliveMobFolders(includeBosses: boolean, includeSeaMonsters: boolean?, includeDungeon: boolean?): { Instance }
         local list: { Instance } = {}
         local mon = workspace:FindFirstChild("Monster")
@@ -1565,6 +1577,185 @@
     end
 
     -- ========================================================
+    -- [UNIVERSAL EMERGENCY HEAL & LIFESTEAL SYSTEM]
+    -- Tự động quét và kích hoạt TOÀN BỘ kỹ năng hồi máu & hút máu trong game:
+    -- Gậy Scepter, Golden Staff, Potion, Trái Phượng Hoàng (Flames of Restoration / Regen),
+    -- Trái / Vũ khí Ma Cà Rồng (Blood / Vampire Drain), Trái Ope / Paw, và tự bật lại Ken Haki khi vỡ 8 lượt né!
+    -- ========================================================
+    local lastUniversalHealClock = 0
+    local lastEmergencyKenEventClock = 0
+
+    local HEAL_LIFESTEAL_KEYWORDS = {
+        "heal", "health", "restor", "regen", "drain", "siphon", "lifesteal",
+        "life steal", "leech", "absorb", "vampir", "blood", "phuc sinh", "hoi mau", "hut mau"
+    }
+
+    local function triggerUniversalEmergencyHeal(char: Model, hum: Humanoid, targetModel: Model?): boolean
+        local now = os.clock()
+        if (now - lastUniversalHealClock) < 0.35 then
+            return false
+        end
+        lastUniversalHealClock = now
+
+        local healed = false
+
+        -- 1. TỰ ĐỘNG BẬT LẠI HAKI QUAN SÁT (KEN HAKI) KHI BỊ PHÁ VỠ 8 LƯỢT NÉ
+        if (hubState.autoKenHaki ~= false) and (now - lastEmergencyKenEventClock) >= 1.2 then
+            lastEmergencyKenEventClock = now
+            pcall(function()
+                local chest = sharedRS:FindFirstChild("Chest")
+                local rem = chest and chest:FindFirstChild("Remotes")
+                local funcs = rem and rem:FindFirstChild("Functions")
+                if funcs and funcs:FindFirstChild("KenEvent") then
+                    local kenOn = (char:GetAttribute("Ken") == true) or (player:GetAttribute("Ken") == true)
+                    if not kenOn then
+                        funcs.KenEvent:InvokeServer(true)
+                    end
+                end
+            end)
+        end
+
+        -- 2. TÌM VÀ KÍCH HOẠT VŨ KHÍ / VẬT PHẨM HỒI MÁU CHUYÊN DỤNG (SCEPTER, GOLDEN STAFF, V.V.)
+        local backpack = player:FindFirstChild("Backpack")
+        local candidateTools = {}
+        for _, t in ipairs(char:GetChildren()) do
+            if t:IsA("Tool") then table.insert(candidateTools, t) end
+        end
+        if backpack then
+            for _, t in ipairs(backpack:GetChildren()) do
+                if t:IsA("Tool") then table.insert(candidateTools, t) end
+            end
+        end
+
+        for _, tool in ipairs(candidateTools) do
+            local tName = string.lower(tool.Name)
+            if string.find(tName, "scepter", 1, true) ~= nil
+                or string.find(tName, "golden staff", 1, true) ~= nil
+                or string.find(tName, "heal staff", 1, true) ~= nil
+                or string.find(tName, "life staff", 1, true) ~= nil
+                or (string.find(tName, "staff", 1, true) ~= nil and string.find(tName, "iron", 1, true) == nil) then
+                if tool.Parent == backpack then
+                    pcall(function() hum:EquipTool(tool) end)
+                end
+                pcall(function() tool:Activate() end)
+                if sharedVim then
+                    for _, k in ipairs({ "Z", "X" }) do
+                        local keyEnum = (Enum.KeyCode :: any)[k]
+                        if keyEnum then
+                            pcall(function()
+                                sharedVim:SendKeyEvent(true, keyEnum, false, game)
+                                task.wait(0.04)
+                                sharedVim:SendKeyEvent(false, keyEnum, false, game)
+                            end)
+                        end
+                    end
+                end
+                healed = true
+                break
+            end
+        end
+
+        if not healed then
+            for _, tool in ipairs(candidateTools) do
+                local tName = string.lower(tool.Name)
+                if string.find(tName, "potion", 1, true) ~= nil
+                    or string.find(tName, "elixir", 1, true) ~= nil
+                    or string.find(tName, "medkit", 1, true) ~= nil
+                    or string.find(tName, "bandage", 1, true) ~= nil
+                    or (string.find(tName, "heal", 1, true) ~= nil and string.find(tName, "fruit", 1, true) == nil) then
+                    if tool.Parent == backpack then
+                        pcall(function() hum:EquipTool(tool) end)
+                    end
+                    pcall(function() tool:Activate() end)
+                    healed = true
+                    break
+                end
+            end
+        end
+
+        -- 3. QUÉT VÀ THI HÀNH TOÀN BỘ KỸ NĂNG HỒI MÁU & HÚT MÁU (FRUIT, SWORD, MELEE)
+        -- Bao gồm: Trái Phượng Hoàng (Phoenix Flames of Restoration / Regen), Trái Ma Cà Rồng (Blood / Vampire Drain),
+        -- Trái Phẫu Thuật (Ope/Room), Trái Đệm Thịt (Paw), và mọi chiêu có từ khóa hồi/hút máu
+        local pgui = player:FindFirstChild("PlayerGui")
+        local scGui = pgui and pgui:FindFirstChild("SkillCooldown")
+
+        local categories = { "fruit", "sword", "melee" }
+        for _, cat in ipairs(categories) do
+            local tool = findToolByCategory(cat)
+            if tool then
+                local tName = string.lower(tool.Name)
+                local prefix = getSkillPrefix(cat)
+                local frame = scGui and scGui:FindFirstChild(prefix .. "Frame")
+
+                local isPhoenix = string.find(tName, "phoenix", 1, true) ~= nil or string.find(tName, "tori", 1, true) ~= nil
+                local isVampire = string.find(tName, "vampire", 1, true) ~= nil or string.find(tName, "blood", 1, true) ~= nil or string.find(tName, "bat", 1, true) ~= nil
+
+                local keysToCheck = { "Z", "X", "C", "V", "E" }
+                for _, k in ipairs(keysToCheck) do
+                    local isHealOrDrainSkill = false
+                    local skillText = ""
+
+                    if frame then
+                        local slot = frame:FindFirstChild(k)
+                        local nameLbl = slot and (slot:FindFirstChild("SkillsNames") or slot:FindFirstChild("SkillName"))
+                        if nameLbl and nameLbl:IsA("TextLabel") then
+                            skillText = string.lower(nameLbl.Text or "")
+                        end
+                    end
+
+                    if skillText ~= "" then
+                        for _, kw in ipairs(HEAL_LIFESTEAL_KEYWORDS) do
+                            if string.find(skillText, kw, 1, true) ~= nil then
+                                isHealOrDrainSkill = true
+                                break
+                            end
+                        end
+                    end
+
+                    if not isHealOrDrainSkill and isPhoenix and (k == "Z" or k == "X") then
+                        isHealOrDrainSkill = true
+                    end
+                    if not isHealOrDrainSkill and isVampire and (k == "Z" or k == "X") then
+                        isHealOrDrainSkill = true
+                    end
+
+                    if isHealOrDrainSkill and isSkillReadyToCast(cat, k, tool) then
+                        local keyEnum = (Enum.KeyCode :: any)[k]
+                        if keyEnum and sharedVim then
+                            if tool.Parent == backpack then
+                                pcall(function() hum:EquipTool(tool) end)
+                                task.wait(0.04)
+                            end
+                            if targetModel then
+                                local tRoot = getModelRoot(targetModel)
+                                if tRoot then
+                                    local aimPos = getAimPoint(targetModel, tRoot)
+                                    _G.MouseHit = CFrame.new(aimPos)
+                                    local myHrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+                                    if myHrp then
+                                        pcall(function()
+                                            myHrp.CFrame = CFrame.lookAt(myHrp.Position, Vector3.new(aimPos.X, myHrp.Position.Y, aimPos.Z))
+                                        end)
+                                    end
+                                end
+                            end
+                            pcall(function()
+                                sharedVim:SendKeyEvent(true, keyEnum, false, game)
+                                task.wait(0.08)
+                                sharedVim:SendKeyEvent(false, keyEnum, false, game)
+                            end)
+                            healed = true
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+
+        return healed
+    end
+
+    -- ========================================================
     -- [AUTO FIGHT BOSS WORKER] - LUỒNG CHIẾN ĐẤU SEA EVENT, BOSS ĐẢO & NHẶT RƯƠNG BOSS
     -- ========================================================
     local function isIslandWanted(n: string, soloKey: string?, mode: string?): boolean
@@ -1841,27 +2032,9 @@
                             local hpPct = (maxHp > 0) and (curHp / maxHp) or 1
                             local isEmergencyHp = (hpPct < 0.40)
 
-                            -- 1. Tự động dùng Gậy Scepter / Hồi máu khẩn cấp khi máu tụt dưới 50%
+                            -- 1. Kích hoạt toàn bộ kỹ năng hồi máu, hút máu & bật lại Ken Haki khi máu dưới 50%
                             if hpPct < 0.50 then
-                                local healTool = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter")
-                                    or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
-                                if healTool then
-                                    if healTool.Parent == player.Backpack then
-                                        pcall(function() hum:EquipTool(healTool) end)
-                                    end
-                                    pcall(function() healTool:Activate() end)
-                                end
-                                -- Tự động bật lại Haki Quan Sát (Ken Haki) nếu vừa bị bào sạch dodges
-                                if (hubState.autoKenHaki ~= false) then
-                                    pcall(function()
-                                        local chest = sharedRS:FindFirstChild("Chest")
-                                        local rem = chest and chest:FindFirstChild("Remotes")
-                                        local funcs = rem and rem:FindFirstChild("Functions")
-                                        if funcs and funcs:FindFirstChild("KenEvent") then
-                                            funcs.KenEvent:InvokeServer(true)
-                                        end
-                                    end)
-                                end
+                                triggerUniversalEmergencyHeal(char, hum, targetBoss)
                             end
 
                             -- 2. Tự động tăng vọt độ cao thoát hiểm khẩn cấp (Emergency Altitude) nếu máu tụt dưới 40%
@@ -3673,24 +3846,7 @@ end)
 
                             -- Khẩn cấp hồi máu khi đánh Boss
                             if isBoss and hpPct < 0.50 then
-                                local healTool = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter")
-                                    or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
-                                if healTool then
-                                    if healTool.Parent == player.Backpack then
-                                        pcall(function() hum:EquipTool(healTool) end)
-                                    end
-                                    pcall(function() healTool:Activate() end)
-                                end
-                                if (hubState.autoKenHaki ~= false) then
-                                    pcall(function()
-                                        local chest = sharedRS:FindFirstChild("Chest")
-                                        local rem = chest and chest:FindFirstChild("Remotes")
-                                        local funcs = rem and rem:FindFirstChild("Functions")
-                                        if funcs and funcs:FindFirstChild("KenEvent") then
-                                            funcs.KenEvent:InvokeServer(true)
-                                        end
-                                    end)
-                                end
+                                triggerUniversalEmergencyHeal(char, hum, targetMob)
                             end
 
                             local sHeight: number
@@ -3877,24 +4033,7 @@ end)
 
                             -- Khẩn cấp hồi máu khi đánh Boss
                             if isBoss and hpPct < 0.50 then
-                                local healTool = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter")
-                                    or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
-                                if healTool then
-                                    if healTool.Parent == player.Backpack then
-                                        pcall(function() hum:EquipTool(healTool) end)
-                                    end
-                                    pcall(function() healTool:Activate() end)
-                                end
-                                if (hubState.autoKenHaki ~= false) then
-                                    pcall(function()
-                                        local chest = sharedRS:FindFirstChild("Chest")
-                                        local rem = chest and chest:FindFirstChild("Remotes")
-                                        local funcs = rem and rem:FindFirstChild("Functions")
-                                        if funcs and funcs:FindFirstChild("KenEvent") then
-                                            funcs.KenEvent:InvokeServer(true)
-                                        end
-                                    end)
-                                end
+                                triggerUniversalEmergencyHeal(char, hum, targetMob)
                             end
 
                             local sHeight: number
@@ -4034,15 +4173,7 @@ end)
                     local healPctThresh = (tonumber(hubState.dungeonHealThreshold) or 80) / 100
                     local currentHpPct = hum.Health / math.max(1, hum.MaxHealth)
                     if (hubState.dungeonAutoHeal ~= false) and currentHpPct < healPctThresh then
-                        local scepter = char:FindFirstChild("Scepter") or player.Backpack:FindFirstChild("Scepter")
-                            or char:FindFirstChild("Golden Staff") or player.Backpack:FindFirstChild("Golden Staff")
-                        if scepter then
-                            if scepter.Parent == player.Backpack then
-                                hum:EquipTool(scepter)
-                                task.wait(0.15)
-                            end
-                            scepter:Activate()
-                        end
+                        triggerUniversalEmergencyHeal(char, hum, targetMob)
                     end
                     local isEmergency = (hubState.dungeonEmergencyFlight ~= false) and (currentHpPct < 0.30)
 
@@ -4239,6 +4370,12 @@ end)
                                             local funcs = rem and rem:FindFirstChild("Functions")
                                             local evts = rem and rem:FindFirstChild("Events")
                                             local diff = string.match(hubState.dungeonMode or "Easy", "^(%a+)") or "Easy"
+                                            if funcs and funcs:FindFirstChild("SelectDungeon") then
+                                                pcall(function() funcs.SelectDungeon:InvokeServer(diff) end)
+                                            end
+                                            if evts and evts:FindFirstChild("UpdateDungeonVote") then
+                                                pcall(function() evts.UpdateDungeonVote:FireServer(diff) end)
+                                            end
                                             if funcs and funcs:FindFirstChild("Dungeon") then
                                                 funcs.Dungeon:InvokeServer(diff)
                                             elseif funcs and funcs:FindFirstChild("JoinDungeon") then
@@ -4329,7 +4466,7 @@ end)
                     end
                 end
 
-                -- 3. Shop Sniper Tự Mua Trái Khi Mở Bán (dùng đúng Chest.Remotes.Functions.BuyFruitStock của King Legacy)
+                -- 3. Shop Sniper Tự Mua Trái Khi Mở Bán (dùng đúng Chest.Remotes.Functions.GetDFShop & BuyFruitStock của King Legacy)
                 if hubState.snipeShop or genv.shopSniperEnabled then
                     local now = os.clock()
                     local delay = hubState.snipeDelay or genv.shopSniperDelay or 5
@@ -4343,20 +4480,26 @@ end)
                         local chest = sharedRS:FindFirstChild("Chest")
                         local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
                         local buyStock = remFuncs and remFuncs:FindFirstChild("BuyFruitStock")
-                        local legacyNet = sharedRS:FindFirstChild("Remotes")
-                        local legacyShop = legacyNet and legacyNet:FindFirstChild("Functions") and (legacyNet.Functions:FindFirstChild("FruitShop") or legacyNet.Functions:FindFirstChild("Merchant"))
+                        local getShop = remFuncs and remFuncs:FindFirstChild("GetDFShop")
+                        local liveStock: { [string]: any }? = nil
+                        if getShop then
+                            local okS, resS = pcall(function() return getShop:InvokeServer() end)
+                            if okS and typeof(resS) == "table" then
+                                liveStock = resS
+                            end
+                        end
                         for _, fruitName in ipairs(targetFruits) do
                             local rawName = string.match(fruitName, "^([%w%s%']+)") or fruitName
                             rawName = string.gsub(rawName, "%s+$", "")
                             local baseName = string.gsub(rawName, "%s*Fruit$", "")
+                            local doubledName = baseName .. baseName
+                            local fruitKey = baseName .. "Fruit"
                             if buyStock then
-                                pcall(function() buyStock:InvokeServer(baseName) end)
-                                pcall(function() buyStock:InvokeServer(baseName .. "Fruit") end)
-                                pcall(function() buyStock:InvokeServer(rawName) end)
-                            elseif legacyShop then
-                                pcall(function() legacyShop:InvokeServer("Buy", baseName) end)
-                                pcall(function() legacyShop:InvokeServer("Buy", baseName .. "Fruit") end)
-                                pcall(function() legacyShop:InvokeServer("Buy", rawName) end)
+                                if not liveStock or liveStock[doubledName] == true or liveStock[fruitKey] == true or liveStock[baseName] == true then
+                                    pcall(function() buyStock:InvokeServer(doubledName) end)
+                                    pcall(function() buyStock:InvokeServer(fruitKey) end)
+                                    pcall(function() buyStock:InvokeServer(baseName) end)
+                                end
                             end
                         end
                     end
@@ -4368,31 +4511,46 @@ end)
                     if (now - lastGachaClock) >= 3.0 then
                         lastGachaClock = now
                         local ps = player:FindFirstChild("PlayerStats")
-                        local beliVal = ps and (ps:FindFirstChild("Beli") or ps:FindFirstChild("Money"))
+                        local beliVal = ps and (ps:FindFirstChild("beli") or ps:FindFirstChild("Beli") or ps:FindFirstChild("Money"))
                         local gemVal = ps and (ps:FindFirstChild("Gem") or ps:FindFirstChild("Gems"))
                         local curBeli = beliVal and tonumber(beliVal.Value) or 0
                         local curGems = gemVal and tonumber(gemVal.Value) or 0
 
                         local chest = sharedRS:FindFirstChild("Chest")
                         local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                        local dfBeliRem = remFuncs and remFuncs:FindFirstChild("dfbeli")
+                        local etcRem = remFuncs and remFuncs:FindFirstChild("EtcFunction")
                         local gachaRem = remFuncs and (remFuncs:FindFirstChild("RandomFruit") or remFuncs:FindFirstChild("SpinFruit") or remFuncs:FindFirstChild("FruitGacha"))
-                        if not gachaRem then
-                            local legacyNet = sharedRS:FindFirstChild("Remotes")
-                            gachaRem = legacyNet and legacyNet:FindFirstChild("Functions") and (legacyNet.Functions:FindFirstChild("RandomFruit") or legacyNet.Functions:FindFirstChild("SpinFruit") or legacyNet.Functions:FindFirstChild("Gacha"))
-                        end
 
-                        if (hubState.autoGachaFruitBeli or genv.AutoGachaFruitBeli) and curBeli >= 2500000 and gachaRem then
+                        if (hubState.autoGachaFruitBeli or genv.AutoGachaFruitBeli) and curBeli >= 2500000 then
                             pcall(function()
-                                gachaRem:InvokeServer("Beli")
-                                gachaRem:InvokeServer(1)
+                                if dfBeliRem then
+                                    pcall(function() dfBeliRem:InvokeServer("Beli") end)
+                                    pcall(function() dfBeliRem:InvokeServer(1) end)
+                                    pcall(function() dfBeliRem:InvokeServer() end)
+                                end
+                                if etcRem then
+                                    pcall(function() etcRem:InvokeServer("RandomFruit", { Type = "Beli" }) end)
+                                end
+                                if gachaRem then
+                                    pcall(function() gachaRem:InvokeServer("Beli") end)
+                                end
                             end)
                             task.wait(0.5)
                         end
 
-                        if (hubState.autoGachaFruitGem or genv.AutoGachaFruitGem) and curGems >= 1 and gachaRem then
+                        if (hubState.autoGachaFruitGem or genv.AutoGachaFruitGem) and curGems >= 1 then
                             pcall(function()
-                                gachaRem:InvokeServer("Gem")
-                                gachaRem:InvokeServer(2)
+                                if dfBeliRem then
+                                    pcall(function() dfBeliRem:InvokeServer("Gem") end)
+                                    pcall(function() dfBeliRem:InvokeServer(2) end)
+                                end
+                                if etcRem then
+                                    pcall(function() etcRem:InvokeServer("RandomFruit", { Type = "Gem" }) end)
+                                end
+                                if gachaRem then
+                                    pcall(function() gachaRem:InvokeServer("Gem") end)
+                                end
                             end)
                             task.wait(0.5)
                         end

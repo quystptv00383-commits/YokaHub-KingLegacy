@@ -497,12 +497,34 @@
                 task.spawn(function()
                     local ps = player:FindFirstChild("PlayerStats")
                     local curRace = ps and ps:FindFirstChild("Race") and tostring(ps.Race.Value) or "Human"
-                    local beli = ps and ps:FindFirstChild("Beli") and tonumber(ps.Beli.Value) or 0
-                    local gems = ps and ps:FindFirstChild("Gem") and tonumber(ps.Gem.Value) or (ps and ps:FindFirstChild("Gems") and tonumber(ps.Gems.Value) or 0)
+                    if curRace == "" then curRace = "Human" end
+                    local beliObj = ps and (ps:FindFirstChild("beli") or ps:FindFirstChild("Beli"))
+                    local beli = beliObj and tonumber(beliObj.Value) or 0
+                    local gemObj = ps and (ps:FindFirstChild("Gem") or ps:FindFirstChild("Gems"))
+                    local gems = gemObj and tonumber(gemObj.Value) or 0
                     local lvl = ps and ps:FindFirstChild("lvl") and tonumber(ps.lvl.Value) or 1
-
-                    local report = string.format("Tộc: %s | Level: %d | Beli: %s | Gems: %d", curRace, lvl, tostring(beli), gems)
-                    safeNotify("Kiểm Tra Tộc", report, "info")
+                    local mats: { [string]: number } = {}
+                    pcall(function()
+                        local matObj = ps and ps:FindFirstChild("Material")
+                        if matObj and typeof(matObj.Value) == "string" and #matObj.Value > 2 then
+                            local dec = httpService:JSONDecode(matObj.Value)
+                            if typeof(dec) == "table" then
+                                for k, v in pairs(dec) do
+                                    mats[tostring(k)] = tonumber(v) or 0
+                                end
+                            end
+                        end
+                    end)
+                    local matSummary = string.format(
+                        "Carrot: %d | Fresh Fish: %d | SK Blood: %d | Iron: %d | Ruby: %d",
+                        mats["Carrot"] or 0,
+                        mats["Fresh Fish"] or 0,
+                        mats["Sea King's Blood"] or 0,
+                        mats["Iron Ingot"] or 0,
+                        mats["Lost Ruby"] or 0
+                    )
+                    local report = string.format("Tộc: %s | Lv.%d | Beli: %s | Gems: %d\n%s", curRace, lvl, fmtNum(beli), gems, matSummary)
+                    safeNotify("Kiểm Tra Tộc & Nguyên Liệu", report, "info")
                 end)
             end,
         }, "CheckRaceReqsButton")

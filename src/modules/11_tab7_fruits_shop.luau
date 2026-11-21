@@ -194,25 +194,54 @@
             Callback = function()
                 task.spawn(function()
                     local currentStock = {}
+                    local seen = {}
+                    local function addStockName(rawKey: string)
+                        local clean = string.gsub(rawKey, "Fruit$", "")
+                        local half = math.floor(#clean / 2)
+                        if half >= 2 and (#clean % 2 == 0) and string.sub(clean, 1, half) == string.sub(clean, half + 1) then
+                            clean = string.sub(clean, 1, half)
+                        end
+                        if clean ~= "" and not seen[clean] then
+                            seen[clean] = true
+                            table.insert(currentStock, clean)
+                        end
+                    end
                     pcall(function()
                         local chest = sharedRS:FindFirstChild("Chest")
                         local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
-                        local getStockRem = remFuncs and (remFuncs:FindFirstChild("GetFruitStock") or remFuncs:FindFirstChild("FruitStock") or remFuncs:FindFirstChild("FruitShop"))
+                        local getStockRem = remFuncs and (remFuncs:FindFirstChild("GetDFShop") or remFuncs:FindFirstChild("GetFruitStock") or remFuncs:FindFirstChild("FruitStock") or remFuncs:FindFirstChild("FruitShop"))
                         if getStockRem then
                             local ok, res = pcall(function() return getStockRem:InvokeServer() end)
                             if ok and typeof(res) == "table" then
                                 for fName, info in pairs(res) do
                                     if typeof(info) == "table" and (info.InStock == true or info.Stock == true or (tonumber(info.Amount) or 0) > 0) then
-                                        table.insert(currentStock, tostring(fName))
+                                        addStockName(tostring(fName))
                                     elseif typeof(fName) == "string" and info == true then
-                                        table.insert(currentStock, fName)
+                                        addStockName(fName)
+                                    end
+                                end
+                            end
+                        end
+                        if #currentStock == 0 then
+                            local ps = player:FindFirstChild("PlayerStats")
+                            local mfs = ps and ps:FindFirstChild("MarketFruitStocks")
+                            if mfs and typeof(mfs.Value) == "string" and #mfs.Value > 2 then
+                                local dec = httpService:JSONDecode(mfs.Value)
+                                if typeof(dec) == "table" then
+                                    for k, v in pairs(dec) do
+                                        if typeof(v) == "string" then
+                                            addStockName(v)
+                                        elseif v == true and typeof(k) == "string" then
+                                            addStockName(k)
+                                        end
                                     end
                                 end
                             end
                         end
                     end)
+                    table.sort(currentStock)
                     if #currentStock > 0 then
-                        safeNotify("Fruit Shop", "Đang bán: " .. table.concat(currentStock, ", "), "store")
+                        safeNotify("Fruit Shop (" .. tostring(#currentStock) .. " trái)", "Đang mở bán: " .. table.concat(currentStock, ", "), "store")
                     else
                         safeNotify("Fruit Shop", "Shop đang trong chu kỳ làm mới hoặc không có trái mở bán lúc này.", "info")
                     end
@@ -265,14 +294,21 @@
                     pcall(function()
                         local chest = sharedRS:FindFirstChild("Chest")
                         local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                        local dfBeliRem = remFuncs and remFuncs:FindFirstChild("dfbeli")
+                        local etcRem = remFuncs and remFuncs:FindFirstChild("EtcFunction")
                         local gachaRem = remFuncs and (remFuncs:FindFirstChild("RandomFruit") or remFuncs:FindFirstChild("SpinFruit") or remFuncs:FindFirstChild("FruitGacha"))
-                        if not gachaRem then
-                            local legacyNet = sharedRS:FindFirstChild("Remotes")
-                            gachaRem = legacyNet and legacyNet:FindFirstChild("Functions") and (legacyNet.Functions:FindFirstChild("RandomFruit") or legacyNet.Functions:FindFirstChild("SpinFruit") or legacyNet.Functions:FindFirstChild("Gacha"))
-                        end
-                        if gachaRem then
-                            gachaRem:InvokeServer("Beli")
-                            gachaRem:InvokeServer(1)
+                        if dfBeliRem or etcRem or gachaRem then
+                            if dfBeliRem then
+                                pcall(function() dfBeliRem:InvokeServer("Beli") end)
+                                pcall(function() dfBeliRem:InvokeServer(1) end)
+                                pcall(function() dfBeliRem:InvokeServer() end)
+                            end
+                            if etcRem then
+                                pcall(function() etcRem:InvokeServer("RandomFruit", { Type = "Beli" }) end)
+                            end
+                            if gachaRem then
+                                pcall(function() gachaRem:InvokeServer("Beli") end)
+                            end
                             safeNotify("YokaHub Gacha", "Đã gửi yêu cầu quay Random Fruit bằng Beli!", "casino")
                         else
                             safeNotify("YokaHub Gacha", "Không tìm thấy Remote Gacha của game.", "warning")
@@ -290,14 +326,21 @@
                     pcall(function()
                         local chest = sharedRS:FindFirstChild("Chest")
                         local remFuncs = chest and chest:FindFirstChild("Remotes") and chest.Remotes:FindFirstChild("Functions")
+                        local dfBeliRem = remFuncs and remFuncs:FindFirstChild("dfbeli")
+                        local dfGemRem = remFuncs and remFuncs:FindFirstChild("dfrobux")
+                        local etcRem = remFuncs and remFuncs:FindFirstChild("EtcFunction")
                         local gachaRem = remFuncs and (remFuncs:FindFirstChild("RandomFruit") or remFuncs:FindFirstChild("SpinFruit") or remFuncs:FindFirstChild("FruitGacha"))
-                        if not gachaRem then
-                            local legacyNet = sharedRS:FindFirstChild("Remotes")
-                            gachaRem = legacyNet and legacyNet:FindFirstChild("Functions") and (legacyNet.Functions:FindFirstChild("RandomFruit") or legacyNet.Functions:FindFirstChild("SpinFruit") or legacyNet.Functions:FindFirstChild("Gacha"))
-                        end
-                        if gachaRem then
-                            gachaRem:InvokeServer("Gem")
-                            gachaRem:InvokeServer(2)
+                        if dfBeliRem or dfGemRem or etcRem or gachaRem then
+                            if dfBeliRem then
+                                pcall(function() dfBeliRem:InvokeServer("Gem") end)
+                                pcall(function() dfBeliRem:InvokeServer(2) end)
+                            end
+                            if etcRem then
+                                pcall(function() etcRem:InvokeServer("RandomFruit", { Type = "Gem" }) end)
+                            end
+                            if gachaRem then
+                                pcall(function() gachaRem:InvokeServer("Gem") end)
+                            end
                             safeNotify("YokaHub Gacha", "Đã gửi yêu cầu quay Random Fruit bằng Gem!", "diamond")
                         else
                             safeNotify("YokaHub Gacha", "Không tìm thấy Remote Gacha của game.", "warning")
