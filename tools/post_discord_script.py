@@ -12,8 +12,7 @@ CANDIDATE_WEBHOOK_FILES = [
 ]
 
 COMPACT_SCRIPT = (
-    'loadstring(game:HttpGet("https://gist.githubusercontent.com/quystptv00383-commits/7dde495f53b84afb7cf64c06c15dfe2d/raw/loader.luau?t=" .. os.time()))()\n'
-    'loadstring(game:HttpGet("https://raw.githubusercontent.com/duymanhm6-cyber/wukonghud/refs/heads/main/wukonghud"))()'
+    'loadstring(game:HttpGet("https://gist.githubusercontent.com/quystptv00383-commits/7dde495f53b84afb7cf64c06c15dfe2d/raw/loader.luau?t=" .. os.time()))()'
 )
 
 def load_webhook_url():
@@ -32,23 +31,25 @@ def post_update(summary_note: str = ""):
         return False
 
     now_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    note_line = f"\n**Nội dung cập nhật:** {summary_note}" if summary_note else ""
+    note_line = f"\n📌 **Ghi chú phiên bản:** {summary_note}\n" if summary_note else ""
     payload = {
         "username": "YokaHub Official",
         "embeds": [
             {
-                "title": "🚀 YOKAHUB KING LEGACY — BẢN CẬP NHẬT MỚI NHẤT",
+                "title": "🚀 YOKAHUB KING LEGACY — CẬP NHẬT HỆ THỐNG API & SĂN BOSS ĐỘC LẬP",
                 "description": (
-                    f"⏰ **Cập nhật lúc:** {now_str} (Đồng bộ Cloud Gist tự động 24/7)\n\n"
-                    f"✨ **NỘI DUNG NÂNG CẤP & TỐI ƯU:**\n"
-                    f"• **Săn Sea Event & Boss biển:** Tích hợp trực tiếp cơ chế tự động nhặt rương sự kiện biển (Hydra, Vua Biển, Thuyền Ma, Depth King) sau khi hạ Boss.\n"
-                    f"• **Ưu tiên chiến đấu 100%:** Chỉ tập trung diệt Boss khi Boss còn sống, chấm dứt hoàn toàn tình trạng nhặt rương bừa bãi.\n"
-                    f"• **Script thu gọn 2 dòng:** Cực kỳ ngắn gọn, tích hợp sẵn YokaHub + Wukong API bổ trợ.\n\n"
-                    f"📜 **SCRIPT RUNNER (COPY 2 DÒNG DƯỚI ĐÂY DÁN VÀO EXECUTOR):**\n"
+                    f"⏰ **Cập nhật lúc:** {now_str} (Đồng bộ Cloud Gist tự động 24/7)\n"
+                    f"{note_line}\n"
+                    f"🌐 **HỆ THỐNG API & HOP SERVER MỚI (ĐỘC LẬP 100%):**\n"
+                    f"• **Độc lập hoàn toàn (Không cần Wukong):** Gỡ phụ thuộc chạy chung Wukong khỏi Loader (vẫn giữ comment dự phòng khi cần).\n"
+                    f"• **Smart Public Server Hop:** Tự động lấy danh sách server công khai Roblox, lọc phòng còn slot thoáng & ping thấp, chống trùng `JobId` (150s), bay tới đảo kiểm tra boss sống thực tế — săn được cả **Abyssal Tyrant**, **Dragon / Drakenfyr**, **Depth King**, **Hydra**, **Sea King**.\n"
+                    f"• **Cổng YokaHub Private Boss API (Cloudflare Worker / VPS):** Cho phép nhập URL API riêng + Secret Key & bật chia sẻ Boss sống (Telemetry) ngay tại **Tab 1** để toàn bộ máy/acc cùng hop thẳng phòng Boss.\n"
+                    f"• **Auto Skills V3 & Fix Hop Liên Tục:** 3 lớp kích hoạt chiêu mượt mà, khóa M1 chống khựng, chờ `Playing` + nạp map chuẩn xác chống hop oan.\n\n"
+                    f"📜 **SCRIPT RUNNER (CHỈ 1 DÒNG DUY NHẤT — COPY DÁN VÀO EXECUTOR):**\n"
                     f"```lua\n{COMPACT_SCRIPT}\n```"
                 ),
                 "color": 3461096,
-                "footer": {"text": "YokaHub Official • Uy Tín - An Toàn - Mượt Mà 24/7"},
+                "footer": {"text": "YokaHub Official • Độc Lập 100% • Uy Tín - Mượt Mà 24/7"},
             }
         ],
     }
