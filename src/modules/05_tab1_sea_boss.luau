@@ -405,6 +405,7 @@
                 end
             end
             syncingBossToggles = false
+            saveState(hubState)
             recalcHopMode(true)
         end,
     }, "AutoHopSea3")
@@ -426,6 +427,7 @@
                 end
             end
             syncingBossToggles = false
+            saveState(hubState)
             recalcHopMode(true)
         end,
     }, "AutoHopSea2")

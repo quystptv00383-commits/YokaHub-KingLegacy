@@ -183,6 +183,7 @@
             CurrentValue = hubState.autoM1Sword == true,
             Callback = function(Value: boolean)
                 hubState.autoM1Sword = Value
+                saveState(hubState)
                 pcall(function() genv.AutoM1Sword = Value end)
                 syncDropdownFromToggles()
                 if Value then safeNotify("Auto M1", "Đã bật Auto M1 cho Kiếm (Sword)!", "flash_on") end
@@ -195,6 +196,7 @@
             CurrentValue = hubState.autoM1Melee == true,
             Callback = function(Value: boolean)
                 hubState.autoM1Melee = Value
+                saveState(hubState)
                 pcall(function() genv.AutoM1Melee = Value end)
                 syncDropdownFromToggles()
                 if Value then safeNotify("Auto M1", "Đã bật Auto M1 cho Võ / Melee!", "fitness_center") end
@@ -207,6 +209,7 @@
             CurrentValue = hubState.autoM1Fruit == true,
             Callback = function(Value: boolean)
                 hubState.autoM1Fruit = Value
+                saveState(hubState)
                 pcall(function() genv.AutoM1Fruit = Value end)
                 syncDropdownFromToggles()
                 if Value then safeNotify("Auto M1", "Đã bật Auto M1 cho Trái Ác Quỷ!", "spa") end

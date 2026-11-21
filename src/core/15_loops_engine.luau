@@ -1368,8 +1368,8 @@
     task.spawn(function()
         while genv._YokaHubToken == myToken do
             task.wait(0.16)
-            local busyOtherMode = hubState.autoFish
-                or (currentMode == "off" and not hubState.autoFightMaster and (hubState.autoLevel or hubState.autoKillSelectedMob or hubState.autoDungeon or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat))
+            local hasLocalFarm = (hubState.autoLevel or hubState.autoKillSelectedMob or hubState.autoDungeon or hubState.farmSea3Mat or hubState.farmSea2Mat or hubState.farmSea1Mat)
+            local busyOtherMode = hubState.autoFish or (currentMode == "off" and hasLocalFarm and not hubState.autoFightIslandBoss)
             local bossFightActive = (currentMode ~= "off") or hubState.autoFightMaster or hubState.autoFightIslandBoss
             if bossFightActive and not busyOtherMode and genv._YokaHubToken == myToken then
                 pcall(function()
@@ -1687,7 +1687,7 @@
                                 local flyPos = bossPos + Vector3.new(0, sHeight, 0)
                                 setFlightTarget(flyPos, bossPos, (bossPos - hrp.Position).Magnitude > 1400, 52)
                             end
-                        elseif currentMode ~= "off" or hubState.autoFightMaster then
+                        elseif currentMode ~= "off" or (hubState.autoFightMaster and not hasLocalFarm) then
                             -- StreamingEnabled fix: Nếu SeaMonster chưa load do ở quá xa -> bay tới thẳng Đảo Sự Kiện (Hydra / Sea Island / Legacy / Ghost Ship) để nạp Boss!
                             local evPos, _ = findSeaEventIslandPos(soloKeyActive, currentMode)
                             if evPos and (evPos - hrp.Position).Magnitude > 120 then
