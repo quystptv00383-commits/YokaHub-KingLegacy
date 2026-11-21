@@ -373,6 +373,10 @@
         islandBossTarget: string?,
         autoTakeBossQuest: boolean?,
         antiAfk19m: boolean?,
+        privateBossApiUrl: string?,
+        privateBossApiKey: string?,
+        privateBossApiReport: boolean?,
+        smartPublicHop: boolean?,
     }
 
     local function loadState(): HubState
@@ -514,6 +518,10 @@
             islandBossTarget = "Hephaestus (Thợ Rèn Thần - Sea 3)",
             autoTakeBossQuest = true,
             antiAfk19m = true,
+            privateBossApiUrl = "",
+            privateBossApiKey = "",
+            privateBossApiReport = true,
+            smartPublicHop = true,
         }
         local d = readJson(stateFile)
         if typeof(d) == "table" then
@@ -658,6 +666,10 @@
             if typeof(d.islandBossTarget) == "string" then st.islandBossTarget = d.islandBossTarget end
             if typeof(d.autoTakeBossQuest) == "boolean" then st.autoTakeBossQuest = d.autoTakeBossQuest end
             if typeof(d.antiAfk19m) == "boolean" then st.antiAfk19m = d.antiAfk19m end
+            if typeof(d.privateBossApiUrl) == "string" then st.privateBossApiUrl = d.privateBossApiUrl end
+            if typeof(d.privateBossApiKey) == "string" then st.privateBossApiKey = d.privateBossApiKey end
+            if typeof(d.privateBossApiReport) == "boolean" then st.privateBossApiReport = d.privateBossApiReport end
+            if typeof(d.smartPublicHop) == "boolean" then st.smartPublicHop = d.smartPublicHop end
             if typeof(d.toolMode) == "string" then st.toolMode = d.toolMode end
             if typeof(d.m1SpamList) == "table" then
                 st.m1SpamList = d.m1SpamList

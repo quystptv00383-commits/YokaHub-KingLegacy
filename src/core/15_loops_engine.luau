@@ -2803,6 +2803,10 @@
                     local mName = string.lower(m.Name)
                     if (hubState.ignoreGalleon ~= true or string.find(mName, "galleon", 1, true) == nil)
                        and (hubState.ignoreKraken ~= true or (string.find(mName, "kraken", 1, true) == nil and string.find(mName, "tentacle", 1, true) == nil)) then
+                        local bHum = m:FindFirstChildOfClass("Humanoid")
+                        if bHum then
+                            YokaNet.reportAliveBoss(m.Name, isDepthKingBoss(mName) and "depth_king" or "sea_event", bHum.Health, bHum.MaxHealth)
+                        end
                         if isSea3BossEnabled(m.Name) then
                             return true, m.Name
                         end
@@ -2819,6 +2823,10 @@
                     local mName = string.lower(m.Name)
                     if (hubState.ignoreGalleon ~= true or string.find(mName, "galleon", 1, true) == nil)
                        and (hubState.ignoreKraken ~= true or (string.find(mName, "kraken", 1, true) == nil and string.find(mName, "tentacle", 1, true) == nil)) then
+                        local bHum = m:FindFirstChildOfClass("Humanoid")
+                        if bHum and (isDepthKingBoss(mName) or isAbyssalBoss(mName) or isDragonBoss(mName)) then
+                            YokaNet.reportAliveBoss(m.Name, isDepthKingBoss(mName) and "depth_king" or (isAbyssalBoss(mName) and "abyssal" or "sea_event"), bHum.Health, bHum.MaxHealth)
+                        end
                         if isSea3BossEnabled(m.Name) then
                             return true, m.Name
                         end
@@ -2856,9 +2864,13 @@
                     local n = string.lower(m.Name)
                     if string.find(n, "hydra") or string.find(n, "seaking") or string.find(n, "sea king") or string.find(n, "serpent") or string.find(n, "ghost") then
                         local hum = m:FindFirstChildOfClass("Humanoid")
-                        if hum and hum.Health > 0 and isSea2BossEnabled(m.Name) then
-                            lastSea2ChestResult = nil
-                            return "boss", m.Name
+                        if hum and hum.Health > 0 then
+                            local srcTag = string.find(n, "hydra") and "hydra" or (string.find(n, "serpent") and "serpent" or (string.find(n, "ghost") and "ghost_ship" or "sea_king"))
+                            YokaNet.reportAliveBoss(m.Name, srcTag, hum.Health, hum.MaxHealth)
+                            if isSea2BossEnabled(m.Name) then
+                                lastSea2ChestResult = nil
+                                return "boss", m.Name
+                            end
                         end
                     end
                 end
@@ -2940,8 +2952,24 @@
 
     local lastHopDispatchClock = 0
 
+    local burstHopCandidates: ({ any }, { [string]: number }, string, string, number?, string?) -> ()
+
+    local function tryPublicFallbackHop(placeId: number, visitedFile: string, expectedMode: string, labelName: string, visitedPrefix: string?): boolean
+        if hubState.smartPublicHop == false then
+            return false
+        end
+        local visited = loadVisited(visitedFile)
+        local pubCands = YokaNet.findPublicServers(placeId, visited, 2, 2, visitedPrefix or "")
+        if #pubCands > 0 then
+            setStatus(string.format("Dò Server Công Khai cho %s (%d phòng trống khả dụng)...", labelName, #pubCands))
+            burstHopCandidates(pubCands, visited, visitedFile, expectedMode, 75, visitedPrefix)
+            return true
+        end
+        return false
+    end
+
     -- Helper nhay phong co kiem soat chong spam Teleport (giu khoang cach an toan 10s, toi da 2 lan thu/luot)
-    local function burstHopCandidates(candidates: { any }, visited: { [string]: number }, visitedFile: string, expectedMode: string, shortFailCooldownSec: number?, visitedPrefix: string?)
+    burstHopCandidates = function(candidates: { any }, visited: { [string]: number }, visitedFile: string, expectedMode: string, shortFailCooldownSec: number?, visitedPrefix: string?)
         if (os.clock() - lastHopDispatchClock) < 10.0 then
             local rem = math.max(1.0, 10.0 - (os.clock() - lastHopDispatchClock))
             setStatus(string.format("Đang giãn nhịp chuyển phòng chống văng game (chờ %.0fs)...", rem))
@@ -2958,22 +2986,18 @@
             if ref ~= "" then visited[vKey] = os.time(); saveVisited(visitedFile, visited) end
             local hopStart = os.clock()
             lastHopDispatchClock = hopStart
-            local infoStr = string.format("%s (%s/%s người · %s%% HP)", tostring(chosen.eventName), tostring(chosen.players and chosen.players.current or "?"), tostring(chosen.players and chosen.players.max or "?"), tostring(chosen._hp or "?"))
+            local infoStr = chosen._isPublicHop
+                and ("Dò SV Công Khai: " .. tostring(chosen.eventName))
+                or string.format("%s (%s/%s người · %s%% HP)", tostring(chosen.eventName), tostring(chosen.players and chosen.players.current or "?"), tostring(chosen.players and chosen.players.max or "?"), tostring(chosen._hp or "?"))
             setStatus("Đang sang phòng: " .. infoStr)
             if idx == 1 then recordHop() end
             armAutoReexec(false)
-            if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
-                pcall(genv.WK_JoinLiveBossApiEntry, chosen)
-            else
-                local srvId = chosen.jobId or chosen.serverId or chosen.id
-                local pId = tonumber(chosen.placeId) or game.PlaceId
-                if typeof(srvId) == "string" and string.find(srvId, "-", 1, true) ~= nil then
-                    pcall(function() teleportService:TeleportToPlaceInstance(pId, srvId, players.LocalPlayer) end)
-                else
-                    setStatus("Đang chờ API điều hướng phòng hỗ trợ...")
-                    smartWait(4.0, expectedMode)
-                    return
-                end
+            local pId = tonumber(chosen.placeId) or game.PlaceId
+            local okJoin = YokaNet.joinApiEntry(chosen, pId)
+            if not okJoin then
+                setStatus("Đang chờ nguồn định tuyến phòng hỗ trợ...")
+                smartWait(4.0, expectedMode)
+                return
             end
             local waited = 0
             local failed = false
@@ -3158,12 +3182,13 @@
                 if hubState.bringFruits then pcall(function() genv.BringDroppedFruit = true end) end
             end
 
-            local hasApi = typeof(genv.WK_FetchLiveBossApiSnapshot) == "function"
-            local ok, snap = false, nil
-            if hasApi then
+            local hasPrivOrWk = (YokaNet.normalizeBaseUrl(hubState.privateBossApiUrl) ~= "" and (hubState.privateBossApiKey ~= nil) and (hubState.privateBossApiReport ~= nil)) or (typeof(genv.WK_FetchLiveBossApiSnapshot) == "function")
+            if hasPrivOrWk then
                 setStatus("Đang quét API phòng Boss: " .. soloOpt .. "...")
-                ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
+            else
+                setStatus("Đang dò Server Công Khai cho: " .. soloOpt .. "...")
             end
+            local ok, snap = YokaNet.fetchLiveBossSnapshot()
             if currentMode ~= "solo" or genv._YokaHubToken ~= myToken then continue end
             if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
                 local visited = loadVisited(visitedSoloFile)
@@ -3213,19 +3238,21 @@
                 local hopWait = getApiHopWait()
                 if #candidates > 0 then
                     burstHopCandidates(candidates, visited, visitedSoloFile, "solo", shortCd, vPrefix)
+                elseif tryPublicFallbackHop(targetPlace, visitedSoloFile, "solo", soloOpt, vPrefix) then
+                    -- Đã chuyển sang Smart Public Hop
                 else
                     if fullRooms > 0 then
                         setStatus(string.format("Có %d phòng %s đều đầy 12/12 — Chờ slot trống (quét lại sau %.0fs)...", fullRooms, soloOpt, hopWait))
                     elseif visitedRooms > 0 then
                         setStatus(string.format("Có %d phòng %s vừa ghé — Chờ phòng mới (quét lại sau %.0fs)...", visitedRooms, soloOpt, hopWait))
                     else
-                        setStatus(string.format("Chưa có phòng API có sẵn cho %s — Đang chờ phòng mới (quét lại sau %.0fs)...", soloOpt, hopWait))
+                        setStatus(string.format("Chưa có phòng API hoặc Công Khai cho %s — Chờ quét lại sau %.0fs...", soloOpt, hopWait))
                     end
                     smartWait(hopWait, "solo")
                 end
-            else
+            elseif not tryPublicFallbackHop(targetPlace, visitedSoloFile, "solo", soloOpt, soloKey .. ":") then
                 local hopWait = getApiHopWait()
-                setStatus(string.format("Đang chờ dữ liệu API phòng %s (quét lại sau %.0fs)...", soloOpt, hopWait))
+                setStatus(string.format("Chưa kết nối Private API / Wukong (quét lại hoặc bật Smart Public Hop sau %.0fs)...", hopWait))
                 smartWait(hopWait, "solo")
             end
 
@@ -3284,14 +3311,15 @@
                 genv.DepthKingChestReadyToHop = false
             end
 
-            local hasApi = typeof(genv.WK_FetchLiveBossApiSnapshot) == "function"
-            local ok, snap = false, nil
-            if hasApi then
+            local hasPrivOrWk3 = (YokaNet.normalizeBaseUrl(hubState.privateBossApiUrl) ~= "" or typeof(genv.WK_FetchLiveBossApiSnapshot) == "function")
+            if hasPrivOrWk3 then
                 setStatus("Đang quét nhanh phòng Boss Sea 3...")
-                ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
+            else
+                setStatus("Đang dò Server Công Khai Sea 3 cho Boss đã chọn...")
             end
+            local ok, snap = YokaNet.fetchLiveBossSnapshot()
             if currentMode ~= "sea3" or genv._YokaHubToken ~= myToken then continue end
-            if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
+            if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" and #snap.entries > 0 then
                 local visited = loadVisited(visitedSea3File)
                 local healthyCands = {}
                 local backupCands = {}
@@ -3325,14 +3353,18 @@
                 end)
                 if #candidates > 0 then
                     burstHopCandidates(candidates, visited, visitedSea3File, "sea3", 45)
+                elseif tryPublicFallbackHop(SEA3_PLACE, visitedSea3File, "sea3", "Boss Sea 3", "") then
+                    -- Đã chuyển sang Smart Public Hop dự phòng
                 else
                     local hopWait = getApiHopWait()
                     setStatus(string.format("Chưa có phòng Boss Sea 3 còn slot & đủ máu (>=25%%) — Chờ phòng mới (%.0fs)...", hopWait))
                     smartWait(hopWait, "sea3")
                 end
+            elseif tryPublicFallbackHop(SEA3_PLACE, visitedSea3File, "sea3", "Boss Sea 3", "") then
+                -- Đang dò Server Công Khai Sea 3 độc lập (không cần Wukong)
             else
                 local hopWait = getApiHopWait()
-                setStatus(string.format("Đang chờ dữ liệu API Boss Sea 3 (quét lại sau %.0fs)...", hopWait))
+                setStatus(string.format("Chưa tìm thấy phòng Sea 3 khả dụng (thử lại sau %.0fs)...", hopWait))
                 smartWait(hopWait, "sea3")
             end
 
@@ -3388,11 +3420,8 @@
 
             setStatus("Đang ưu tiên dò phòng Hydra & Rương Hydra...")
             local function scanSea2Pools(): ({ any }, { any }, { [string]: number }?, boolean)
-                if typeof(genv.WK_FetchLiveBossApiSnapshot) ~= "function" then
-                    return {}, {}, nil, false
-                end
-                local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
-                if not ok or typeof(snap) ~= "table" or typeof(snap.entries) ~= "table" then
+                local ok, snap = YokaNet.fetchLiveBossSnapshot()
+                if not ok or typeof(snap) ~= "table" or typeof(snap.entries) ~= "table" or #snap.entries == 0 then
                     return {}, {}, nil, false
                 end
                 local visited = loadVisited(visitedSea2File)
@@ -3457,16 +3486,20 @@
                         local visUse = (okRetry and visitedRetry) or visited
                         if #fallback > 0 then
                             burstHopCandidates(fallback, visUse, visitedSea2File, "sea2")
+                        elseif tryPublicFallbackHop(SEA2_PLACE, visitedSea2File, "sea2", "Boss Sea 2", "") then
+                            -- Đã chuyển sang Smart Public Hop Sea 2
                         else
                             local hopWait = getApiHopWait()
-                            setStatus(string.format("Chưa có phòng Boss / Rương Sea 2 trống trên API — Đang chờ phòng mới (quét lại sau %.0fs)...", hopWait))
+                            setStatus(string.format("Chưa có phòng Boss / Rương Sea 2 trống — Chờ quét lại sau %.0fs...", hopWait))
                             smartWait(hopWait, "sea2")
                         end
                     end
                 end
+            elseif tryPublicFallbackHop(SEA2_PLACE, visitedSea2File, "sea2", "Boss Sea 2", "") then
+                -- Đang dò Server Công Khai Sea 2 độc lập
             else
                 local hopWait = getApiHopWait()
-                setStatus(string.format("Đang chờ dữ liệu API Boss Sea 2 (quét lại sau %.0fs)...", hopWait))
+                setStatus(string.format("Chưa tìm thấy phòng Sea 2 khả dụng (quét lại sau %.0fs)...", hopWait))
                 smartWait(hopWait, "sea2")
             end
         end

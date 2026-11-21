@@ -975,34 +975,44 @@
                     return
                 end
 
-                local hasLiveApi = (typeof(genv.WK_FetchLiveBossApiSnapshot) == "function")
                 local list = {}
                 local fullCount = 0
 
-                if hasLiveApi then
-                    setStatus("Đang quét API tìm " .. snipeTarget .. "...")
-                    local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
-                    if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
-                        for _, e in ipairs(snap.entries) do
-                            if matchSnipe(e, snipeTarget) then
-                                e._tier = getSlotTier(e)
-                                e._hp = typeof(e.health) == "table" and (tonumber(e.health.percent) or 100) or 100
-                                e._pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
-                                table.insert(list, e)
-                            elseif e.alive == true then
-                                local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 0) or 0
-                                local pMax = typeof(e.players) == "table" and (tonumber(e.players.max) or 12) or 12
-                                if pCur >= pMax and matchSnipe(e, snipeTarget, true) then
-                                    fullCount += 1
-                                end
+                setStatus("Đang quét API tìm " .. snipeTarget .. "...")
+                local ok, snap = YokaNet.fetchLiveBossSnapshot()
+                if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
+                    for _, e in ipairs(snap.entries) do
+                        if matchSnipe(e, snipeTarget) then
+                            e._tier = getSlotTier(e)
+                            e._hp = typeof(e.health) == "table" and (tonumber(e.health.percent) or 100) or 100
+                            e._pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 99) or 99
+                            table.insert(list, e)
+                        elseif e.alive == true then
+                            local pCur = typeof(e.players) == "table" and (tonumber(e.players.current) or 0) or 0
+                            local pMax = typeof(e.players) == "table" and (tonumber(e.players.max) or 12) or 12
+                            if pCur >= pMax and matchSnipe(e, snipeTarget, true) then
+                                fullCount += 1
                             end
                         end
                     end
                 end
 
                 if #list == 0 then
+                    if hubState.smartPublicHop ~= false then
+                        local pubList = YokaNet.findPublicServers(reqPlace or game.PlaceId, nil, 2, 2, "")
+                        if #pubList > 0 then
+                            local chosenPub = pubList[1]
+                            local pubInfo = string.format("Dò Server Công Khai (%s/%s người · %dms) cho %s", tostring(chosenPub._pCur), tostring(chosenPub.players and chosenPub.players.max or 12), tonumber(chosenPub.ping) or 0, snipeTarget)
+                            setStatus(pubInfo)
+                            safeNotify("Smart Public Hop", pubInfo, "public")
+                            recordHop()
+                            armAutoReexec(false)
+                            YokaNet.joinApiEntry(chosenPub, reqPlace)
+                            done(); return
+                        end
+                    end
                     setStatus("Không tìm thấy phòng trống có " .. snipeTarget .. " trên API (hoặc các phòng đều đầy 12/12).")
-                    safeNotify("YokaHub", "Hiện không có phòng trống có " .. snipeTarget .. ". Vui lòng thử lại sau vài giây!", "info")
+                    safeNotify("YokaHub", "Hiện không có phòng trống có " .. snipeTarget .. ". Hãy thử lại sau vài giây hoặc bật Smart Public Hop!", "info")
                     done(); return
                 end
                 table.sort(list, function(a, b)
@@ -1021,17 +1031,10 @@
                     if idx == 1 then recordHop() end
                     armAutoReexec(false)
                     local hopStart = os.clock()
-                    if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
-                        pcall(genv.WK_JoinLiveBossApiEntry, chosen)
-                    else
-                        local srvId = chosen.jobId or chosen.serverId or chosen.id
-                        local pId = tonumber(chosen.placeId) or reqPlace or game.PlaceId
-                        if typeof(srvId) == "string" and string.find(srvId, "-", 1, true) ~= nil then
-                            pcall(function() teleportService:TeleportToPlaceInstance(pId, srvId, players.LocalPlayer) end)
-                        else
-                            safeNotify("YokaHub", "Đang chờ mô-đun điều hướng API sẵn sàng...", "info")
-                            break
-                        end
+                    local okJoin = YokaNet.joinApiEntry(chosen, reqPlace)
+                    if not okJoin then
+                        safeNotify("YokaHub", "Không có JobId/API định tuyến cho phòng này.", "info")
+                        break
                     end
                     safeNotify("Đang bay tới", info, "public")
                     local failed = false
@@ -1061,37 +1064,21 @@
 
     QuickHopSection:CreateButton({
         Name = "🔄 Sang phòng mới ít người (để Random Trái)",
-        Description = "Chuyển nhanh sang phòng thoáng 3–8 người để random trái hoặc nghỉ farm",
+        Description = "Chuyển nhanh sang phòng thoáng 3–8 người, ping thấp để random trái hoặc nghỉ farm",
         Callback = function()
             task.spawn(function()
                 if currentMode ~= "off" then
                     applyMode("off", false)
                 end
-                setStatus("Đang tìm phòng ít người (3–8 người)...")
+                setStatus("Đang tìm phòng ít người, ping thấp...")
                 local chosenId: string? = nil
                 local chosenInfo = ""
 
-                local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100", game.PlaceId)
-                local ok, raw = pcall(function() return game:HttpGet(url) end)
-                if ok and typeof(raw) == "string" then
-                    local dok, decoded = pcall(function() return httpService:JSONDecode(raw) end)
-                    if dok and typeof(decoded) == "table" and typeof(decoded.data) == "table" then
-                        local pref, fb = {}, {}
-                        for _, srv in ipairs(decoded.data) do
-                            local id = tostring(srv.id or "")
-                            local p, m = tonumber(srv.playing) or 99, tonumber(srv.maxPlayers) or 12
-                            if id ~= "" and id ~= game.JobId and p < m then
-                                table.insert(fb, srv)
-                                if p >= 3 and p <= 8 then table.insert(pref, srv) end
-                            end
-                        end
-                        local pool = #pref > 0 and pref or fb
-                        if #pool > 0 then
-                            local chosen = pool[math.random(1, math.min(#pool, 10))]
-                            chosenId = tostring(chosen.id)
-                            chosenInfo = string.format("Sang phòng %d/%d người...", tonumber(chosen.playing) or 0, tonumber(chosen.maxPlayers) or 12)
-                        end
-                    end
+                local pool = YokaNet.findPublicServers(game.PlaceId, nil, 3, 2, "")
+                if #pool > 0 then
+                    local chosen = pool[math.random(1, math.min(#pool, 8))]
+                    chosenId = tostring(chosen.jobId)
+                    chosenInfo = string.format("Sang phòng %d/%d người · %dms...", tonumber(chosen._pCur) or 0, tonumber(chosen.players and chosen.players.max) or 12, tonumber(chosen.ping) or 0)
                 end
 
                 recordHop()
@@ -1112,4 +1099,60 @@
             end)
         end,
     })
+
+    -- ========================================================
+    -- BẢNG 6: NGUỒN API ĐỘC LẬP & SMART PUBLIC HOP (KHÔNG PHỤ THUỘC WUKONG)
+    -- ========================================================
+    local IndependentApiSection = HopTab:CreateSection("🌐 NGUỒN API ĐỘC LẬP & SMART PUBLIC HOP")
+
+    IndependentApiSection:CreateToggle({
+        Name = "🛰️ Tự Dò Server Công Khai Khi API Trống (Smart Public Hop)",
+        Description = "Khi chạy độc lập (không Wukong) hoặc Private API chưa có phòng Boss mục tiêu, tự động lọc server công khai còn slot, ping thấp, chống trùng JobId và bay tới kiểm tra Boss thực tế",
+        CurrentValue = (hubState.smartPublicHop ~= false),
+        Callback = function(Value: boolean)
+            hubState.smartPublicHop = Value
+            saveState(hubState)
+            if Value then
+                safeNotify("Smart Public Hop", "Đã bật tự động dò Server Công Khai khi API trống!", "public")
+            else
+                safeNotify("Smart Public Hop", "Đã tắt tự dò Server Công Khai: Chỉ nhảy khi API có phòng Boss.", "info")
+            end
+        end,
+    }, "SmartPublicHopToggle")
+
+    IndependentApiSection:CreateInput({
+        Name = "🔗 YokaHub Private Boss API URL (Cloudflare Worker / VPS)",
+        PlaceholderText = "https://yoka-boss-api.yourname.workers.dev (để trống = chạy Smart Public Hop)",
+        RemoveTextAfterFocusLost = false,
+        Callback = function(text: string)
+            local clean = YokaNet.normalizeBaseUrl(text)
+            hubState.privateBossApiUrl = clean
+            saveState(hubState)
+            if clean ~= "" then
+                safeNotify("Private Boss API", "Đã kết nối Private Boss API: " .. clean, "check_circle")
+            else
+                safeNotify("Private Boss API", "Đã xóa Private API URL (dùng Smart Public Hop độc lập).", "info")
+            end
+        end,
+    }, "PrivateBossApiUrlInput")
+
+    IndependentApiSection:CreateInput({
+        Name = "🔑 API Secret Key (Tùy chọn bảo vệ Worker)",
+        PlaceholderText = "Để trống nếu Worker mở công khai...",
+        RemoveTextAfterFocusLost = false,
+        Callback = function(text: string)
+            hubState.privateBossApiKey = string.gsub(text, "%s+", "")
+            saveState(hubState)
+        end,
+    }, "PrivateBossApiKeyInput")
+
+    IndependentApiSection:CreateToggle({
+        Name = "📡 Chia Sẻ Boss Sống Lên Private API (Telemetry)",
+        Description = "Khi phát hiện Depth King / Dragon / Abyssal / Hydra còn sống trong phòng hiện tại, tự gửi nhẹ JobId lên Private Boss API của bạn để các acc/máy khác nhảy vào ăn ngay",
+        CurrentValue = (hubState.privateBossApiReport ~= false),
+        Callback = function(Value: boolean)
+            hubState.privateBossApiReport = Value
+            saveState(hubState)
+        end,
+    }, "PrivateBossApiReportToggle")
 

@@ -2492,46 +2492,271 @@
     local isSwitchingSea = false
     local lastSeaSwitchClock = 0
 
-    local function getOpenServerForPlace(placeId: number): string?
-        local req = (genv.syn and genv.syn.request) or (genv.http and genv.http.request) or genv.request or genv.http_request
-        local apiUrl = "https://games.roblox.com/v1/games/" .. tostring(placeId) .. "/servers/0?sortOrder=1&excludeFullGames=true&limit=100"
-        local rawJson = nil
-        if req then
-            local okReq, res = pcall(req, { Url = apiUrl, Method = "GET" })
-            if okReq and res and res.Body and #res.Body > 20 then
-                rawJson = res.Body
-            end
-        end
-        if not rawJson then
-            pcall(function()
-                rawJson = game:HttpGet(apiUrl)
-            end)
-        end
-        if not rawJson then return nil end
+    local YokaNet = (function()
+        local net = {}
+        local pubCache: { [number]: { data: { any }, cursor: string?, fetchedAt: number } } = {}
+        local privCache = { url = "", snap = nil :: any, fetchedAt = 0 }
+        local reportCooldowns: { [string]: number } = {}
 
-        local okDec, data = pcall(function() return httpService:JSONDecode(rawJson) end)
-        if not okDec or not data or typeof(data.data) ~= "table" or #data.data == 0 then
+        local function getReqFn(): any
+            return (genv.syn and genv.syn.request) or (genv.http and genv.http.request) or genv.request or genv.http_request
+        end
+
+        function net.normalizeBaseUrl(raw: any): string
+            local s = string.gsub(tostring(raw or ""), "%s+", "")
+            s = string.gsub(s, "/+$", "")
+            if string.match(s, "^https?://[%w%.%-_]+") then
+                return s
+            end
+            return ""
+        end
+
+        function net.httpRequest(method: string, url: string, bodyTbl: any?, extraHeaders: { [string]: string }?): (boolean, number, string?)
+            local req = getReqFn()
+            local headers: { [string]: string } = { ["Accept"] = "application/json" }
+            if extraHeaders then
+                for k, v in pairs(extraHeaders) do headers[k] = v end
+            end
+            local bodyStr: string? = nil
+            if bodyTbl ~= nil then
+                headers["Content-Type"] = "application/json"
+                local okEnc, enc = pcall(function() return httpService:JSONEncode(bodyTbl) end)
+                if okEnc and typeof(enc) == "string" then bodyStr = enc end
+            end
+            if req then
+                local okReq, res = pcall(req, {
+                    Url = url,
+                    Method = method,
+                    Headers = headers,
+                    Body = bodyStr,
+                })
+                if okReq and typeof(res) == "table" then
+                    local code = tonumber(res.StatusCode or res.status or 200) or 0
+                    local b = res.Body or res.body
+                    return (code >= 200 and code < 300), code, (typeof(b) == "string" and b or nil)
+                end
+            end
+            if method == "GET" then
+                local okGet, raw = pcall(function() return game:HttpGet(url) end)
+                if okGet and typeof(raw) == "string" and #raw > 0 then
+                    return true, 200, raw
+                end
+            end
+            return false, 0, nil
+        end
+
+        local function getPrivateHeaders(): { [string]: string }?
+            local key = string.gsub(tostring(hubState.privateBossApiKey or ""), "%s+", "")
+            if key ~= "" then
+                return { ["x-yoka-key"] = key }
+            end
             return nil
         end
 
-        local healthyServers = {}
-        local backupServers = {}
-        for _, s in ipairs(data.data) do
-            local cur = tonumber(s.playing) or 0
-            local maxP = tonumber(s.maxPlayers) or 12
-            if s.id and s.id ~= game.JobId then
-                if cur >= 2 and cur <= (maxP - 2) then
-                    table.insert(healthyServers, s.id)
-                elseif cur >= 1 and cur < maxP then
-                    table.insert(backupServers, s.id)
+        function net.findPublicServers(placeId: number, visitedTbl: { [string]: number }?, prefMinPlayers: number?, prefMaxMargin: number?, visitedPrefix: string?): { any }
+            local minP = prefMinPlayers or 2
+            local margin = prefMaxMargin or 2
+            local prefix = visitedPrefix or ""
+            local cache = pubCache[placeId]
+            local now = os.clock()
+
+            local function filterFromRawList(rawList: { any }): { any }
+                local out = {}
+                for _, srv in ipairs(rawList) do
+                    local id = tostring(srv.id or "")
+                    local cur = tonumber(srv.playing) or 99
+                    local maxP = tonumber(srv.maxPlayers) or 12
+                    local ping = tonumber(srv.ping) or 999
+                    local vKey = prefix .. id
+                    local alreadyVisited = (visitedTbl ~= nil and visitedTbl[vKey] ~= nil)
+                    if id ~= "" and id ~= game.JobId and cur >= 1 and cur < maxP and not alreadyVisited then
+                        local tier = 1
+                        if cur >= minP and cur <= (maxP - margin) and ping <= 220 then
+                            tier = 3
+                        elseif cur <= (maxP - margin) or ping <= 260 then
+                            tier = 2
+                        end
+                        table.insert(out, {
+                            jobId = id,
+                            serverRef = id,
+                            placeId = placeId,
+                            eventName = string.format("Public %d/%d · %dms", cur, maxP, ping),
+                            source = "yoka_public",
+                            alive = true,
+                            players = { current = cur, max = maxP },
+                            health = { percent = 100 },
+                            ping = ping,
+                            _prio = tier,
+                            _tier = tier,
+                            _pCur = cur,
+                            _hp = 100,
+                            _isPublicHop = true,
+                        })
+                    end
+                end
+                table.sort(out, function(a, b)
+                    if a._tier ~= b._tier then return a._tier > b._tier end
+                    if a.ping ~= b.ping then return a.ping < b.ping end
+                    return a._pCur < b._pCur
+                end)
+                return out
+            end
+
+            local list = (cache and (now - cache.fetchedAt) < 25.0) and filterFromRawList(cache.data) or {}
+            if #list == 0 then
+                local cursorPart = (cache and cache.cursor and cache.cursor ~= "") and ("&cursor=" .. cache.cursor) or ""
+                local apiUrl = "https://games.roblox.com/v1/games/" .. tostring(placeId) .. "/servers/0?sortOrder=1&excludeFullGames=true&limit=100" .. cursorPart
+                local okHttp, _, rawJson = net.httpRequest("GET", apiUrl)
+                if not okHttp and cursorPart ~= "" then
+                    apiUrl = "https://games.roblox.com/v1/games/" .. tostring(placeId) .. "/servers/0?sortOrder=1&excludeFullGames=true&limit=100"
+                    okHttp, _, rawJson = net.httpRequest("GET", apiUrl)
+                end
+                if okHttp and typeof(rawJson) == "string" then
+                    local okDec, decoded = pcall(function() return httpService:JSONDecode(rawJson) end)
+                    if okDec and typeof(decoded) == "table" and typeof(decoded.data) == "table" then
+                        pubCache[placeId] = {
+                            data = decoded.data,
+                            cursor = (typeof(decoded.nextPageCursor) == "string" and decoded.nextPageCursor ~= "") and decoded.nextPageCursor or nil,
+                            fetchedAt = now,
+                        }
+                        list = filterFromRawList(decoded.data)
+                    end
+                elseif cache and #cache.data > 0 then
+                    list = filterFromRawList(cache.data)
                 end
             end
+            return list
         end
 
-        if #healthyServers > 0 then
-            return healthyServers[math.random(1, #healthyServers)]
-        elseif #backupServers > 0 then
-            return backupServers[math.random(1, #backupServers)]
+        function net.fetchLiveBossSnapshot(): (boolean, any)
+            local merged = {}
+            local seen: { [string]: boolean } = {}
+            local hasPrivate = false
+            local hasWukong = false
+            local baseUrl = net.normalizeBaseUrl(hubState.privateBossApiUrl)
+
+            if baseUrl ~= "" then
+                local now = os.clock()
+                local privEntries: { any }? = nil
+                if privCache.url == baseUrl and (now - privCache.fetchedAt) < 2.0 and typeof(privCache.snap) == "table" then
+                    privEntries = privCache.snap
+                    hasPrivate = true
+                else
+                    local okReq, _, raw = net.httpRequest("GET", baseUrl .. "/api/bosses", nil, getPrivateHeaders())
+                    if okReq and typeof(raw) == "string" then
+                        local okDec, dec = pcall(function() return httpService:JSONDecode(raw) end)
+                        if okDec and typeof(dec) == "table" then
+                            local arr = (typeof(dec.entries) == "table") and dec.entries or dec
+                            if typeof(arr) == "table" then
+                                privEntries = arr
+                                privCache = { url = baseUrl, snap = arr, fetchedAt = now }
+                                hasPrivate = true
+                            end
+                        end
+                    end
+                end
+                if privEntries then
+                    for _, e in ipairs(privEntries) do
+                        if typeof(e) == "table" then
+                            local ref = tostring(e.jobId or e.serverRef or e.serverId or "")
+                            local pid = tonumber(e.placeId) or 0
+                            local nm = string.lower(tostring(e.eventName or ""))
+                            local dk = tostring(pid) .. "|" .. ref .. "|" .. nm
+                            if ref ~= "" and not seen[dk] then
+                                seen[dk] = true
+                                e.serverRef = e.serverRef or ref
+                                e.jobId = e.jobId or (string.find(ref, "-", 1, true) and ref or nil)
+                                e.alive = (e.alive ~= false)
+                                e._sourceKind = "private"
+                                table.insert(merged, e)
+                            end
+                        end
+                    end
+                end
+            end
+
+            if typeof(genv.WK_FetchLiveBossApiSnapshot) == "function" then
+                local okWk, wkSnap = pcall(genv.WK_FetchLiveBossApiSnapshot)
+                if okWk and typeof(wkSnap) == "table" and typeof(wkSnap.entries) == "table" then
+                    hasWukong = true
+                    for _, e in ipairs(wkSnap.entries) do
+                        if typeof(e) == "table" then
+                            local ref = tostring(e.serverRef or e.jobId or "")
+                            local pid = tonumber(e.placeId) or 0
+                            local nm = string.lower(tostring(e.eventName or ""))
+                            local dk = tostring(pid) .. "|" .. ref .. "|" .. nm
+                            if not seen[dk] then
+                                seen[dk] = true
+                                e._sourceKind = "wukong"
+                                table.insert(merged, e)
+                            end
+                        end
+                    end
+                end
+            end
+
+            return (hasPrivate or hasWukong), {
+                entries = merged,
+                hasPrivate = hasPrivate,
+                hasWukong = hasWukong,
+            }
+        end
+
+        function net.joinApiEntry(chosen: any, fallbackPlaceId: number?): (boolean, string)
+            if typeof(chosen) ~= "table" then return false, "invalid" end
+            local pId = tonumber(chosen.placeId) or fallbackPlaceId or game.PlaceId
+            local srvId = chosen.jobId or chosen.serverId or chosen.id
+            if (typeof(srvId) ~= "string" or srvId == "") and typeof(chosen.serverRef) == "string" and string.find(chosen.serverRef, "-", 1, true) ~= nil then
+                srvId = chosen.serverRef
+            end
+            if typeof(srvId) == "string" and string.find(srvId, "-", 1, true) ~= nil then
+                local okTp = pcall(function() teleportService:TeleportToPlaceInstance(pId, srvId, players.LocalPlayer) end)
+                return okTp, "jobId"
+            elseif typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
+                local okWk = pcall(genv.WK_JoinLiveBossApiEntry, chosen)
+                return okWk, "wukong"
+            end
+            return false, "no_route"
+        end
+
+        function net.reportAliveBoss(bossName: string, bossSource: string, hpCur: number?, hpMax: number?)
+            if hubState.privateBossApiReport == false then return end
+            local baseUrl = net.normalizeBaseUrl(hubState.privateBossApiUrl)
+            if baseUrl == "" or game.JobId == "" then return end
+            local now = os.clock()
+            local cdKey = game.JobId .. "|" .. string.lower(bossName)
+            if (now - (reportCooldowns[cdKey] or 0)) < 15.0 then return end
+            reportCooldowns[cdKey] = now
+
+            local pCount = #players:GetPlayers()
+            local pMax = players.MaxPlayers or 12
+            local curH = tonumber(hpCur) or 0
+            local maxH = tonumber(hpMax) or 0
+            local pct = (maxH > 0) and math.clamp(math.floor((curH / maxH) * 100 + 0.5), 1, 100) or 100
+            local payload = {
+                placeId = game.PlaceId,
+                jobId = game.JobId,
+                serverRef = game.JobId,
+                eventName = bossName,
+                source = bossSource,
+                alive = true,
+                health = { current = curH, max = maxH, percent = pct },
+                players = { current = pCount, max = pMax },
+                reportedAt = os.time(),
+            }
+            task.spawn(function()
+                net.httpRequest("POST", baseUrl .. "/api/report", payload, getPrivateHeaders())
+            end)
+        end
+
+        return net
+    end)()
+
+    local function getOpenServerForPlace(placeId: number): string?
+        local list = YokaNet.findPublicServers(placeId, nil, 2, 2, "")
+        if #list > 0 then
+            local poolMax = math.min(#list, 8)
+            return tostring(list[math.random(1, poolMax)].jobId)
         end
         return nil
     end
@@ -2550,47 +2775,38 @@
 
             -- TH1: NẾU CÙNG PLACEID (ĐỔI SERVER TRONG CÙNG SEA)
             if targetPlace == game.PlaceId then
-                -- Nếu có yêu cầu Boss cụ thể (preferKey), thử dùng Live Boss API nếu có sẵn
+                -- Nếu có yêu cầu Boss cụ thể (preferKey), thử dùng Private Boss API / Wukong API nếu có
                 if preferKey and preferKey ~= "" then
-                    if typeof(genv.WK_FetchLiveBossApiSnapshot) == "function" then
-                        local ok, snap = pcall(genv.WK_FetchLiveBossApiSnapshot)
-                        if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
-                            local matched = nil
-                            local pkLow = string.lower(preferKey)
-                            for _, entry in ipairs(snap.entries) do
-                                if entry.alive == true and tonumber(entry.placeId) == targetPlace and entry.players and (entry.players.current or 0) < (entry.players.max or 12) then
-                                    local en = string.lower(tostring(entry.eventName or ""))
-                                    local hit = false
-                                    if pkLow == "dragon" or string.find(pkLow, "dragon", 1, true) ~= nil or string.find(pkLow, "drakenfyr", 1, true) ~= nil then
-                                        hit = (string.find(en, "drakenfyr", 1, true) ~= nil or string.find(en, "inferno king", 1, true) ~= nil or string.find(en, "sea dragon", 1, true) ~= nil or string.find(en, "dragon", 1, true) ~= nil)
-                                            and string.find(en, "abyssal", 1, true) == nil and string.find(en, "tyrant", 1, true) == nil and string.find(en, "depth", 1, true) == nil
-                                    elseif pkLow == "abyssal" or string.find(pkLow, "abyssal", 1, true) ~= nil then
-                                        hit = (string.find(en, "abyssal", 1, true) ~= nil or string.find(en, "tyrant", 1, true) ~= nil)
-                                            and string.find(en, "drakenfyr", 1, true) == nil and string.find(en, "dragon", 1, true) == nil
-                                    elseif pkLow == "depth" or string.find(pkLow, "depth", 1, true) ~= nil then
-                                        hit = string.find(en, "depth", 1, true) ~= nil
-                                            and string.find(en, "abyssal", 1, true) == nil and string.find(en, "drakenfyr", 1, true) == nil and string.find(en, "dragon", 1, true) == nil
-                                    else
-                                        hit = string.find(en, pkLow, 1, true) ~= nil
-                                    end
-                                    if hit then
-                                        matched = entry
-                                        break
-                                    end
+                    local ok, snap = YokaNet.fetchLiveBossSnapshot()
+                    if ok and typeof(snap) == "table" and typeof(snap.entries) == "table" then
+                        local matched = nil
+                        local pkLow = string.lower(preferKey)
+                        for _, entry in ipairs(snap.entries) do
+                            if entry.alive == true and tonumber(entry.placeId) == targetPlace and entry.players and (entry.players.current or 0) < (entry.players.max or 12) then
+                                local en = string.lower(tostring(entry.eventName or ""))
+                                local hit = false
+                                if pkLow == "dragon" or string.find(pkLow, "dragon", 1, true) ~= nil or string.find(pkLow, "drakenfyr", 1, true) ~= nil then
+                                    hit = (string.find(en, "drakenfyr", 1, true) ~= nil or string.find(en, "inferno king", 1, true) ~= nil or string.find(en, "sea dragon", 1, true) ~= nil or string.find(en, "dragon", 1, true) ~= nil)
+                                        and string.find(en, "abyssal", 1, true) == nil and string.find(en, "tyrant", 1, true) == nil and string.find(en, "depth", 1, true) == nil
+                                elseif pkLow == "abyssal" or string.find(pkLow, "abyssal", 1, true) ~= nil then
+                                    hit = (string.find(en, "abyssal", 1, true) ~= nil or string.find(en, "tyrant", 1, true) ~= nil)
+                                        and string.find(en, "drakenfyr", 1, true) == nil and string.find(en, "dragon", 1, true) == nil
+                                elseif pkLow == "depth" or string.find(pkLow, "depth", 1, true) ~= nil then
+                                    hit = string.find(en, "depth", 1, true) ~= nil
+                                        and string.find(en, "abyssal", 1, true) == nil and string.find(en, "drakenfyr", 1, true) == nil and string.find(en, "dragon", 1, true) == nil
+                                else
+                                    hit = string.find(en, pkLow, 1, true) ~= nil
+                                end
+                                if hit then
+                                    matched = entry
+                                    break
                                 end
                             end
-                            if matched then
-                                print("[YokaHub][Auto-Sea-Switch] Same-place hop to Boss server:", matched.eventName)
-                                if typeof(genv.WK_JoinLiveBossApiEntry) == "function" then
-                                    pcall(genv.WK_JoinLiveBossApiEntry, matched)
-                                else
-                                    local srvId = matched.jobId or matched.serverId or matched.serverRef or matched.id
-                                    if srvId and srvId ~= "" then
-                                        pcall(function() teleportService:TeleportToPlaceInstance(targetPlace, srvId, lp) end)
-                                    else
-                                        pcall(function() teleportService:Teleport(targetPlace, lp) end)
-                                    end
-                                end
+                        end
+                        if matched then
+                            print("[YokaHub][Auto-Sea-Switch] Same-place hop to Boss server:", matched.eventName)
+                            local okJoin = YokaNet.joinApiEntry(matched, targetPlace)
+                            if okJoin then
                                 task.wait(12.0)
                                 isSwitchingSea = false
                                 return
@@ -2599,10 +2815,10 @@
                     end
                 end
 
-                -- Nếu không có Boss cụ thể, đổi server ngẫu nhiên cùng Sea
+                -- Nếu không có Boss API hoặc API trống, đổi sang phòng công khai thông minh của YokaHub
                 local jobId = getOpenServerForPlace(targetPlace)
                 if jobId and jobId ~= "" then
-                    print("[YokaHub][Auto-Sea-Switch] Same-place hop via TeleportToPlaceInstance JobId:", jobId)
+                    print("[YokaHub][Auto-Sea-Switch] Same-place hop via Public Server JobId:", jobId)
                     local okTp = pcall(function()
                         teleportService:TeleportToPlaceInstance(targetPlace, jobId, lp)
                     end)
